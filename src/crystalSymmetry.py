@@ -20,6 +20,8 @@ os.chdir(path)
 #                 sin(gamma)*(cos(alpha)-cos(beta)*cos(gamma)) / sin(gamma)  ] ]
 rotMatrix=np.matrix([[39.97,-7.238,-54.2489],[0,25.9598,-5.79142],[0,0,675.701]])
 #
+os.chdir('/hits/fast/mbm/broszms/Collagen/AA/LargeCollagen/Riken/pyd/')
+#
 contacts=[]
 with open('CrystalContacts.txt') as f:
     contacts=[l for l in f]
@@ -160,7 +162,7 @@ plt.rcParams["figure.figsize"] = (20,20)
 plt.rcParams["font.size"] = (20)
 fig=plt.figure(1)
 ax=fig.add_subplot(projection='3d')
-#ax.scatter(crystalcontactId.loc[crystalcontactId.iz==0].ix,crystalcontactId.loc[crystalcontactId.iz==0].iy,crystalcontactId.loc[crystalcontactId.iz==0].iz,color='green',label='z=0',marker='o',s=200)
+ax.scatter(crystalcontactId.loc[crystalcontactId.iz==0].ix,crystalcontactId.loc[crystalcontactId.iz==0].iy,crystalcontactId.loc[crystalcontactId.iz==0].iz,color='green',label='z=0',marker='o',s=200)
 #ax.scatter(rotId.loc[rotId.iz==zMin].ix,rotId.loc[rotId.iz==zMin].iy,rotId.loc[rotId.iz==zMin].iz,color='red',label='z=0',marker='o',s=200)
 #ax.scatter(rotId.loc[rotId.iz==zMax].ix,rotId.loc[rotId.iz==zMax].iy,rotId.loc[rotId.iz==zMax].iz,color='blue',label='z=0',marker='o',s=200)
 #ax.scatter(rotId.loc[rotId.iz==zMin+1].ix,rotId.loc[rotId.iz==zMin+1].iy,rotId.loc[rotId.iz==zMin+1].iz,color='red',label='z=0',marker='o',s=200)

@@ -34,6 +34,23 @@ def read_transform_matrix(contacts):
     return out
         
 #
+def write_contact(out_file,t_matrix):
+    with open(out_file,'w') as f:
+        for i in range(len(t_matrix)):
+            f.write(t_matrix['id'][i]+'\n')
+            f.write('        1 0 0 '+str(t_matrix['id_x'][i])+'\n')
+            f.write('        0 1 0 '+str(t_matrix['id_x'][i])+'\n')
+            f.write('        0 0 1 '+str(t_matrix['id_z'][i])+'\n')    
+    f.close()
+#
+def check_overlap(t_matrix):
+    tl_matrix=[[t_matrix['id_x'][i],t_matrix['id_y'][i],t_matrix['id_z'][i]] for i in range(len(t_matrix['id']))]
+    tmp=[]
+    for i in range(len(tl_matrix)):
+        if tl_matrix[i] in tmp:
+            print('Duplicate at position: i = '+str(i))
+        tmp.append(tl_matrix[i])
+#
 def get_shift_matrix(t_matrix):
     rotation_matrix=np.matrix([[39.97,-7.238,-54.2489],[0,25.9598,-5.79142],[0,0,675.701]])
     #
@@ -122,17 +139,32 @@ def symmetrize_shift_matrix(s_matrix):
     out.append([1,-1,-1])
     out.append([-1,1,1])
     return out           
-
-#def main():
-    # Get all crystal contacts copies from chimera
-    contacts=read_contact('CrystalContacts.txt')
+#
+def run_gen_symmetry(path_wd,file_cc):
+    #
+    os.chdir(path_wd)
+    # Read contacts from crystal-contacts command
+    contacts=read_contact(file_cc)
     # Read transformation matrices
     transform_matrix=read_transform_matrix(contacts)
     # Get shift-matrices
     shift_matrix=get_shift_matrix(transform_matrix)
     # Symmetrize shift-matrices
     new_shift_matrix=symmetrize_shift_matrix(shift_matrix)
-    
+    return shift_matrix,new_shift_matrix
+
+if __name__=='main':
+    filename='CrystalContacts.txt'
+    path='/hits/fast/mbm/broszms/Collagen/colbuilder/tests/'
+    os.chdir(path)
+    #
+    contacts=read_contact()
+    # Read transformation matrices
+    transform_matrix=read_transform_matrix(contacts)
+    # Get shift-matrices
+    shift_matrix=get_shift_matrix(transform_matrix)
+    # Symmetrize shift-matrices
+    shift_matrix,new_shift_matrix=symmetrize_shift_matrix(shift_matrix)    
     
     import matplotlib.pyplot as plt
     plt.close('all')
@@ -141,76 +173,7 @@ def symmetrize_shift_matrix(s_matrix):
     ax.scatter(shift_matrix['id_x'],shift_matrix['id_y'],shift_matrix['id_z'],s=80)
     ax.scatter([i[0] for i in new_shift_matrix],[i[1] for i in new_shift_matrix],[i[2] for i in new_shift_matrix],s=80)
 
-    zMin=np.min(rotId.iz)
-    zMax=np.max(rotId.iz)
-    yMax=np.max(rotId.iy)
-    yMin=np.min(rotId.iy)
-    xMax=np.max(rotId.ix)
-    xMin=np.min(rotId.ix)
-    #
-    zSymmetry=[]
-    crystalRot=[[rotId.loc[i].ix,rotId.loc[i].iy,rotId.loc[i].iz] for i in range(len(rotId))]
-    #
-    for i in range(len(rotId)):
-        #if rotId.loc[i].iy==yMin or rotId.loc[i].iy==yMax:
-        #    continue
-        # 
-        if rotId.loc[i].iz==zMin or rotId.loc[i].iz==zMax or rotId.loc[i].iz==zMin+1 or rotId.loc[i].iz==zMax-1:
-            tmp=[rotId.loc[i].ix,-rotId.loc[i].iy,rotId.loc[i].iz]
-            if tmp not in crystalRot:
-                zSymmetry.append(tmp)
-    #
-    # Add Extrema
-    if [xMin,yMax-1,zMin] not in zSymmetry and [xMin,yMax-1,zMin] not in crystalRot:
-        zSymmetry.append([xMin,yMax-1,zMin])
-    if [xMax,yMax-1,zMax] not in zSymmetry and [xMax,yMax-1,zMax] not in crystalRot :
-        zSymmetry.append([xMax,yMax-1,zMax])
-    if [xMin,yMin+1,zMin] not in zSymmetry and [xMin,yMin+1,zMin] not in crystalRot:
-        zSymmetry.append([xMin,yMin+1,zMin])
-    if [xMax,yMin+1,zMax] not in zSymmetry and [xMax,yMin+1,zMax] not in crystalRot:
-        zSymmetry.append([xMax,yMin+1,zMax])
-    #
-    # Manual addition of first and last layer
-    zSymmetry.append([-4,-3,zMin])
-    zSymmetry.append([-4,3,zMin])
-    zSymmetry.append([4,-3,zMax])
-    zSymmetry.append([4,3,zMax])
-    #
-    zSymmetry.append([-3,0,zMin])
-    zSymmetry.append([-8,0,zMin])
-    zSymmetry.append([3,0,zMax])
-    zSymmetry.append([8,0,zMax])
-    # Add Symmetry for y=0
-    zSymmetry.append([-1,0,zMin+1])
-    zSymmetry.append([-6,0,zMin+1])
-    zSymmetry.append([1,0,zMax-1])
-    zSymmetry.append([6,0,zMax-1])
-    # Add Symmetry for y=+/-1
-    zSymmetry.append([-8,-1,zMin])
-    zSymmetry.append([-8,1,zMin])
-    zSymmetry.append([-3,-1,zMin])
-    zSymmetry.append([-3,1,zMin])
-    zSymmetry.append([8,-1,zMax])
-    zSymmetry.append([8,1,zMax])
-    zSymmetry.append([3,-1,zMax])
-    zSymmetry.append([3,1,zMax])
-    #
-    zSymmetry.append([-1,-1,zMin+1])
-    zSymmetry.append([-1,1,zMin+1])
-    zSymmetry.append([1,-1,zMax-1])
-    zSymmetry.append([1,1,zMax-1])
-    zSymmetry.append([-6,-1,zMin+1])
-    zSymmetry.append([-6,1,zMin+1])
-    zSymmetry.append([6,-1,zMax-1])
-    zSymmetry.append([6,1,zMax-1])
-    #
-    #zSymmetry.append([1,-2,-1])
-    zSymmetry.append([1,-1,-1])
-    #zSymmetry.append([-3,2,-1])
-    #
-    #zSymmetry.append([-1,2,1])
-    zSymmetry.append([-1,1,1])
-    #zSymmetry.append([3,-2,1])
+    
     #
     # Generate Rot-Trans-Matrices for symmetric models
     rotSym=[[] for i in range(len(zSymmetry))]
@@ -240,23 +203,4 @@ def symmetrize_shift_matrix(s_matrix):
         crystalcontactId.loc[cnt]=['Model '+str(float(lenRotId)),float(zSymmetry[i][0]),float(zSymmetry[i][1]),float(zSymmetry[i][2])]
         cnt+=1
         lenRotId+=1
-    #
-    with open('CrystalContactsSym.txt','w') as f:
-        for i in range(len(crystalcontact)):
-            f.write(crystalcontact.loc[i].modId+'\n')
-            f.write('        1 0 0 '+str(crystalcontact.loc[i].x)+'\n')
-            f.write('        0 1 0 '+str(crystalcontact.loc[i].y)+'\n')
-            f.write('        0 0 1 '+str(crystalcontact.loc[i].z)+'\n')    
-    f.close()
-    #
-    with open('lenModelsSym.txt','w') as f:
-        f.write(str(lenRotId))
-    #
-    # Check for overlap in output
-    listCrystal=[[crystalcontactId.loc[i].ix,crystalcontactId.loc[i].iy,crystalcontactId.loc[i].iz] for i in range(len(crystalcontactId.ix))]
-    tmp=[]
-    for i in range(len(listCrystal)):
-        if listCrystal[i] in tmp:
-            print('Duplicate at position: i = '+str(i))
-        tmp.append(listCrystal[i])
-    #
+
