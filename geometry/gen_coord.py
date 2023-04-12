@@ -1,18 +1,16 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Tue Apr  4 15:17:32 2023
 
 @author: broszms
 """
 import numpy as np
-import geometry
 import subprocess
 #
-class ContactSymmetry:
+class CrystalSymmetry:
     """
     
-    Converts Shift-Transformation matrix and fine-tunes shift-matrix
+    Reads crystal information, determines basic translation-rotation matrix and
+    to convert between shift and transformation matrices for fine-tuning.
     
     ---
     
@@ -23,111 +21,86 @@ class ContactSymmetry:
     ---
         
     """
-    def __init__(self,file_name):
-        self.file_contact=file_name
+    def __init__(self,contacts,pdb):
+        self.file_contact=contacts
+        self.pdb_file=pdb
         self.contacts=[]
-        self.rotation_matrix=np.matrix([[39.97,-7.238,-54.2489],
-                                        [0,25.9598,-5.79142],
-                                        [0,0,675.701]]
-                                       )
-        self.t_matrix={
-                        'model_id' : [],
-                        't_x' : [],
-                        't_y' : [],
-                        't_z' : []
-                        }
-        
-        self.s_matrix={
-                        'model_id' : [],
-                        's_x' : [],
-                        's_y' : [],
-                        's_z' : []
-                        }
-    #
+        self.crystal={k:None for k in ['a','b','c','alpha','beta','gamma']}
+        self.plane=[]
+        self.r_matrix=np.array([])
+        self.t_matrix={k:[] for k in ['model_id','cartesian'] }
+        self.s_matrix={k:[] for k in ['model_id','grid'] }
+    
     def read_contacts(self):
-        with open(self.file_contact+'.txt','r') as f:
-            self.contacts=f.readlines()
-        f.close()
-    #
+        self.contacts=open(self.file_contact+'.txt','r').readlines()
+    
+    def read_crystal(self):
+        self.crystal=dict(zip(self.crystal,open(self.pdb_file+'.pdb').readline().split()[1:-1]))
+    
+    def get_r_matrix(self):
+        ax,ay,az=float(self.crystal['a']),0,0
+        
+        bx=float(self.crystal['b']) * np.cos(np.deg2rad(float(self.crystal['gamma'])))
+        by=float(self.crystal['b']) * np.sin(np.deg2rad(float(self.crystal['gamma'])))
+        bz=0
+        
+        cx=float(self.crystal['c']) * np.cos(np.deg2rad(float(self.crystal['beta'])))
+        cy=float(self.crystal['c']) * ( np.cos(np.deg2rad(float(self.crystal['alpha']))) 
+                                      - np.cos(np.deg2rad(float(self.crystal['beta']))) 
+                                      * np.cos(np.deg2rad(float(self.crystal['gamma'])))  
+                                      / np.sin(np.deg2rad(float(self.crystal['gamma']))) ) 
+        cz=np.sqrt( np.power(float(self.crystal['c']),2) - 
+                   np.power(cx,2) - np.power(cy,2) )
+        self.r_matrix=np.array([[ax,bx,cx],[ay,by,cy],[az,bz,cz]])
+    
     def set_t_matrix(self):
         for idx in range(0,len(self.contacts),4):
-            self.t_matrix['model_id'].append(self.contacts[idx].replace('\n',''))
-            self.t_matrix['t_x'].append(
-                float(self.contacts[idx+1].split(' ')[-1])
-                )
-            self.t_matrix['t_y'].append(
-                float(self.contacts[idx+2].split(' ')[-1])
-                )
-            self.t_matrix['t_z'].append(
-                float(self.contacts[idx+3].split(' ')[-1])
-                )
-    #
+            self.t_matrix['model_id'].append(self.contacts[idx].replace('\n,',''))
+            self.t_matrix['cartesian'].append([
+                float(self.contacts[idx+1].split(' ')[-1]),
+                float(self.contacts[idx+2].split(' ')[-1]),
+                float(self.contacts[idx+3].split(' ')[-1])]
+                )    
+    
     def get_s_matrix(self):
         for idx in range(len(self.t_matrix['model_id'])):
-            print(idx)
-            if self.t_matrix['model_id'][idx] in self.s_matrix['model_id']:
-                continue
-            #
-            solve=np.linalg.solve(self.rotation_matrix,
-                                [
-                                    self.t_matrix['t_x'][idx],
-                                    self.t_matrix['t_y'][idx],
-                                    self.t_matrix['t_z'][idx],
-                                    ]
-                                )
-            #
             self.s_matrix['model_id'].append(self.t_matrix['model_id'][idx])
-            self.s_matrix['s_x'].append(int(solve[0]))
-            self.s_matrix['s_y'].append(int(solve[1]))
-            self.s_matrix['s_z'].append(int(solve[2]))
-            
-    #
+            self.s_matrix['grid'].append(
+                np.linalg.solve(self.r_matrix,self.t_matrix['cartesian'][idx]).astype(int))
+    
     def get_t_matrix(self):
         for idx in range(len(self.s_matrix['model_id'])):
-            if self.s_matrix['model_id'][idx] in self.t_matrix['model_id']:
-                continue
-            #
-            solve=np.dot(self.rotation_matrix,
-                         [
-                             self.s_matrix['s_x'][idx],
-                             self.s_matrix['s_y'][idx],
-                             self.s_matrix['s_z'][idx],
-                             ]
-                         )
-            #
             self.t_matrix['model_id'].append(self.s_matrix['model_id'][idx])
-            self.t_matrix['t_x'].append(int(solve[0]))
-            self.t_matrix['t_y'].append(int(solve[1]))
-            self.t_matrix['t_z'].append(int(solve[2]))
+            self.t_matrix['cartesian'].append(
+                np.dot(self.r_matrix,self.s_matrix['grid'][idx]))
 
-    
+    def get_plane(self,z_p):
+        return np.array([[c[0],c[1],z_p]for c in self.s_matrix['grid'] if c[2]==z_p])    
     #
-    def symmetrize(self):
-        xMax,xMin=np.max(self.s_matrix['s_x']),np.min(self.s_matrix['s_x'])
-        yMax,yMin=np.max(self.s_matrix['s_y']),np.min(self.s_matrix['s_y'])
-        zMax,zMin=np.max(self.s_matrix['s_z']),np.min(self.s_matrix['s_z'])
-        #
-        print(xMax,' ',yMax,' ',zMax)
-        #
-       # for plane in range(zMin,zMax)
-    
+    def add_plane(self,z_p):
+               
+        x_max=np.max(self.get_plane(z_p)[:,0])
+        y_max=np.max(self.get_plane(z_p)[:,1])       
+        x_mesh=np.linspace(-x_max,x_max,2*x_max+1)
+        y_mesh=np.linspace(-y_max,y_max,2*y_max+1)        
+        return np.transpose(np.vstack(map(np.ravel,np.meshgrid(x_mesh,y_mesh,z_p))))
     #
-    def get_plane(self,ip):
-        self.plane={'p_x':[],'p_y':[],'p_z':[]}
-        for idx in range(len(self.s_matrix['model_id'])):
-            if self.s_matrix['z'][idx]==ip:
-                self.plane['p_x'].append(self.s_matrix['s_x'][idx])
-                self.plane['p_y'].append(self.s_matrix['s_y'][idx])
-                self.plane['p_z'].append(self.s_matrix['s_z'][idx])
-    #
+    def set_meshgrid(self)
+        z_p=np.max(self.s_matrix['grid'],axis=0)[2] 
+        self.plane=self.add_plane(z_p)
+        # TODO Delte grid points that are already there in the s_matrix
+
     def run_system(self):
         # Read contacts and set transformation matrix 
         self.read_contacts()
-        #
+        self.read_crystal()
+        self.get_r_matrix()
+        # set t_matrxix and get s_matrix
         self.set_t_matrix()
-        # Set symmetrized matrix
         self.get_s_matrix()
-        self.symmetrize()
+        # symmetrize s_matrix and get t_matrix
+        self.set_meshgrid()
+        self.get_t_matrix()
         
         
 
@@ -182,7 +155,7 @@ class FibrilGenerator:
     #
     def symmetrize(self):
         self.sym_contacts='crystal_contacts_sym'
-        return ContactSymmetry(self.contacts).run_system()
+        return CrystalSymmetry(self.contacts,self.pdb).run_system()
         
     #
     def matrixset(self):
@@ -194,7 +167,7 @@ class FibrilGenerator:
     #
     def run_system(self):
         # Get Transformation Matrix
-        #self.matrixget()
+        # self.matrixget()
         # Symmetrize
         self.symmetrize()
         # Set symmetrized matrix
@@ -203,7 +176,7 @@ class FibrilGenerator:
 
 def run_gen_coord(path,file,contact_distance,cut_off):
     # TODO: Better solution with paths
-    path_geo=geometry.__file__.replace('__init__.py','')
+    path_geo=__file__.replace('gen_coord.py','')
     # Get Crystal Contacts
     fibril = FibrilGenerator(path_geo,path,file,contact_distance,cut_off).run_system()
     return fibril
