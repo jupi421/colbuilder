@@ -11,6 +11,7 @@ fibril_number=int(sys.argv[4])
 cut_off=float(sys.argv[5])
 
 os.chdir(path_pdb)
+
 rc("close")
 for i in range(0,fibril_number):
     rc("open "+file_name)
@@ -21,7 +22,7 @@ endPos=model[0].atoms[-1].coord()
 cut_off=int(cut_off-300)/2
 startPos[2]=startPos[2]-cut_off
 endPos[2]=endPos[2]+cut_off
-rc("matrixset "+str(crystalcontacts)+".txt")
+rc("matrixset "+crystalcontacts+".txt")
 
 cnt=1
 for m in model:
@@ -30,6 +31,7 @@ for m in model:
     rc("open "+str(cnt)+".pdb")
     os.remove(str(cnt)+".pdb")
     cnt+=1
+
 selectAtoms=[]
 for i in range(0,fibril_number):
     m=model[i]
