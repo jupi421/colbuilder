@@ -1,12 +1,7 @@
-"""
-Created on Tue Apr  4 15:17:32 2023
-
-@author: broszms
-"""
 import numpy as np
 import subprocess
-#
-class CrystalSymmetry:
+
+class Crystal:
     """
     
     Reads crystal information, determines basic translation-rotation matrix and
@@ -26,24 +21,38 @@ class CrystalSymmetry:
         self.pdb_file=pdb
         self.contacts=[]
         self.crystal={k:None for k in ['a','b','c','alpha','beta','gamma']}
-        self.plane=[]
-        self.r_matrix=np.array([])
-        self.t_matrix={k:[] for k in ['model_id','cartesian'] }
-        self.s_matrix={k:[] for k in ['model_id','grid'] }
+        self.r_matrix=[]
+        self.t_matrix={ }
+        self.s_matrix={ }
     
     def read_contacts(self):
+        """
+        
+        Read crystal contacts from chimera output-file
+        
+        """
         self.contacts=open(self.file_contact+'.txt','r').readlines()
     
     def read_crystal(self):
+        """
+        
+        Read crystallographic information from pdb-file
+        
+        """
         self.crystal=dict(zip(self.crystal,open(self.pdb_file+'.pdb').readline().split()[1:-1]))
     
+
     def get_r_matrix(self):
-        ax,ay,az=float(self.crystal['a']),0,0
+        """
         
+        Compute rotation matrix R based on crystalgraphic information & space group 
+        
+        """
+        # TODO: Introduce space group if else somewhere here.
+        ax,ay,az=float(self.crystal['a']),0,0        
         bx=float(self.crystal['b']) * np.cos(np.deg2rad(float(self.crystal['gamma'])))
         by=float(self.crystal['b']) * np.sin(np.deg2rad(float(self.crystal['gamma'])))
-        bz=0
-        
+        bz=0        
         cx=float(self.crystal['c']) * np.cos(np.deg2rad(float(self.crystal['beta'])))
         cy=float(self.crystal['c']) * ( np.cos(np.deg2rad(float(self.crystal['alpha']))) 
                                       - np.cos(np.deg2rad(float(self.crystal['beta']))) 
@@ -54,58 +63,111 @@ class CrystalSymmetry:
         self.r_matrix=np.array([[ax,bx,cx],[ay,by,cy],[az,bz,cz]])
     
     def set_t_matrix(self):
+        """
+        
+        Read transformation matrix T from contact file 
+        
+        """
         for idx in range(0,len(self.contacts),4):
-            self.t_matrix['model_id'].append(self.contacts[idx].replace('\n,',''))
-            self.t_matrix['cartesian'].append([
+            self.t_matrix[float(self.contacts[idx].split(' ')[1])]=[   
                 float(self.contacts[idx+1].split(' ')[-1]),
                 float(self.contacts[idx+2].split(' ')[-1]),
                 float(self.contacts[idx+3].split(' ')[-1])]
-                )    
     
     def get_s_matrix(self):
-        for idx in range(len(self.t_matrix['model_id'])):
-            self.s_matrix['model_id'].append(self.t_matrix['model_id'][idx])
-            self.s_matrix['grid'].append(
-                np.linalg.solve(self.r_matrix,self.t_matrix['cartesian'][idx]).astype(int))
+        """
+        
+        Get shift matrix S from transformation matrix T using rotation matrix R: S = T \ R
+        
+        """
+        for key in self.t_matrix.keys(): self.s_matrix[key]=np.linalg.solve(self.r_matrix,self.t_matrix[key]).astype(int)
     
     def get_t_matrix(self):
-        for idx in range(len(self.s_matrix['model_id'])):
-            self.t_matrix['model_id'].append(self.s_matrix['model_id'][idx])
-            self.t_matrix['cartesian'].append(
-                np.dot(self.r_matrix,self.s_matrix['grid'][idx]))
+        """
+        
+        Get transformation matrix T from shift matrix S using rotation matrix R: T = S x R
+        
+        """
+        for key in self.s_matrix.keys(): self.t_matrix[key]=np.dot(self.r_matrix,self.s_matrix[key])
 
     def get_plane(self,z_p):
-        return np.array([[c[0],c[1],z_p]for c in self.s_matrix['grid'] if c[2]==z_p])    
-    #
-    def add_plane(self,z_p):
-               
+        """
+        
+        Get (x,y) meshgrid at specific z-pos from shift matrix S 
+        
+        """
+        return np.array([[c[0],c[1],z_p]for c in self.s_matrix.values() if c[2]==z_p])
+    
+    def extend_plane(self,z_p,d_x,d_y):
+        """
+        
+        Update mesh-grid (x,y) at specific z-pos by adding nodes or filling up the meshgrid 
+        from -i_max-d_ij to i_max+d_ij with i,j=(x,y) with i!=j
+        
+        """        
         x_max=np.max(self.get_plane(z_p)[:,0])
         y_max=np.max(self.get_plane(z_p)[:,1])       
-        x_mesh=np.linspace(-x_max,x_max,2*x_max+1)
-        y_mesh=np.linspace(-y_max,y_max,2*y_max+1)        
-        return np.transpose(np.vstack(map(np.ravel,np.meshgrid(x_mesh,y_mesh,z_p))))
-    #
-    def set_meshgrid(self)
-        z_p=np.max(self.s_matrix['grid'],axis=0)[2] 
-        self.plane=self.add_plane(z_p)
-        # TODO Delte grid points that are already there in the s_matrix
+        x_mesh=np.linspace(-x_max-d_x,x_max+d_x,2*(x_max+d_x)+1)
+        y_mesh=np.linspace(-y_max-d_y,y_max+d_y,2*(y_max+d_y)+1)        
+        return np.transpose(np.vstack(list(map(np.ravel,np.meshgrid(x_mesh,y_mesh,z_p)))))
+    
+    def append_plane(self,z_p,d_x,d_y):
+        """
+
+        Compare nodes before & after plane extension step and update shift matrix S
+
+        Symmetric difference between sets: self.get_plane ^ self.extend_plane
+
+        Append extended models && point-mirror models to shift matrix dictonary 
+
+        """
+        for node in (set(map(tuple,self.get_plane(z_p)))^set(map(tuple,self.extend_plane(z_p,d_x,d_y)))):
+                key=str(list(self.s_matrix.keys())[-1]).replace('\n','').split(' ')
+                self.s_matrix[str(key[0]+' '+str(float(key[1])+1.0))]=node
+    
+    def set_meshgrid(self):
+        """
+        
+        Set up new meshgrid with more nodes to fill-up gaps at each z-pos
+        
+        """
+        z_p=np.max(list(self.s_matrix.values()),axis=0)[2]
+        d_x=1
+        d_y=1
+        #
+        self.append_plane(z_p,d_x,d_y)
+        
+    def write_contacts(self):
+        """
+        
+        Writes updated crystal contacts for chimera input-file: chimera outputfile_sym.txt
+        
+        """
+        with open(self.file_contact+'_sym.txt','w') as f:
+            for key,value in self.t_matrix.items():
+                f.write(str(key)+'\n')
+                f.write('         1 0 0 %s\n' % (round(value[0],3)))
+                f.write('         1 0 0 %s\n' % (round(value[1],3)))
+                f.write('         1 0 0 %s\n\n' % (round(value[2],3)))
+        f.close()
+
 
     def run_system(self):
-        # Read contacts and set transformation matrix 
+        """
+        
+        Reads crystal information & contact list and returns
+        transformation matrix and shift matrix 
+        
+        """
         self.read_contacts()
         self.read_crystal()
         self.get_r_matrix()
-        # set t_matrxix and get s_matrix
         self.set_t_matrix()
         self.get_s_matrix()
-        # symmetrize s_matrix and get t_matrix
-        self.set_meshgrid()
-        self.get_t_matrix()
-        
-        
+        return self.t_matrix,self.s_matrix        
 
 
-class FibrilGenerator:
+class Fibril:
     """
     
     Generate collagen microfibril with the "crystal contacts" command from UCSF 
@@ -136,7 +198,6 @@ class FibrilGenerator:
     
     
     """
-    
     def __init__(self,path_geo,path,file_name,contact_distance,cut_off):
         self.path_geo=path_geo
         self.path=path
@@ -146,37 +207,17 @@ class FibrilGenerator:
         self.sym_contacts=''
         self.cut_off=cut_off
         self.nu_fibril=0   
-    #
+    
     def matrixget(self):
         return subprocess.run(
             'chimera --nogui --silent --script '+'"'+str(self.path_geo)+
             'matrixget.py '+str(self.path)+' '+str(self.pdb)+'.pdb '+
-            str(self.d_contact)+' '+str(self.contacts)+'"',shell=True)
-    #
-    def symmetrize(self):
-        self.sym_contacts='crystal_contacts_sym'
-        return CrystalSymmetry(self.contacts,self.pdb).run_system()
-        
-    #
+            str(self.d_contact)+' '+str(self.contacts)+'"',shell=True)        
+    
     def matrixset(self):
         return subprocess.run(
             'chimera --nogui --silent --script '+'"'+str(self.path_geo)+
             'matrixset.py '+str(self.path)+' '+str(self.pdb)+'.pdb '+
             ' '+str(self.sym_contacts)+' '+str(self.nu_fibril)+' '+
             str(self.cut_off)+'"',shell=True)
-    #
-    def run_system(self):
-        # Get Transformation Matrix
-        # self.matrixget()
-        # Symmetrize
-        self.symmetrize()
-        # Set symmetrized matrix
-        #self.matrixset()
-        
-
-def run_gen_coord(path,file,contact_distance,cut_off):
-    # TODO: Better solution with paths
-    path_geo=__file__.replace('gen_coord.py','')
-    # Get Crystal Contacts
-    fibril = FibrilGenerator(path_geo,path,file,contact_distance,cut_off).run_system()
-    return fibril
+    
