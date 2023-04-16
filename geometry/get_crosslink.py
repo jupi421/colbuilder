@@ -6,13 +6,12 @@ class Crosslink:
     Selects crosslink, checks connectivity, write topology
     
     """
-
     def __init__(self,pdb,t_matrix):
         self.pdb_file=pdb
         self.t_matrix=t_matrix
-        self.pdb_crosslink=self.read_crosslink()
-        self.sym_crosslink=self.translate_crosslink()
         self.cut_off=2.0
+        self.pdb_crosslink={ }
+        self.sym_crosslink={ }
         self.pairs= {  } #  TODO: Divalent, Trivalent, Mix case?
 
 
@@ -22,7 +21,7 @@ class Crosslink:
         Reads crosslink coordinates from pdb file
         
         """
-        self.pdb_crosslink={ }
+        
         with open(self.pdb_file+'.pdb') as f:
             for l in f:
                 if l[17:20]=='LYX' and l[13:16]=='C13' or l[17:20]=='LY3' and l[13:15]=='CG': # closest connection trivalent
@@ -42,54 +41,58 @@ class Crosslink:
         """
         
         Takes crosslink coordinates and translates them according to 
-        transformation matrix
-        Output: Creates dict with translated crosslinks
+        transformation matrix T
+        Output: Dict with translated crosslinks
         
         """
         self.sym_crosslink={ }
-        for tk,tv in self.t_matrix.items():
-            self.sym_crosslink[tk]={ i:[] for i in self.pdb_crosslink }
-            for ck,cv in self.pdb_crosslink.items():
-                self.sym_crosslink[tk][ck]=np.add(tv,cv['position'])
+        for model_key,model_value in self.t_matrix.items():
+            self.sym_crosslink[model_key]={ i:[] for i in self.pdb_crosslink }
+            for cross_key,cross_value in self.pdb_crosslink.items():
+                self.sym_crosslink[model_key][cross_key]=np.add(model_value,cross_value['position'])
 
 
     def get_crosslinked_models(self):
         """
         
-        Finds pairs and triplets of nodes in the transformation matrix
+        Finds pairs and triplets of nodes in the transformation matrix by
+        computing pair-wise distances between crosslinks and merging
+        triple helices with more than once linkage
         
         """        
-        for ref_key in self.sym_crosslink: 
-            for key in self.sym_crosslink:
-                if ref_key!=key: 
-                    edge=self.get_distance(ref_key,key)
-                    if edge!=None: self.pairs[ref_key]=[edge]
-        return self.merge_pairs()
+        for ref_model in self.sym_crosslink: 
+            for model in self.sym_crosslink:
+                if ref_model!=model: 
+                    dist=self.get_distance(ref_model,model)
+                    if dist!=None: self.pairs[ref_model]=[dist]
+        self.merge_pairs()
 
-    def get_distance(self,ref_node,node):
+    def get_distance(self,ref_model,model):
         """
         
-        Calculates all distances of crosslink residue between two nodes
-        and stores if edge distance is below cut_off 
+        Calculates pair-wise distances between crosslinks
+        and stores them if pair-wise distance is below cut_off
+        cut_off represents a distance of 2.0 A
         
         """
-        for ref_key in self.sym_crosslink[ref_node]:
-            for key in self.sym_crosslink[node]:
-                if np.linalg.norm(self.sym_crosslink[ref_node][ref_key]-
-                                  self.sym_crosslink[node][key])<self.cut_off:
-                    return node
+        for ref_cross in self.sym_crosslink[ref_model]:
+            for cross in self.sym_crosslink[model]:
+                if np.linalg.norm(self.sym_crosslink[ref_model][ref_cross]-
+                                  self.sym_crosslink[model][cross])<self.cut_off:
+                    return model
             break
     
     def merge_pairs(self):
         """
         
-        Check all pairs for further connectivity to generate triplets 
+        Checks if the pairs are further connected to identify triplets 
+        of triple helices
         
         """
-        for ref_key in self.pairs:
-            for key,value in self.pairs.items():
-                if ref_key==value[0]: self.pairs[ref_key].append(key)   
-    
+        for ref_pair in self.pairs:
+            for pair_key,pair_value in self.pairs.items():
+                if ref_pair==pair_value[0]: self.pairs[ref_pair].append(pair_key)   
+        print(self.pairs)
     
     def run_system(self):
         self.read_crosslink()
