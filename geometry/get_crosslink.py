@@ -1,4 +1,5 @@
 import numpy as np
+from itertools import product,combinations
 #
 class Crosslink:
     """
@@ -21,7 +22,6 @@ class Crosslink:
         Reads crosslink coordinates from pdb file
         
         """
-        
         with open(self.pdb_file+'.pdb') as f:
             for l in f:
                 if l[17:20]=='LYX' and l[13:16]=='C13' or l[17:20]=='LY3' and l[13:15]=='CG': # closest connection trivalent
@@ -43,13 +43,16 @@ class Crosslink:
         Takes crosslink coordinates and translates them according to 
         transformation matrix T
         Output: Dict with translated crosslinks
+
+        --
+
+        m = model
+        c = crosslink of model
         
         """
-        self.sym_crosslink={ }
-        for model_key,model_value in self.t_matrix.items():
-            self.sym_crosslink[model_key]={ i:[] for i in self.pdb_crosslink }
-            for cross_key,cross_value in self.pdb_crosslink.items():
-                self.sym_crosslink[model_key][cross_key]=np.add(model_value,cross_value['position'])
+        self.sym_crosslink={ k:{} for k in self.t_matrix }
+        for m,c in product(self.t_matrix,self.pdb_crosslink):
+            self.sym_crosslink[m][c]=np.add(self.t_matrix[m],self.pdb_crosslink[c]['position'])
 
 
     def get_crosslinked_models(self):
@@ -59,27 +62,35 @@ class Crosslink:
         computing pair-wise distances between crosslinks and merging
         triple helices with more than once linkage
         
+        --
+
+        m = model
+
         """        
-        for ref_model in self.sym_crosslink: 
-            for model in self.sym_crosslink:
-                if ref_model!=model: 
-                    dist=self.get_distance(ref_model,model)
-                    if dist!=None: self.pairs[ref_model]=[dist]
+        for ref_m,m in product(self.sym_crosslink,self.sym_crosslink): 
+            if ref_m!=m:
+                dist=self.get_distance(ref_m,m)
+                if dist!=None: self.pairs[ref_m]=dist
         self.merge_pairs()
 
-    def get_distance(self,ref_model,model):
+    def get_distance(self,ref_m,m):
         """
         
         Calculates pair-wise distances between crosslinks
         and stores them if pair-wise distance is below cut_off
         cut_off represents a distance of 2.0 A
+
+        --
+
+        m = model
+        c = crosslink of model
         
         """
-        for ref_cross in self.sym_crosslink[ref_model]:
-            for cross in self.sym_crosslink[model]:
-                if np.linalg.norm(self.sym_crosslink[ref_model][ref_cross]-
-                                  self.sym_crosslink[model][cross])<self.cut_off:
-                    return model
+        for ref_c in self.sym_crosslink[ref_m]:
+            for c in self.sym_crosslink[m]:
+                if np.linalg.norm(self.sym_crosslink[ref_m][ref_c]-
+                                  self.sym_crosslink[m][c])<self.cut_off:
+                    return [ref_m,m]
             break
     
     def merge_pairs(self):
@@ -89,9 +100,8 @@ class Crosslink:
         of triple helices
         
         """
-        for ref_pair in self.pairs:
-            for pair_key,pair_value in self.pairs.items():
-                if ref_pair==pair_value[0]: self.pairs[ref_pair].append(pair_key)   
+        for ref_pair,pair in combinations(self.pairs,2):
+            if ref_pair==self.pairs[pair][1]: self.pairs[ref_pair].append(pair)
         print(self.pairs)
     
     def run_system(self):
