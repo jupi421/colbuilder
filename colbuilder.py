@@ -1,4 +1,4 @@
-#!/hits/fast/mbm/broszms/software/conda/envs/colbuilder/bin/python3.10
+#!/store/conda/envs/colbuilder/bin/python3.9
 
 # -*- coding: utf-8 -*-
 """
@@ -10,19 +10,10 @@ import os
 import sys
 from setuptools import setup
 #
-# TODO: You can do better than this
-path_colbuilder='/hits/fast/mbm/broszms/Collagen/colbuilder'
-if path_colbuilder not in sys.path:
-    sys.path.insert(0,'/hits/fast/mbm/broszms/Collagen/colbuilder')
-#
 import argparse
 import logging
-import time
-from geometry import gen_coord
-#from topology import map_go_itp
-import analysis.triplehelix
-#
-
+from colbuilder.geometry.gen_coord import Fibril,Crystal
+from colbuilder.geometry.get_crosslink import Crosslink
 #
 def main():
     #
@@ -38,22 +29,25 @@ def main():
     parser.add_argument('-cut-off','--cut_off_fibril', required=False, 
                         help='Cut-off Microfibril 300 +/- 15 [nm] ',default=315)
     args=parser.parse_args()
-    #
+    
     # TODO: Better PATH logic -> path package
     path=str(args.working_directory)
-    #
+    path_geo=__file__.replace('gen_coord.py','')
+    pdb_file=str(args.file).replace('.pdb','')
+
     # CrystalContacs are set -> Generate geometry
     if args.contact_distance!=None and args.file!=None:
-        # Generate coordinate file for microfibril
-        out=gen_coord.run_gen_coord(
-            path,str(args.file).replace('.pdb',''),
-            int(args.contact_distance),int(args.cut_off_fibril))
-        #gen_coord.run_gen_coord(path,file_name,crystal_contacts,cut_off)
-    #
+        # set fibril and get transformation & shift matrix from contacts
+        fibril=Fibril(path_geo,path,pdb_file,int(args.contact_distance),int(args.cut_off_fibril))
+        t_model,s_model=Crystal(fibril.contacts,fibril.pdb).run_system()
+        # Translate crosslinks and search connection
+        crosslink=Crosslink(fibril.pdb,t_model).run_system()
+        
+
     # TODO: AA FF
-    #
+    
     # TODO CG FF
-    #
+    
     # MAP GO-Model
 #    map_go_itp.run_map_go_itp(path,file_name)
 
