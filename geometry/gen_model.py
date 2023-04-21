@@ -1,20 +1,62 @@
 import numpy as np
 from itertools import product,combinations
-#
+from colbuilder.geometry.gen_coord import Crystal
+
+
+class Model:
+    """
+    
+    Creats an object for each triple helix that stores all infromation
+    in all matrix spaces and also connections
+
+    Model class is a container for each node in s_matrix
+    
+    --
+    id      - id of model
+    s_node  - location in shift space
+    t_node  - location in transform space
+    edge    - connected node ids
+
+    """
+    def __init__(self,edge_id,node_id,s_node,t_node,edges):
+        self.id_edge=edge_id
+        self.id_node=node_id
+        self.s_node=s_node
+        self.t_node=t_node
+        self.edges=edges
+        self.model={ }
+    
+    def make_model(self):
+        """
+        
+        Sets up an object for each model in the crystal contacts file
+        
+        """
+        self.model={ k:[] for k in ['id_edge','id_node','s_node','t_node','edges'] }
+        self.model['id_edge']=self.id_edge
+        self.model['id_node']=self.id_node
+        self.model['s_node']=self.s_node
+        self.model['t_node']=self.t_node
+        self.model['edges']=self.edges
+        return self.model
+
+
 class Crosslink:
     """
     
     Selects crosslink, checks connectivity, write topology
     
     """
-    def __init__(self,pdb,t_matrix):
+    def __init__(self,pdb=None,s_matrix={},t_matrix={}):
         self.pdb_file=pdb
+        self.s_matrix=s_matrix
         self.t_matrix=t_matrix
         self.cut_off=2.0
-        self.pdb_crosslink={ }
+        self.pdb_crosslink=self.read_crosslink()
         self.sym_crosslink={ }
         self.pairs= {  } #  TODO: Divalent, Trivalent, Mix case?
-
+        self.random_crosslink={ }
+        self.random_pairs={ }
 
     def read_crosslink(self):
         """
@@ -22,6 +64,7 @@ class Crosslink:
         Reads crosslink coordinates from pdb file
         
         """
+        self.pdb_crosslink={ }
         with open(self.pdb_file+'.pdb') as f:
             for l in f:
                 if l[17:20]=='LYX' and l[13:16]=='C13' or l[17:20]=='LY3' and l[13:15]=='CG': # closest connection trivalent
@@ -53,6 +96,7 @@ class Crosslink:
         self.sym_crosslink={ k:{} for k in self.t_matrix }
         for m,c in product(self.t_matrix,self.pdb_crosslink):
             self.sym_crosslink[m][c]=np.add(self.t_matrix[m],self.pdb_crosslink[c]['position'])
+        return self.sym_crosslink
 
 
     def get_crosslinked_models(self):
@@ -66,12 +110,26 @@ class Crosslink:
 
         m = model
 
-        """        
+        """
         for ref_m,m in product(self.sym_crosslink,self.sym_crosslink): 
-            if ref_m!=m:
-                dist=self.get_distance(ref_m,m)
-                if dist!=None: self.pairs[ref_m]=dist
-        self.merge_pairs()
+            if ref_m!=m and self.get_distance(ref_m,m)!=None: self.pairs[ref_m]=self.get_distance(ref_m,m)
+
+    def get_random_crosslinked_model(self,random_crosslink):
+        """
+        
+        Check if random added model is crosslinked to any other model
+        
+        --
+
+        m = model
+
+        """
+        self.sym_crosslink=self.translate_crosslink()
+        self.add_random_crosslink=random_crosslink
+        for ref_m in self.sym_crosslink:
+            if self.get_distance(ref_m,self.add_random_crosslink['random'])!=None: 
+                self.pairs[ref_m]=self.get_distance(ref_m,m)
+
 
     def get_distance(self,ref_m,m):
         """
@@ -84,16 +142,17 @@ class Crosslink:
 
         m = model
         c = crosslink of model
+        cut_off = 2.0 A
         
         """
         for ref_c in self.sym_crosslink[ref_m]:
             for c in self.sym_crosslink[m]:
                 if np.linalg.norm(self.sym_crosslink[ref_m][ref_c]-
-                                  self.sym_crosslink[m][c])<self.cut_off:
+                                self.sym_crosslink[m][c])<self.cut_off:
                     return [ref_m,m]
             break
     
-    def merge_pairs(self):
+    def merge_model_pairs(self):
         """
         
         Checks if the pairs are further connected to identify triplets 
@@ -102,32 +161,65 @@ class Crosslink:
         """
         for ref_pair,pair in combinations(self.pairs,2):
             if ref_pair==self.pairs[pair][1]: self.pairs[ref_pair].append(pair)
-        print(self.pairs)
+            elif self.pairs[ref_pair][1]==pair: self.pairs[ref_pair].append(self.pairs[pair][1])
     
-    def run_system(self):
-        self.read_crosslink()
+    def write_pairs(self):
+        """
+        
+        Writes all connected models to txt file to double check result
+        
+        """
+        with open('triple-check.txt','w') as f:
+            for k in self.pairs:
+                for i in self.pairs[k]:
+                    f.write(str(int(i)+1)+'.caps.pdb ')
+                f.write('\n')
+        f.close()
+
+    def get_connected_models(self):
         self.translate_crosslink()
         self.get_crosslinked_models()
+        self.merge_model_pairs()
         return self.pairs
+    
 
+class StructureOptimizer:
 
+    def __init__(self,models,meshgrid,contacts,pdb):
+        self.models=models
+        self.pdb=pdb
+        self.contacts=contacts
+        self.meshgrid=meshgrid
+        self.s_random_node={k:[] for k in ['random']}
+        self.t_random_node={k:[] for k in ['random']}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    def add_model(self):
+        """
+        
+        Adds a model to s_matrix and checks connectivity
+        
+        """
+        self.s_random_node['random']=self.draw_random_node()
+        self.t_random_node=Crystal(self.contacts,self.pdb).get_t_matrix(self.s_random_node)
+        self.crosslink_random_node=Crosslink(self.pdb,self.s_random_node,self.t_random_node)
+        # TODO: Intersection between random crosslink and all the others
+        # How to initialize objects. Each random crosslink an object
+        for key_c in self.models:
+            for key_m in self.models[key_c]:
+                nodes=Crosslink(self.pdb,key_m['s_node'],key_m['t_node'])
+                self.random_pairs[key_c]=nodes.get_random_crosslinked_model()
+                #print(all_nodes)
+                break
+                #x_p,y_p,z_p=np.max(list(self.models[key_c][key_m].values()),axis=0)
+                #print(x_p)
+    
+    def draw_random_node(self):
+        """
+        
+        Draws a random node from the meshgrid
+        
+        """
+        return list(self.meshgrid[np.random.choice(len(self.meshgrid),replace=False)])
 
 
 

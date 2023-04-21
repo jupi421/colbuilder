@@ -4,11 +4,10 @@ import chimera
 from chimera import runCommand as rc
 from chimera import openModels,selection,Point
 
-path_pdb=str(sys.argv[1])
-file_name=str(sys.argv[2])
-crystalcontacts=str(sys.argv[3])
-fibril_number=int(sys.argv[4])
-cut_off=float(sys.argv[5])
+file_name=str(sys.argv[1])
+crystalcontacts=str(sys.argv[2])
+fibril_number=int(sys.argv[3])
+cut_off=float(sys.argv[4])
 
 os.chdir(path_pdb)
 
