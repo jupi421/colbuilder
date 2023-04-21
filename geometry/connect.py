@@ -4,20 +4,26 @@ from itertools import product,combinations
 def merge_pairs(pairs=None):
     """
     
-    Merges pairs of connected models
+    merges pairs of connected models while keeping unconnected models:
+
+    - pair-connection -> key is second value (pair) of another key in both direction
+    - no-connection -> add empty list, due no connection
     
     """
-    #print(pairs)
     for ref_pair,pair in combinations(pairs,2):
-        if ref_pair==pairs[pair][1]: pairs[ref_pair].append(pair)
-        elif pairs[ref_pair][1]==pair: pairs[ref_pair].append(pairs[pair][1])
+        if ref_pair!=pair and pairs[pair]!=[] and pairs[ref_pair]!=[]: 
+            if ref_pair==pairs[pair][1] and pair!=pairs[ref_pair][1]: pairs[ref_pair].append(pair)
+            elif pair==pairs[ref_pair][1] and ref_pair!=pairs[pair][1]: pairs[ref_pair].append(pairs[pair][1])
     return pairs
 
 def find_model_connect(crystal=None,crystal_contacts=None,model_contact=None):  
     """
     
-    find_model_connect checks if models are connected by computing the distance
-    between translated crosslinks.
+    checks if models are connected by computing the distance between translated crosslinks.
+
+    --
+
+    output:     list of connected models
     
     """
     if model_contact==None: model_contact=crystal_contacts.read_t_matrix()
@@ -28,9 +34,7 @@ def find_model_connect(crystal=None,crystal_contacts=None,model_contact=None):
     for ref_model,model in product(model_coords,repeat=2):
         if ref_model!=model and connect.get_model_connect(ref_model=model_coords[ref_model],model=model_coords[model])==True: 
             model_pairs[ref_model]=[ref_model,model]
-    print(model_pairs)
     return merge_pairs(model_pairs)
-
 
 
 class Connect:
@@ -39,7 +43,6 @@ class Connect:
     Select cartesian coordinates from the initial coordinate file
 
     Allows translation of initial coordinates with regard to translation matrix
-
 
     --
 
@@ -123,20 +126,14 @@ class Connect:
     def run_model_connect(self,crystal_contacts=None,crystal=None,model_id=None):
         """
         
-          
         Translates model according to translate vector and returns ids if
         models are closer than cut-off
 
         TODO: 2. connect one model with all the other models
-
-
-        --
-
-
         
         """
         if model_id==None: 
             print('Crystal Contacts Connection from Chimera')
             return find_model_connect(crystal=crystal,crystal_contacts=crystal_contacts)
-
-    
+        if model_id!=None:
+            print('Additional model connect')
