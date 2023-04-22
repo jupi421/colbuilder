@@ -1,7 +1,25 @@
 import numpy as np
 from itertools import product,combinations
 
-def find_model_connect(crystal=None,crystal_contacts=None,model_contact=None):  
+def find_model_connect(crystal=None,contact_coords=None,s_model=None):
+    """
+    
+    compares added model to connected model pairs by computing the distances between translated crosslinks.
+
+    --
+
+    output  :   True if added model is connected
+    
+    """
+    connect=Connect(crystal.pdb_file)    
+    t_model=crystal.get_t_matrix(s_matrix=s_model)
+    model_coords={ 'add': connect.translate_model(translate_vector=t_model) }
+    for ref_model in contact_coords:
+        if connect.get_model_connect(ref_model=contact_coords[ref_model],model=model_coords['add'])==True:
+            return True
+
+
+def find_contact_connect(crystal=None,contact_coords=None):  
     """
     
     generate connected model pairs by computing the distances between translated crosslinks.
@@ -11,15 +29,13 @@ def find_model_connect(crystal=None,crystal_contacts=None,model_contact=None):
     output  :   list of pair-wise connected models
     
     """
-    if model_contact==None: model_contact=crystal_contacts.read_t_matrix()
-    connect=Connect(crystal.pdb_file)
-
-    model_coords={ key: connect.translate_model(translate_vector=model_contact[key]) for key in model_contact}
-    model_pairs={ key: None for key in model_coords }
-    for ref_model,model in product(model_coords,repeat=2):
-        if ref_model!=model and connect.get_model_connect(ref_model=model_coords[ref_model],model=model_coords[model])==True: 
-            model_pairs[ref_model]=model
-    return merge_pairs(model_pairs)
+    connect=Connect(crystal.pdb_file)    
+    contact_pairs={ key: None for key in contact_coords }
+    for ref_model,model in product(contact_coords,repeat=2):
+        if ref_model!=model and connect.get_model_connect(ref_model=contact_coords[ref_model],model=contact_coords[model])==True: 
+            contact_pairs[ref_model]=model
+    return merge_pairs(contact_pairs)    
+    
 
 def merge_pairs(pairs=None):
     """
@@ -124,17 +140,20 @@ class Connect:
         for ref_c,c in product(ref_model,model):
             if np.linalg.norm(ref_model[ref_c]-model[c])<cut_off:  return True
 
-    def run_model_connect(self,crystal_contacts=None,crystal=None,model_id=None):
+    def run_model_connect(self,crystal_contacts=None,crystal=None,s_model=None):
         """
         
         Translates model according to translate vector and returns ids if
         models are closer than cut-off
-
-        TODO: 2. connect one model with all the other models
         
         """
-        if model_id==None: 
+        contact=crystal_contacts.read_t_matrix(contact_file=crystal_contacts.contact_file)
+        connect=Connect(crystal.pdb_file)
+        contact_coords={ key: connect.translate_model(translate_vector=contact[key]) for key in contact}
+
+        if s_model==None: # Gets all connections within crystal contacts
             print('Crystal Contacts Connection from Chimera')
-            return find_model_connect(crystal=crystal,crystal_contacts=crystal_contacts)
-        if model_id!=None:
+            return find_contact_connect(crystal=crystal,contact_coords=contact_coords)
+        if s_model!=None: # check if added model is connected
             print('Additional model connect')
+            return find_model_connect(crystal=crystal,contact_coords=contact_coords,s_model=s_model)

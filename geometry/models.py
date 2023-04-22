@@ -1,3 +1,12 @@
+
+def build_model(model_id=None,connect_contacts=None,crystal=None,contacts=None):
+    model={ k:None for k in ['id','shift_model','translate_model','contacts']}
+    model['id']=model_id
+    model['translate_model']=contacts.find_contact(model_id)
+    model['shift_model']=crystal.get_s_matrix(t_matrix=model['translate_model'])
+    model['contacts']=connect_contacts[model_id]
+    return model
+
 class Model:
     """
     
@@ -11,19 +20,31 @@ class Model:
     edge    - ids of connected models
 
     """
-    def __init__(self,id_model=None):
+    def __init__(self,id_model=None,crystal=None,contacts=None):
         self.id_model=id_model
+        self.crystal=crystal
+        self.contacts=contacts
+
+    def run_build_model(self,model_id=None,connect_contacts=None,crystal=None,contacts=None):
+        """
+        
+        Calls function to build model
+        
+        """
+        if model_id==None: model_id=self.id_model
+        if crystal==None: crystal=self.crystal
+        if contacts==None: crystal=self.contacts
+        return build_model(model_id=model_id,connect_contacts=connect_contacts,crystal=crystal,contacts=contacts)
     
-    def make_model(self):
+    def run_build_contacts(self,connect_contacts=None,crystal=None,contacts=None):
         """
         
-        Sets up an object for each model in the crystal contacts file
+        Builds initial crystal contacts system by calling build model
         
         """
-        self.model={ k:[] for k in ['id_edge','id_node','s_node','t_node','edges'] }
-        self.model['id_edge']=self.id_edge
-        self.model['id_node']=self.id_node
-        self.model['s_node']=self.s_node
-        self.model['t_node']=self.t_node
-        self.model['edges']=self.edges
-        return self.model
+        if crystal==None: crystal=self.crystal
+        if contacts==None: contacts=self.contacts
+        models={ k:{ }  for k in connect_contacts}
+        for model in connect_contacts:
+            models[model]=self.run_build_model(model,connect_contacts,crystal,contacts)
+        return models

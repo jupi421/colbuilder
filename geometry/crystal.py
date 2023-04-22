@@ -70,7 +70,7 @@ class Crystal:
             cs_matrix=self.read_cs_matrix(pdb)
         if t_matrix==None:
             print('Error: No transform-matrix given, hence no unit-cell shift matrix is calculated.')
-        return np.linalg.solve(cs_matrix,t_matrix).astype(int)
+        return list(np.linalg.solve(cs_matrix,t_matrix).astype(int))
     
     def get_t_matrix(self,pdb=None,cs_matrix=None,s_matrix=None):
         """
@@ -82,4 +82,4 @@ class Crystal:
             cs_matrix=self.read_cs_matrix(pdb)  
         if s_matrix==None:
             print('Error: No unit-cell shift-matrix given, hence no transform matrix is calculated.')
-        return np.dot(cs_matrix,s_matrix)
+        return list(np.dot(cs_matrix,s_matrix))

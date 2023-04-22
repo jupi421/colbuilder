@@ -54,3 +54,12 @@ class Contacts:
                 f.write('         1 0 0 %s\n' % (round(val_cc[1],3)))
                 f.write('         1 0 0 %s\n\n' % (round(val_cc[2],3)))
         f.close()
+
+    def find_contact(self,model_id=None):
+        """
+        
+        Finds the translation vector for one specific model-id
+        
+        """
+        self.t_matrix=self.read_t_matrix(self.contact_file)
+        return self.t_matrix[model_id]
