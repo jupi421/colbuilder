@@ -1,0 +1,116 @@
+#!/store/conda/envs/colbuilder/bin/python3.9
+
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Apr  3 10:02:52 2023
+
+@author: broszms
+"""
+import os
+import sys
+from setuptools import setup
+#
+import argparse
+import logging
+from colbuilder.geometry.crystal import Crystal
+from colbuilder.geometry.contacts import Contacts
+from colbuilder.geometry.chimera import Chimera
+from colbuilder.geometry.connect import Connect
+from colbuilder.geometry.models import Model
+#from colbuilder.geometry.gen_coord import Fibril,Crystal
+#from colbuilder.geometry.gen_model import Crosslink,Model,StructureOptimizer
+
+def run_chimera(path=None,pdb=None):
+    pdb=path+'/'+pdb
+    chimera=Chimera(pdb)
+    return chimera
+
+def read_crystal(pdb):
+    crystal=Crystal(pdb)
+    return crystal
+
+def read_contacts(contacts):
+    crystal_contacts=Contacts(contacts)
+    return crystal_contacts
+
+def run_connect(pdb):
+    connect=Connect(pdb)
+    return connect
+
+def get_crystal_contacts_connect(crystal,contacts,connect):
+    return connect.run_model_connect(crystal=crystal,crystal_contacts=contacts)
+
+def get_model_connect(crystal,contacts,connect,s_model):
+    return connect.run_model_connect(crystal=crystal,crystal_contacts=contacts,s_model=s_model)
+
+def build_model(model_id=None,crystal=None,contacts=None):
+    model=Model(model_id,crystal,contacts)
+    return model
+
+
+
+
+
+def main():
+    
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    
+    # Input arguments 
+    parser.add_argument('-f', '--file', required=False, 
+                        help='PDB-file of single triple helix (PDB)')
+    parser.add_argument('-wd','--working_directory', required=False, 
+                        help='Set working directory',default=os.getcwd())
+    parser.add_argument('-dc','--contact_distance', required=False, 
+                        help='Number of Crystal Contacts (INT)',default=1)
+    parser.add_argument('-cut-off','--cut_off', required=False, 
+                        help='Cut-off Microfibril 300 +/- 15 [nm] ',default=315)
+    parser.add_argument('-contact','--crystal_contacts_file', required=False, 
+                        help='Read the crystal contacts information from final crystal_contacts.txt file',default='crystal_contacts')
+    args=parser.parse_args()
+    
+    # TODO: Better PATH logic -> path package
+    path_wd=str(args.working_directory)
+    pdb_file=str(args.file).replace('.pdb','')
+    crystal_contacts_file=str(args.crystal_contacts_file)
+
+
+    # TODO: Routine where user inputs crystal contacts txt file
+    # Read INput
+    if args.contact_distance!=None and args.file!=None:
+        chimera=run_chimera(path_wd,pdb_file)
+        crystal=read_crystal(pdb_file)
+        crystal_contacts=read_contacts(crystal_contacts_file)
+
+    # Check Connection
+    connect=run_connect(pdb_file)
+    crystal_contacts_connect=get_crystal_contacts_connect(crystal,crystal_contacts,connect)
+    
+    # Build Model
+    model=build_model(crystal=crystal,contacts=crystal_contacts)
+    models=model.run_build_contacts(connect_contacts=crystal_contacts_connect)
+
+    # Add Model
+    s_add=[10,3,4]
+    out_add=get_model_connect(crystal,crystal_contacts,connect,s_add)
+    print(out_add)
+
+    # TODO: Here starts build model infrastructure. 
+        
+    # models is a dict containing all information necessar
+    #models=build_models(connections,t_matrix,s_matrix)
+    #tmp=add_nodes(fibril,models)
+    #print(tmp)
+
+
+    # TODO: AA FF
+    
+    # TODO CG FF
+    
+    # MAP GO-Model
+#    map_go_itp.run_map_go_itp(path,file_name)
+
+main()
+
+if __name__ == '__main__':
+    main()
+    
