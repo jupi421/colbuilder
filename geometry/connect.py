@@ -1,47 +1,46 @@
 import numpy as np
 from itertools import product,combinations
 
-def merge_pairs(pairs=None):
-    """
-    
-    merges pairs of connected models while keeping unconnected models:
-
-    - pair-connection -> key is second value (pair) of another key in both direction
-    - no-connection -> add empty list, due no connection
-    
-    """
-    for ref_pair,pair in combinations(pairs,2):
-        if ref_pair!=pair and pairs[pair]!=[] and pairs[ref_pair]!=[]: 
-            if ref_pair==pairs[pair][1] and pair!=pairs[ref_pair][1]: pairs[ref_pair].append(pair)
-            elif pair==pairs[ref_pair][1] and ref_pair!=pairs[pair][1]: pairs[ref_pair].append(pairs[pair][1])
-    return pairs
-
 def find_model_connect(crystal=None,crystal_contacts=None,model_contact=None):  
     """
     
-    checks if models are connected by computing the distance between translated crosslinks.
+    generate connected model pairs by computing the distances between translated crosslinks.
 
     --
 
-    output:     list of connected models
+    output  :   list of pair-wise connected models
     
     """
     if model_contact==None: model_contact=crystal_contacts.read_t_matrix()
     connect=Connect(crystal.pdb_file)
 
     model_coords={ key: connect.translate_model(translate_vector=model_contact[key]) for key in model_contact}
-    model_pairs={ key: [] for key in model_coords }
+    model_pairs={ key: None for key in model_coords }
     for ref_model,model in product(model_coords,repeat=2):
         if ref_model!=model and connect.get_model_connect(ref_model=model_coords[ref_model],model=model_coords[model])==True: 
-            model_pairs[ref_model]=[ref_model,model]
+            model_pairs[ref_model]=model
     return merge_pairs(model_pairs)
 
+def merge_pairs(pairs=None):
+    """
+    
+    merges pairs of connected models to reproduce total connectivity of microfibril
+
+    --
+
+    output  :   connections between all models 
+    
+    """
+    connect={ key: [key] for key in pairs }
+    for ref_key,key in product(pairs,repeat=2):
+        if key==ref_key or pairs[key]==None or pairs[ref_key]==None: continue
+        elif ref_key==pairs[key] or key==pairs[ref_key] or pairs[key]==pairs[ref_key]: connect[ref_key].append(key)
+    return connect
 
 class Connect:
     """
     
     Select cartesian coordinates from the initial coordinate file
-
     Allows translation of initial coordinates with regard to translation matrix
 
     --
@@ -88,9 +87,11 @@ class Connect:
         output : dict with translated crosslinks of model
         
         """
-        if translate_vector==[]: print('Error: No translate vector given to translate crosslink')
-        if pdb_file==None: pdb_model=self.read_crosslink(pdb=pdb_file)
-        return { c: self.translate_crosslink(translate_vector,pdb_model[c]['position']) for c in pdb_model }
+        try:
+            if pdb_file==None: pdb_model=self.read_crosslink(pdb=pdb_file)
+            return { c: self.translate_crosslink(translate_vector,pdb_model[c]['position']) for c in pdb_model }
+        except:
+            print('Error: No translate vector given to translate crosslink')
     
     def translate_crosslink(self,translate_vector=[],crosslink=[]):
         """
@@ -103,9 +104,10 @@ class Connect:
         output  :  cartesian coordinates of translated crosslink [x,y,z]
 
         """
-        if translate_vector==[]: print('Error: No translate vector given to translate crosslink')
-        if crosslink==[]: print('Error: No crosslink given to translate')
-        return np.add(translate_vector,crosslink)
+        try:
+            return np.add(translate_vector,crosslink)
+        except:
+            print('Error: No translate vector or crosslink coordinates given')
     
     def get_model_connect(self,ref_model=None,model=None,cut_off=2.0):
         """
@@ -115,7 +117,6 @@ class Connect:
 
         --
 
-        m = model
         c = crosslink of model
         cut_off = 2.0 A
 

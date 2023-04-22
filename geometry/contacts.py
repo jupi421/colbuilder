@@ -4,13 +4,11 @@ class Contacts:
     Reads contact information from crystal_contact file
     Writes updated contact information for chimera
     
-    ---
+    --
     
     input:  -f     crystal contacts file from chimera
    
     output: -o     optimized crystal contacts file for chimera      
-
-    ---
         
     """
     def __init__(self,contact_file=None):
@@ -45,12 +43,6 @@ class Contacts:
         """
         
         Writes crystal contacts to txt file for chimera
-
-        --
-
-        -contacts         :  Name of the contacts.txt file for chimera (default: crystal_contacts_sym.txt)
-        -crystal_contacts :  Contains model contacts for whole system
-
         
         """
         if contact_file==None: contact_file=self.contact_file

@@ -1,7 +1,8 @@
 class Model:
     """
     
-    creates an object for each model storing all contact information
+    Model is a container for each chain that stores all information:
+    contact, crosslinks, ids, connections, transform_matrix, shift_matrix
     
     --
     id      - id of model
@@ -10,8 +11,8 @@ class Model:
     edge    - ids of connected models
 
     """
-    def __init__(self,):
-        print('hello')
+    def __init__(self,id_model=None):
+        self.id_model=id_model
     
     def make_model(self):
         """

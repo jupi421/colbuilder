@@ -6,14 +6,12 @@ class Crystal:
     Reads crystal information to generate crystal-symmetry matrix
     Allows conversion between unit-cell shift & transformation matrix
     
-    ---
+    --
     
     input:  -f      pdb-file
    
     output: -o      symmetry crystal matrix
                     methods to convert between unit-cell shift & transform matrix
-
-    ---
         
     """
     def __init__(self,pdb=None):

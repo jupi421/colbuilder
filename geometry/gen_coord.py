@@ -7,13 +7,11 @@ class Crystal:
     Reads crystal information, determines symmetric translation-rotation matrix and
     to converts between unit-cell shift and transformation matrix for fine-tuning.
     
-    ---
+    --
     
     input:  -f     crystal contacts file
    
     output: -o     symmetrized crystal contacts file      
-
-    ---
         
     """
     def __init__(self,contact=[],pdb=None):
