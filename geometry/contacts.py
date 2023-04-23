@@ -15,7 +15,6 @@ class Contacts:
         self.contact_file=contact_file
         self.t_matrix={ }
 
-    
     def read_contacts(self,contact_file=None):
         """
         
