@@ -1,18 +1,21 @@
-
-
 class Model:
     """
     
     Class for each model in the system. Each model contains all information 
     associdated to id:
-    - model-id
-    - translation vector
-    - shift-matrix
-    - neighbor contacts
-    - fibril-id
-    - ...
 
     --
+
+    input   :   
+
+                - model-id
+                - translation vector
+                - shift-matrix
+                - neighbor contacts
+                - fibril-id
+                - ...
+
+    output  :   class : model
 
     """
     def __init__(self,id_model=None,t_matrix=None,s_matrix=None,contacts=None,fibril_id=None):

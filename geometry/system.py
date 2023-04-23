@@ -1,10 +1,14 @@
-
 class System:
     """
 
-    class representing a system of models: list (model)
+    Base class representing a system of models: 
+    dict { model_id: model }
     
     --
+    
+    input:  -f      user-input: class : crystall & class : contacts
+   
+    output: -o      class : system with all class: models
 
     """
     def __init__(self,crystal=None,contacts=None):

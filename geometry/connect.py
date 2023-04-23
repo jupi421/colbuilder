@@ -140,20 +140,22 @@ class Connect:
         for ref_c,c in product(ref_model,model):
             if np.linalg.norm(ref_model[ref_c]-model[c])<cut_off:  return True
 
-    def run_model_connect(self,crystal_contacts=None,crystal=None,s_model=None):
+    def run_connect(self,crystal_contacts=None,crystal=None,s_model=None):
         """
         
-        Translates model according to translate vector and returns ids if
-        models are closer than cut-off
+        Translates each modelof system according to translation vector and returns ids 
+        if models are closer than cut-off, and therefore connected
         
         """
         contact=crystal_contacts.read_t_matrix(contact_file=crystal_contacts.contact_file)
         connect=Connect(crystal.pdb_file)
         contact_coords={ key: connect.translate_model(translate_vector=contact[key]) for key in contact}
 
-        if s_model==None: # Gets all connections within crystal contacts
+        if s_model==None: 
+            # Gets all connections within crystal contacts
             print('Crystal Contacts Connection from Chimera')
             return find_contact_connect(crystal=crystal,contact_coords=contact_coords)
-        if s_model!=None: # check if added model is connected
-            print('Additional model connect')
+        
+        if s_model!=None: 
+            # check if added model is connected
             return find_model_connect(crystal=crystal,contact_coords=contact_coords,s_model=s_model)
