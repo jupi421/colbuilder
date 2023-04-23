@@ -38,10 +38,9 @@ class Optimizer:
         """        
         x_max=np.max(self.get_grid(z_grid=z_grid,s_matrix=s_matrix)[:,0])
         x_min=np.min(self.get_grid(z_grid=z_grid,s_matrix=s_matrix)[:,0])
-        y_max=np.max(self.get_grid(z_grid=z_grid,s_matrix=s_matrix)[:,1])
-        y_min=np.min(self.get_grid(z_grid=z_grid,s_matrix=s_matrix)[:,1])       
+        y_max=np.max(self.get_grid(z_grid=z_grid,s_matrix=s_matrix)[:,1])   
         x_mesh=np.linspace(x_min-d_x,x_max+d_x,x_max-x_min+2*d_x+1)
-        y_mesh=np.linspace(y_min,y_max,y_max-y_min+1)        
+        y_mesh=np.linspace(-y_max,y_max,2*y_max+1)        
         return np.transpose(np.vstack(list(map(np.ravel,np.meshgrid(x_mesh,y_mesh,z_grid)))))
     
     def get_nodes(self,z_grid=0,s_matrix=None):
@@ -55,8 +54,7 @@ class Optimizer:
         if s_matrix==None: s_matrix=self.s_matrix
         self.grid=[]
         for node in (set(map(tuple,self.get_grid(z_grid=z_grid,s_matrix=s_matrix)))^set(map(tuple,self.extend_grid(z_grid=z_grid,s_matrix=s_matrix)))):
-            self.grid.append(node)
-        print(self.grid)
+            self.grid.append(list(node))
         return self.grid
     
     def set_grid(self,z_grid=None,s_matrix=None):
@@ -83,8 +81,8 @@ class Optimizer:
             self.grid=self.set_grid(z_grid=z,s_matrix=s_matrix)
             print(self.grid)
             for g in self.grid:
-                if connect.run_connect(crystal=system.crystal,crystal_contacts=system.contacts,s_model=list(g))==True:
-                    print('Connection found at '+str(g))
+                if connect.run_connect(crystal=system.crystal,crystal_contacts=system.contacts,s_model=g)==True:
+                    print('Connection found at '+str(g)+' t_mat ='+str(system.crystal.get_t_matrix(s_matrix=g)))
 
 
     def draw_random_node(self,grid=None):
