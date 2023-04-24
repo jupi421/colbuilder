@@ -33,4 +33,12 @@ class Model:
         """
         self.model_connect_id=model_connect_id
         self.model_connect=model_connect
+
+    def get_model_connect(self):
+        """
+        
+        Get all contacts for model
+        
+        """
+        return self.model_connect
     

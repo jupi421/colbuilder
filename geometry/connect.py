@@ -51,7 +51,6 @@ def merge_pairs(pairs=None):
     for ref_key,key in product(pairs,repeat=2):
         if key==ref_key or pairs[key]==None or pairs[ref_key]==None: continue
         elif ref_key==pairs[key] or key==pairs[ref_key] or pairs[key]==pairs[ref_key]: model_connect[ref_key].append(key)
-    print(model_connect)
     return model_connect
 
 class Connect:
@@ -145,6 +144,19 @@ class Connect:
         """
         for ref_c,c in product(ref_model,model):
             if np.linalg.norm(ref_model[ref_c]-model[c])<cut_off:  return True
+
+    def write_connect(self,system=None,connect_file=None):
+        """
+        
+        writes system to file 
+        
+        """
+        with open(connect_file+'.txt','w') as f:
+            for model_connect in range(system.len_system()):
+                for model in system.get_model(model_id=model_connect).model_connect:
+                    if len(model)>1: f.write(str(int(model)+1)+'.caps.pdb ')
+                f.write('\n')
+        f.close()
 
     def run_connect(self,system=None,s_model=None):
         """
