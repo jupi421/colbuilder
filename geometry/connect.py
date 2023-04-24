@@ -153,6 +153,7 @@ class Connect:
         if models are closer than cut-off, and therefore connected
         
         """
+        # TODO: Make a nicer looking loop here
         t_crystalcontacts={ system.get_model(model_id=id).model_id : system.get_model(model_id=id).model_t for id in range(system.len_system()) }
         crystalcontacts_coords={ key: self.translate_model(translate_vector=t_crystalcontacts[key]) for key in t_crystalcontacts}
 
