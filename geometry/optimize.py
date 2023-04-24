@@ -103,15 +103,11 @@ class Optimizer:
         z_grid=np.max(list(s_matrix.values()),axis=0)[2]
         for plane in range(z_grid-2,z_grid+1,1):
             for node in self.set_grid(z_grid=plane,s_matrix=s_matrix):
-                if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)!=None:
-                    node_connect=self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)[True]
+                if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)==True:
                     pr_node=[i*(-1) for i in node] # Get point reflection of node candidate to be added
-
-                    if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=pr_node)!=None:
-                        pr_node_connect=self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)[True]
-
+                    if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=pr_node)==True:
                         system.add_model(model.Model(model_id=float(system.len_system()),model_s=node, # node
-                                                     model_t=system.crystal.get_t_matrix(s_matrix=node),model_connect_id=node_connect))                        
+                                                     model_t=system.crystal.get_t_matrix(s_matrix=node)))                        
                         system.add_model(model.Model(model_id=float(system.len_system()),model_s=pr_node, # point reflected node
-                                             model_t=system.crystal.get_t_matrix(s_matrix=pr_node),model_connect_id=pr_node_connect))
+                                             model_t=system.crystal.get_t_matrix(s_matrix=pr_node)))
         return system

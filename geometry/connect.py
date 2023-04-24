@@ -17,8 +17,7 @@ def find_model_connect(crystal=None,crystalcontacts_coords=None,s_model=None):
     model_coords={ 'add': connect.translate_model(translate_vector=t_model) }
     for ref_model in crystalcontacts_coords:
         if connect.get_model_connect(ref_model=crystalcontacts_coords[ref_model],model=model_coords['add'])==True:
-            return { True : ref_model }
-
+            return True
 
 def find_contact_connect(crystal=None,crystalcontacts_coords=None):  
     """
@@ -154,7 +153,7 @@ class Connect:
         if models are closer than cut-off, and therefore connected
         
         """
-        t_crystalcontacts={ model.model_id : model.model_t for model in system }
+        t_crystalcontacts={ system.get_model(model_id=id).model_id : system.get_model(model_id=id).model_t for id in range(system.len_system()) }
         crystalcontacts_coords={ key: self.translate_model(translate_vector=t_crystalcontacts[key]) for key in t_crystalcontacts}
 
         if s_model==None: # Gets all connections within crystal contacts

@@ -58,7 +58,7 @@ class System:
         
         """
         if system==None: system=self.system
-        system_connect={ model.model_id:[] for model in system }
+        system_connect={ system.get_model(model_id=id).model_id : system.get_model(model_id=id).model_t for id in range(system.len_system()) }
         for model in system:
             system_connect[model.model_id]=model.model_connect
         return system_connect
