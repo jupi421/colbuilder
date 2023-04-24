@@ -18,20 +18,19 @@ class Model:
     output  :   class : model
 
     """
-    def __init__(self,id_model=None,t_matrix=None,s_matrix=None,contacts=None,fibril_id=None):
-        self.id_model=id_model
-        self.t_matrix=t_matrix
-        self.s_matrix=s_matrix
-        self.contacts=contacts
-        self.fibril_id=fibril_id
+    def __init__(self,model_id=None,model_t=None,model_s=None,model_connect=None,model_connect_id=None):
+        self.model_id=model_id
+        self.model_t=model_t
+        self.model_s=model_s
+        self.model_connect=model_connect
+        self.model_connect_id=model_connect_id
 
-    def add_contact_connect(self,contact_key=None,contact_connect=None):
+    def add_model_connect(self,model_connect_id=None,model_connect=None):
         """
         
-        Adds contacts information to each model
+        Adds information about connection of each model
         
         """
-        self.fibril_id=contact_key
-        self.contacts=contact_connect[contact_key]
-        
+        self.model_connect_id=model_connect_id
+        self.model_connect=model_connect
     

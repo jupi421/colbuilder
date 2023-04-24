@@ -11,10 +11,10 @@ class System:
     output: -o      class : system with all class: models
 
     """
-    def __init__(self,crystal=None,contacts=None):
+    def __init__(self,crystal=None,crystalcontacts=None):
         self.system={ }
         self.crystal=crystal
-        self.contacts=contacts
+        self.crystalcontacts=crystalcontacts
 
     def add_model(self,model):
         """
@@ -22,7 +22,7 @@ class System:
         Adds a model to the system
         
         """
-        self.system.update({model.id_model : model})
+        self.system.update({model.model_id : model})
     
     def set_crystal(self,crystal=None):
         """
@@ -34,19 +34,31 @@ class System:
         for model in self.system:
             self.system[model].crystal=crystal       
 
-    def len_system(self):
+    def len_system(self,system=None):
         """
         
         gets length of system
         
         """
+        if system==None: system=self.system
         return len(self.system)
     
-    def get_model(self,id_model=None):
+    def get_model(self,model_id=None):
         """
         
         Gets information about a specific model in system
         
         """
-        return self.system[id_model]
-
+        return self.system[model_id]
+    
+    def get_system_connect(self,system=None):
+        """
+        
+        Gets information about a specific model in system
+        
+        """
+        if system==None: system=self.system
+        system_connect={ model.model_id:[] for model in system }
+        for model in system:
+            system_connect[model.model_id]=model.model_connect
+        return system_connect

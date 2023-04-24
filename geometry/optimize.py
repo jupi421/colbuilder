@@ -1,4 +1,5 @@
 import numpy as np
+from colbuilder.geometry import model
 
 class Optimizer:
     """
@@ -13,7 +14,7 @@ class Optimizer:
     """
     def __init__(self,system=None):
         self.system=system
-        self.t_matrix=system.contacts.read_t_matrix()
+        self.t_matrix=system.crystalcontacts.read_t_matrix()
         self.s_matrix={ k:system.crystal.get_s_matrix(t_matrix=self.t_matrix[k]) for k in self.t_matrix }
         self.grid=[]
 
@@ -46,14 +47,15 @@ class Optimizer:
     def get_nodes(self,z_grid=0,s_matrix=None):
         """
 
-        Compare nodes before & after plane extension step and update shift matrix S
-        Symmetric difference between sets: self.get_plane ^ self.extend_plane
-        Append extended models && point-mirror models to shift matrix dictonary 
+        Compare nodes before (grid_init) & after grid extension (grid_extent) step and update shift matrix S
+        Symmetric difference between sets: (self.get_grid) difference (self.extend_grid)
 
         """
         if s_matrix==None: s_matrix=self.s_matrix
         self.grid=[]
-        for node in (set(map(tuple,self.get_grid(z_grid=z_grid,s_matrix=s_matrix)))^set(map(tuple,self.extend_grid(z_grid=z_grid,s_matrix=s_matrix)))):
+        grid_init=set(map(tuple,self.get_grid(z_grid=z_grid,s_matrix=s_matrix)))
+        grid_extend=set(map(tuple,self.extend_grid(z_grid=z_grid,s_matrix=s_matrix)))
+        for node in grid_extend.difference(grid_init):
             self.grid.append(list(node))
         return self.grid
     
@@ -70,26 +72,46 @@ class Optimizer:
     def run_optimize(self,s_matrix=None,connect=None,system=None):
         """
         
-        optimizes the grid for each plane in integer spaced z-position
+        optimizes the grid for each plane in integer spaced z-position.
+        check if point reflection is also connected
+        adds model to system 
         
         """
         if s_matrix==None: s_matrix=self.s_matrix
         if system==None: system=self.system
+        return self.optimize_crystalcontacts(s_matrix=s_matrix,connect=connect,system=system)
+        
 
-        z_grid=range(3,np.max(list(s_matrix.values()),axis=0)[2]+1,1)
-        for z in z_grid:
-            self.grid=self.set_grid(z_grid=z,s_matrix=s_matrix)
-            print(self.grid)
-            for g in self.grid:
-                if connect.run_connect(crystal=system.crystal,crystal_contacts=system.contacts,s_model=g)==True:
-                    print('Connection found at '+str(g)+' t_mat ='+str(system.crystal.get_t_matrix(s_matrix=g)))
-
-
-    def draw_random_node(self,grid=None):
+    def check_node_connect(self,connect=None,system=None,z_grid=None,node=None):
         """
         
-        Draws a random node from the prepared meshgrid
+        check if the node is connected to any other node of the system    
         
         """
-        if grid==None: grid=self.grid
-        return list(self.grid[np.random.choice(len(self.grid),replace=False)])
+        return connect.run_connect(system=system,s_model=node)
+
+    def optimize_crystalcontacts(self,s_matrix=None,connect=None,system=None):
+        """
+        
+        Algorithm to add models to the system structures and keep them if they are connected
+        to any other model.
+        Here a double check if performed based on the point symmetry of the structure, both
+        added model and point-reflection have to find a connection partner to be added as
+        a new model to the grid.
+        
+        """
+        z_grid=np.max(list(s_matrix.values()),axis=0)[2]
+        for plane in range(z_grid-2,z_grid+1,1):
+            for node in self.set_grid(z_grid=plane,s_matrix=s_matrix):
+                if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)!=None:
+                    node_connect=self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)[True]
+                    pr_node=[i*(-1) for i in node] # Get point reflection of node candidate to be added
+
+                    if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=pr_node)!=None:
+                        pr_node_connect=self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)[True]
+
+                        system.add_model(model.Model(model_id=float(system.len_system()),model_s=node, # node
+                                                     model_t=system.crystal.get_t_matrix(s_matrix=node),model_connect_id=node_connect))                        
+                        system.add_model(model.Model(model_id=float(system.len_system()),model_s=pr_node, # point reflected node
+                                             model_t=system.crystal.get_t_matrix(s_matrix=pr_node),model_connect_id=pr_node_connect))
+        return system

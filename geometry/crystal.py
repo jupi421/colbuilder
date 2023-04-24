@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 
 class Crystal:
     """
@@ -45,20 +46,20 @@ class Crystal:
         if spacegroup==None: spacegroup=self.read_spacegroup(pdb)
         if crystal==None: crystal=self.read_crystal(pdb)
         if spacegroup==1:
-            ax,ay,az=float(crystal['a']),0,0        
+            ax,ay,az=float(crystal['a']),0,0   
             bx=float(crystal['b']) * np.cos(np.deg2rad(float(crystal['gamma'])))
             by=float(crystal['b']) * np.sin(np.deg2rad(float(crystal['gamma'])))
             bz=0        
             cx=float(crystal['c']) * np.cos(np.deg2rad(float(crystal['beta'])))
-            cy=float(crystal['c']) * ( np.cos(np.deg2rad(float(crystal['alpha']))) 
+            cy=float(crystal['c']) * ( ( np.cos(np.deg2rad(float(crystal['alpha']))) 
                                       - np.cos(np.deg2rad(float(crystal['beta']))) 
-                                      * np.cos(np.deg2rad(float(crystal['gamma'])))  
+                                      * np.cos(np.deg2rad(float(crystal['gamma']))) )  
                                       / np.sin(np.deg2rad(float(crystal['gamma']))) ) 
             cz=np.sqrt( np.power(float(crystal['c']),2) - 
                    np.power(cx,2) - np.power(cy,2) )
-            return np.array([[ax,bx,cx],[ay,by,cy],[az,bz,cz]])
+            return np.array([[ax,bx,cx],[ay,by,cy],[az,bz,cz]]).round(decimals=4)
         else:
-            print(' Space-group not recognized: Crystal-rotation-matrix only for space-group 1 available ')
+            logging.Error(' Space-group not recognized: Crystal-rotation-matrix only for space-group 1 available ')
     
     def get_s_matrix(self,pdb=None,cs_matrix=None,t_matrix=None):
         """
@@ -69,8 +70,8 @@ class Crystal:
         if cs_matrix==None:
             cs_matrix=self.read_cs_matrix(pdb)
         if t_matrix==None:
-            print('Error: No transform-matrix given, hence no unit-cell shift matrix is calculated.')
-        return list(np.linalg.solve(cs_matrix,t_matrix).astype(int))
+            logging.Error('Error: No transform-matrix given, hence no unit-cell shift matrix is calculated.')
+        return list(np.linalg.solve(cs_matrix,t_matrix).round(decimals=0).astype(int))
     
     def get_t_matrix(self,pdb=None,cs_matrix=None,s_matrix=None):
         """
@@ -81,5 +82,5 @@ class Crystal:
         if cs_matrix==None:
             cs_matrix=self.read_cs_matrix(pdb)  
         if s_matrix==None:
-            print('Error: No unit-cell shift-matrix given, hence no transform matrix is calculated.')
-        return list(np.dot(cs_matrix,s_matrix))
+            logging.Error('Error: No unit-cell shift-matrix given, hence no transform matrix is calculated.')
+        return list(np.dot(cs_matrix,s_matrix).round(decimals=2).astype(float))
