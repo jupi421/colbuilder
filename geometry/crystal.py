@@ -17,7 +17,7 @@ class Crystal:
     """
     def __init__(self,pdb=None):
         self.pdb_file=pdb
-        self.crystal={k:None for k in ['a','b','c','alpha','beta','gamma']}
+        self.crystal={ k:None for k in ['a','b','c','alpha','beta','gamma'] }
 
     def read_crystal(self,pdb=None):
         """
@@ -37,14 +37,14 @@ class Crystal:
         if pdb==None: pdb=self.pdb_file
         return int(open(pdb+'.pdb').readline().split()[-2])
 
-    def read_cs_matrix(self,pdb=None,spacegroup=None,crystal=None):
+    def read_cs_matrix(self,pdb=None,spacegroup=None,crystal=[]):
         """
         
         Determine crystal-symmetry matrix CS based on crystalgraphic information & space group 
         
         """
         if spacegroup==None: spacegroup=self.read_spacegroup(pdb)
-        if crystal==None: crystal=self.read_crystal(pdb)
+        if crystal==[]: crystal=self.read_crystal(pdb)
         if spacegroup==1:
             ax,ay,az=float(crystal['a']),0,0   
             bx=float(crystal['b']) * np.cos(np.deg2rad(float(crystal['gamma'])))
@@ -61,26 +61,26 @@ class Crystal:
         else:
             logging.Error(' Space-group not recognized: Crystal-rotation-matrix only for space-group 1 available ')
     
-    def get_s_matrix(self,pdb=None,cs_matrix=None,t_matrix=None):
+    def get_s_matrix(self,pdb=None,cs_matrix=[],t_matrix=[]):
         """
         
         Get shift matrix S from transformation matrix T using crystal-symmetry matrix CS: S = T \ CS
         
         """
-        if cs_matrix==None:
+        if cs_matrix==[]:
             cs_matrix=self.read_cs_matrix(pdb)
-        if t_matrix==None:
+        if t_matrix==[]:
             logging.Error('Error: No transform-matrix given, hence no unit-cell shift matrix is calculated.')
         return list(np.linalg.solve(cs_matrix,t_matrix).round(decimals=0).astype(int))
     
-    def get_t_matrix(self,pdb=None,cs_matrix=None,s_matrix=None):
+    def get_t_matrix(self,pdb=None,cs_matrix=[],s_matrix=[]):
         """
         
         Get transformation matrix T from shift matrix S using crystal-symmetry matrix CS: T = CS x S
         
         """
-        if cs_matrix==None:
+        if cs_matrix==[]:
             cs_matrix=self.read_cs_matrix(pdb)  
-        if s_matrix==None:
+        if s_matrix==[]:
             logging.Error('Error: No unit-cell shift-matrix given, hence no transform matrix is calculated.')
-        return list(np.dot(cs_matrix,s_matrix).round(decimals=2).astype(float))
+        return list(np.dot(cs_matrix,s_matrix).round(decimals=3).astype(float))

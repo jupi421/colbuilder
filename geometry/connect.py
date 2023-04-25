@@ -145,6 +145,24 @@ class Connect:
         for ref_c,c in product(ref_model,model):
             if np.linalg.norm(ref_model[ref_c]-model[c])<cut_off:  return True
 
+    def write_connect(self,system=None,system_file=None):
+        """
+        
+        writes system of connected models to connected file 
+        
+        """
+        if system==None: system=self.system
+        model_set=set()
+        with open(system_file+'.txt','w') as f:
+            for model in system.get_keys():
+                write_connect=set(system.get_model(model_id=model).model_connect)
+                if len(write_connect)>1 and not set(write_connect).issubset(set(model_set)):
+                    for model in write_connect:
+                        f.write(str(int(model)+1)+'.caps.pdb ')
+                        model_set.update(write_connect)
+                    f.write('\n')
+        f.close()
+        return 
 
     def run_connect(self,system=None,s_model=None):
         """
@@ -153,8 +171,7 @@ class Connect:
         if models are closer than cut-off, and therefore connected
         
         """
-        # TODO: Make a nicer looking loop here
-        t_crystalcontacts={ system.get_model(model_id=id).model_id : system.get_model(model_id=id).model_t for id in range(system.len_system()) }
+        t_crystalcontacts={ system.get_model(model_id=key).model_id : system.get_model(model_id=key).model_t for key in system.get_keys() }
         crystalcontacts_coords={ key: self.translate_model(translate_vector=t_crystalcontacts[key]) for key in t_crystalcontacts}
 
         if s_model==None: # Gets all connections within crystal contacts

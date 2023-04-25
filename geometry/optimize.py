@@ -75,7 +75,7 @@ class Optimizer:
         optimizes the grid for each plane in integer spaced z-position.
         check if point reflection is also connected
         adds model to system 
-        
+         
         """
         if s_matrix==None: s_matrix=self.s_matrix
         if system==None: system=self.system
@@ -106,8 +106,8 @@ class Optimizer:
                 if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)==True:
                     pr_node=[i*(-1) for i in node] # Get point reflection of node candidate to be added
                     if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=pr_node)==True:
-                        system.add_model(model.Model(model_id=float(system.len_system()),model_s=node, # node
-                                                     model_t=system.crystal.get_t_matrix(s_matrix=node)))                        
-                        system.add_model(model.Model(model_id=float(system.len_system()),model_s=pr_node, # point reflected node
+                        system.add_model(model.Model(model_id=float(system.size_system(system=system)),model_s=node, # node
+                                            model_t=system.crystal.get_t_matrix(s_matrix=node)))                        
+                        system.add_model(model.Model(model_id=float(system.size_system(system=system)),model_s=pr_node, # point reflected node
                                              model_t=system.crystal.get_t_matrix(s_matrix=pr_node)))
         return system

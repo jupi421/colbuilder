@@ -13,8 +13,11 @@ class System:
     """
     def __init__(self,crystal=None,crystalcontacts=None):
         self.system={ }
+        self.keys=[]
         self.crystal=crystal
         self.crystalcontacts=crystalcontacts
+        self.size_models_connect=0
+        self.size_models=0
 
     def add_model(self,model):
         """
@@ -34,14 +37,28 @@ class System:
         for model in self.system:
             self.system[model].crystal=crystal       
 
-    def len_system(self,system=None):
+    def size_system(self,system=None):
         """
         
         gets length of system
         
         """
         if system==None: system=self.system
-        return len(self.system)
+        self.size_models=len(self.system)
+        return self.size_models
+
+    def size_models_connect(self,system=None):
+        """
+        
+        counts all models in system
+        
+        """
+        if system==None: system=self.system
+        cnt=0
+        for model in system:
+            cmt+=len(self.system[model])
+        self.size_models_connect=cnt
+        return self.size_models_connect
     
     def get_model(self,model_id=None):
         """
@@ -51,6 +68,17 @@ class System:
         """
         return self.system[model_id]
     
+    def get_keys(self,system=None):
+        """
+
+        Get key for each model in list
+        
+        """
+        if system==None: system=self.system
+        self.keys=[model_key for model_key in system]
+        return self.keys
+
+
     def get_system_connect(self,system=None):
         """
         
@@ -58,25 +86,21 @@ class System:
         
         """
         if system==None: system=self.system
-        system_connect={ system.get_model(model_id=id).model_id : system.get_model(model_id=id).model_t for id in range(system.len_system()) }
-        for id in range(system.len_system()):
+        system_connect={ system.get_model(model_id=key).model_id : system.get_model(model_id=key).model_t for key in system.get_keys() }
+        for id in system.keys:
             system_connect[system.get_model(model_id=id).model_id]=system.get_model(model_id=id).model_connect
         return system_connect
     
-    def write_system(self,system=None,system_file=None):
+    def write_system_pdb(self,system=None,pdb_file=None):
         """
         
-        writes system to file 
+        writes system of models to connected file 
         
         """
-        model_out=[]
-        with open(system_file+'.txt','w') as f:
-            for model_connect in range(system.len_system()):
-                write_connect=system.get_model(model_id=model_connect).model_connect
-                if len(write_connect)>1 and not set(write_connect).issubset(set(model_out)):
-                    for model in write_connect:
-                        f.write(str(int(model)+1)+'.caps.pdb ')
-                        model_out.append(write_connect)
-                f.write('\n')
+        if system==None: system=self.system
+        with open('All'+pdb_file+'Long.pdb','w') as f:
+            for model in system.get_keys():
+                    f.write('\n')
+                    self.size_models_connect+=1
         f.close()
-        return print('Optimized System file '+str(system_file)+' written')
+        return 

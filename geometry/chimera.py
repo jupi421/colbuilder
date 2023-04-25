@@ -36,17 +36,18 @@ class Chimera:
     def __init__(self,pdb=None):
         self.pdb_file=pdb
     
-    def matrixget(self,pdb=None,contact_distance=int,crystal_contacts=str):
+    def matrixget(self,pdb=None,contact_distance=int,crystalcontacts=str):
         if pdb==None: pdb=self.pdb_file
         path_matrix=os.path.dirname(os.path.realpath(__file__))+'/'
         return subprocess.run(
             'chimera --nogui --silent --script "'+str(path_matrix)+'matrixget.py '+
-            str(pdb)+'.pdb '+str(contact_distance)+' '+str(crystal_contacts)+'.txt"',shell=True)        
+            str(pdb)+'.pdb '+str(contact_distance)+' '+str(crystalcontacts)+'"',
+            shell=True,stdout=subprocess.DEVNULL)        
     
-    def matrixset(self,pdb=None,crystal_contacts=str,fibril_number=int,cut_off=float):
+    def matrixset(self,pdb=None,crystalcontacts=str,fibril_number=int,cut_off=float):
         if pdb==None: pdb=self.pdb_file
-        path_matrix=os.path.dirname(os.path.realpath(__file__))
+        path_matrix=os.path.dirname(os.path.realpath(__file__))+'/'
         return subprocess.run(
             'chimera --nogui --silent --script "'+str(path_matrix)+'matrixset.py '+
-            str(pdb)+'.pdb '+' '+str(crystal_contacts)+'.txt '+str(fibril_number)+' '+
-            str(cut_off)+'"',shell=True)
+            str(pdb)+'.pdb '+str(crystalcontacts)+' '+str(fibril_number)+' '+
+            str(cut_off)+'"',shell=True,stdout=subprocess.DEVNULL)

@@ -38,21 +38,31 @@ class CrystalContacts:
                 float(crystalcontacts[idx+3].split(' ')[-1])]
         return self.t_matrix
     
-    def write_contacts(self,crystalcontact_file=None,crystalcontacts=None):
+    def write_contacts(self,system=None,crystalcontact_file=None):
         """
         
         Writes crystal contacts to txt file for chimera
         
         """
         if crystalcontact_file==None: crystalcontact_file=self.crystalcontact_file
-        if crystalcontacts==None: crystalcontacts=self.read_contacts(crystalcontact_file)
-        with open(crystalcontact_file+'.txt','w') as f:
-            for key_cc,val_cc in crystalcontacts:
-                f.write(str(key_cc)+'\n')
-                f.write('         1 0 0 %s\n' % (round(val_cc[0],3)))
-                f.write('         1 0 0 %s\n' % (round(val_cc[1],3)))
-                f.write('         1 0 0 %s\n\n' % (round(val_cc[2],3)))
-        f.close()
+        if system==None: 
+            system=self.read_contacts(crystalcontact_file)
+            with open(crystalcontact_file+'.txt','w') as f:
+                for key_cc,val_cc in system:
+                    f.write(str(key_cc)+'\n')
+                    f.write('         1 0 0 %s\n' % (round(val_cc[0],3)))
+                    f.write('         1 0 0 %s\n' % (round(val_cc[1],3)))
+                    f.write('         1 0 0 %s\n\n' % (round(val_cc[2],3)))
+            f.close()
+        else:
+            with open(crystalcontact_file+'.txt','w') as f:
+                for model in system.get_keys():
+                    f.write('Model '+str(float(model))+'\n')
+                    f.write('         1 0 0 %s\n' % (round(system.get_model(model_id=model).model_t[0],3)))
+                    f.write('         1 0 0 %s\n' % (round(system.get_model(model_id=model).model_t[1],3)))
+                    f.write('         1 0 0 %s\n' % (round(system.get_model(model_id=model).model_t[2],3)))
+            f.close()
+        return
 
     def find_contact(self,model_id=None):
         """

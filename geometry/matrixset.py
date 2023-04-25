@@ -1,45 +1,41 @@
 import os
 import sys
-import chimera
 from chimera import runCommand as rc
 from chimera import openModels,selection,Point
 
-file_name=str(sys.argv[1])
-crystalcontacts=str(sys.argv[2])
+pdb_file=str(sys.argv[1])
+crystalcontacts_file=str(sys.argv[2])
 fibril_number=int(sys.argv[3])
 cut_off=float(sys.argv[4])
 
-os.chdir(path_pdb)
+for i in range(0,fibril_number): 
+    rc("open "+pdb_file)
 
-rc("close")
-for i in range(0,fibril_number):
-    rc("open "+file_name)
-
-model=openModels.list()
-startPos=model[0].atoms[0].coord()
-endPos=model[0].atoms[-1].coord()
+models=openModels.list()
+startPos=models[0].atoms[0].coord()
+endPos=models[0].atoms[-1].coord()
 cut_off=int(cut_off-300)/2
 startPos[2]=startPos[2]-cut_off
 endPos[2]=endPos[2]+cut_off
-rc("matrixset "+crystalcontacts+".txt")
+
+rc("matrixset "+crystalcontacts_file+".txt")
 
 cnt=1
-for m in model:
-    rc("write #"+str(m.id)+" "+str(m.id+1)+".pdb")
-    rc("del #"+str(m.id))
+for model in models:
+    rc("write #"+str(model.id)+" "+str(model.id+1)+".pdb")
+    rc("del #"+str(model.id))
     rc("open "+str(cnt)+".pdb")
     os.remove(str(cnt)+".pdb")
     cnt+=1
 
 selectAtoms=[]
-for i in range(0,fibril_number):
-    m=model[i]
-    for r in m.residues:
-        mass=[a.element.mass for a in r.atoms]
-        com=Point([a.coord() for a in r.atoms],mass)
+for model in models:
+    for residue in model.residues:
+        mass=[atom.element.mass for atom in residue.atoms]
+        com=Point([atom.coord() for atom in residue.atoms],mass)
         if com[2]>=startPos[2] and com[2]<=endPos[2]:
-            for a in r.atoms:
-                selectAtoms.append(a)
+            for atom in residue.atoms: 
+                selectAtoms.append(atom)
 
 selectFibril=selection.ItemizedSelection()
 selectFibril.add(selectAtoms)
@@ -48,5 +44,5 @@ selection.mergeCurrent(selection.REPLACE,selectFibril)
 rc("sel invert")
 rc("del sel")
 
-for m in model:
-    rc("write #"+str(m.id)+' '+str(m.id+1)+".pdb")
+for model in models: 
+    rc("write #"+str(model.id)+' '+str(model.id+1)+".pdb")
