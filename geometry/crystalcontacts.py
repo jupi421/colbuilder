@@ -52,15 +52,15 @@ class CrystalContacts:
                     f.write(str(key_cc)+'\n')
                     f.write('         1 0 0 %s\n' % (round(val_cc[0],3)))
                     f.write('         1 0 0 %s\n' % (round(val_cc[1],3)))
-                    f.write('         1 0 0 %s\n\n' % (round(val_cc[2],3)))
+                    f.write('         1 0 0 %s\n' % (round(val_cc[2],3)))
             f.close()
         else:
             with open(crystalcontact_file+'.txt','w') as f:
                 for model in system.get_keys():
                     f.write('Model '+str(float(model))+'\n')
-                    f.write('         1 0 0 %s\n' % (round(system.get_model(model_id=model).model_t[0],3)))
-                    f.write('         1 0 0 %s\n' % (round(system.get_model(model_id=model).model_t[1],3)))
-                    f.write('         1 0 0 %s\n' % (round(system.get_model(model_id=model).model_t[2],3)))
+                    f.write('         1 0 0 %s\n' % (system.get_model(model_id=model).model_t[0]))
+                    f.write('         0 1 0 %s\n' % (system.get_model(model_id=model).model_t[1]))
+                    f.write('         0 0 1 %s\n' % (system.get_model(model_id=model).model_t[2]))
             f.close()
         return
 
