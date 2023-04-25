@@ -1,116 +1,181 @@
-#!/store/conda/envs/colbuilder/bin/python3.9
+#!/hits/fast/mbm/broszms/software/conda/envs/colbuilder/bin/python3.9
 
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Apr  3 10:02:52 2023
-
-@author: broszms
-"""
 import os
 import sys
 from setuptools import setup
+import typing
 #
 import argparse
 import logging
-from colbuilder.geometry.crystal import Crystal
-from colbuilder.geometry.contacts import Contacts
-from colbuilder.geometry.chimera import Chimera
-from colbuilder.geometry.connect import Connect
-from colbuilder.geometry.models import Model
-#from colbuilder.geometry.gen_coord import Fibril,Crystal
-#from colbuilder.geometry.gen_model import Crosslink,Model,StructureOptimizer
+from colbuilder.geometry import (
+    crystal, crystalcontacts, chimera, connect,
+    model, system, optimize
+)
 
-def run_chimera(path=None,pdb=None):
-    pdb=path+'/'+pdb
-    chimera=Chimera(pdb)
-    return chimera
+def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,
+                      crystalcontacts_file=str,crystalcontacts_optimize=bool,cut_off=float):
+    """
+    
+    Builds a system of models depending on the input-data from the user.
 
-def read_crystal(pdb):
-    crystal=Crystal(pdb)
-    return crystal
+    i) pdb != None & contact_distance != None & crystalcontacts == None : build system from zero
+    ii) pdb != None & contact_distance == None & crystalcontacts != None: build system based on crystalcontacts
+    
+    """
+    if pdb_file==None: print('Error: No pdb-file given to build collagen microfibril')
 
-def read_contacts(contacts):
-    crystal_contacts=Contacts(contacts)
-    return crystal_contacts
+    print('-- Read crystallographic symmetry from '+str(pdb_file)+'.pdb --')
+    crystal_=crystal.Crystal(pdb_file)
 
-def run_connect(pdb):
-    connect=Connect(pdb)
-    return connect
+    path_pdb_file=path_wd+'/'+pdb_file
+    chimera_=chimera.Chimera(path_pdb_file)
 
-def get_crystal_contacts_connect(crystal,contacts,connect):
-    return connect.run_model_connect(crystal=crystal,crystal_contacts=contacts)
+    if pdb_file!=None and contact_distance!=None and crystalcontacts_file=='chimera_crystalcontacts':
+        """
+    
+        PART ONE: Generate System of Models based on Contact Distance and PDB-File of Single Molecule
+    
+        """
+        print('-- Build System from '+str(pdb_file)+'.pdb and Contact Distance '+str(contact_distance)+' A --')
+        chimera_.matrixget(pdb=path_pdb_file,contact_distance=contact_distance,crystalcontacts=crystalcontacts_file)
 
-def get_model_connect(crystal,contacts,connect,s_model):
-    return connect.run_model_connect(crystal=crystal,crystal_contacts=contacts,s_model=s_model)
+        print('-- Save CrystalContacts of Systems in '+str(crystalcontacts_file)+'.txt --')
+        crystalcontacts_=crystalcontacts.CrystalContacts(crystalcontacts_file)
 
-def build_model(model_id=None,crystal=None,contacts=None):
-    model=Model(model_id,crystal,contacts)
-    return model
+        print('-- Build System from '+str(crystalcontacts_file)+'.txt --')
+        system_=build_system(crystal=crystal_,crystalcontacts=crystalcontacts_)
+
+        print('-- Connect Models System built from '+str(crystalcontacts_file)+'.txt --')
+        system_,connect_=connect_system(system=system_)
+
+        print('-- Optimize System by Adding Models --')
+        system_=optimize.Optimizer(system=system_).run_optimize(system=system_,connect=connect_)
+
+        print('-- Connect Models in Optimized System --')
+        system_,connect_=connect_system(system=system_)
+
+        print('-- Write Connected Models from Optimized System --')
+        crystalcontacts_.write_contacts(system=system_,crystalcontact_file=crystalcontacts_file+'_connect')
+
+    elif pdb_file!=None and contact_distance==None and crystalcontacts_file!='chimera_crystalcontacts':
+        """
+    
+        PART TWO: Generate System of Models based user-specific CrystalContacts and PDB-File of Single Molecule
+    
+        """
+        print('-- Build System from PDB structure and user-specified CrystalContacts --')
+        crystalcontacts_=crystalcontacts.CrystalContacts(crystalcontacts_file)
+
+        print('-- Build System from '+str(crystalcontacts_file)+'.txt --')
+        system_=build_system(crystal=crystal_,crystalcontacts=crystalcontacts_)
+
+        print('-- Connect Models in System built from '+str(crystalcontacts_file)+'.txt --')
+        system_,connect_=connect_system(system=system_)
+
+        # TODO: Output connecte models & unconnected ones        
+        if crystalcontacts_optimize:
+            print('-- Optimize user-specific CrystalContacts by Adding Models --')
+            system_=optimize.Optimizer(system=system_).run_optimize(system=system_,connect=connect_)
+
+            print('-- Connect Models in Optimized System built from '+str(crystalcontacts_file)+'.txt --')
+            system_,connect_=connect_system(system=system_)
+
+            print('-- Write CrystalContacts Models from Optimized System to '+str(crystalcontacts_file)+'.txt --')
+            crystalcontacts_.write_contacts(system=system_,crystalcontact_file=crystalcontacts_file+'_connect')
+
+    else:
+        print('Error: Input does not make sense, please provide either Contact Distance or CrystalContacts and not both.')
+        return exit()
+    
+    print('-- Generate System of '+str(crystalcontacts_file)+'.txt with Chimera --')
+    chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_file+'_connect',
+                       fibril_number=system_.size_system(system=system_),cut_off=cut_off)   
+
+    return system_
+
+def build_system(crystal : crystal.Crystal,
+                 crystalcontacts : crystalcontacts.CrystalContacts) -> system.System:
+    """
+    
+    Build a system of models
+    
+    """
+    system_=system.System(crystal=crystal,crystalcontacts=crystalcontacts)
+    model_t=system_.crystalcontacts.read_t_matrix()
+    model_s={ k:system_.crystal.get_s_matrix(t_matrix=model_t[k]) for k in model_t }
+    for key_m in model_t:
+        model_=model.Model(model_id=key_m,model_t=model_t[key_m],model_s=model_s[key_m])
+        system_.add_model(model=model_)
+    return system_
+
+def connect_system(system : system.System) -> tuple[system.System, connect.Connect] :
+    """
+    
+    Identifies connections within a build system 
+    
+    """
+    connect_=connect.Connect(system.crystal.pdb_file)
+    system_connect=connect_.run_connect(system=system)
+    for key_m in system_connect:
+        system.get_model(model_id=key_m).add_model_connect(model_connect_id=key_m,model_connect=system_connect[key_m])
+    return system,connect_
 
 
+def generate_atomistic_topology(system : system.System,crystalcontacts_file=str):
+    """
+    
+    Generates atomistis topology based on connect information of system
+    
+    """
+
+
+    print('hello world')
+
+
+
+
+    return print('Atomistic topology written')
 
 
 
 def main():
     
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    print('-- Colbuilder --')
+    print('-- Read input parameters --')
     
     # Input arguments 
-    parser.add_argument('-f', '--file', required=False, 
+    parser.add_argument('-f', '--file', required=True, 
                         help='PDB-file of single triple helix (PDB)')
     parser.add_argument('-wd','--working_directory', required=False, 
-                        help='Set working directory',default=os.getcwd())
+                        help='set working directory',default=os.getcwd())
     parser.add_argument('-dc','--contact_distance', required=False, 
-                        help='Number of Crystal Contacts (INT)',default=1)
+                        help='contact distance as input for crystalcontacts command',default=None)
     parser.add_argument('-cut-off','--cut_off', required=False, 
-                        help='Cut-off Microfibril 300 +/- 15 [nm] ',default=315)
-    parser.add_argument('-contact','--crystal_contacts_file', required=False, 
-                        help='Read the crystal contacts information from final crystal_contacts.txt file',default='crystal_contacts')
+                        help='cut-off Microfibril 300 +/- 15 [nm] ',default=315)
+    parser.add_argument('-contacts','--crystalcontacts_file', required=False, 
+                        help='read user-specific crystalcontacts information from *.txt file',default='chimera_crystalcontacts')
+    parser.add_argument('-optimize','--crystalcontacts_optimize', required=False, 
+                        help='optimize user-specified crystalcontacts information',default=False)
     args=parser.parse_args()
-    
-    # TODO: Better PATH logic -> path package
-    path_wd=str(args.working_directory)
-    pdb_file=str(args.file).replace('.pdb','')
-    crystal_contacts_file=str(args.crystal_contacts_file)
 
-
-    # TODO: Routine where user inputs crystal contacts txt file
-    # Read INput
-    if args.contact_distance!=None and args.file!=None:
-        chimera=run_chimera(path_wd,pdb_file)
-        crystal=read_crystal(pdb_file)
-        crystal_contacts=read_contacts(crystal_contacts_file)
-
-    # Check Connection
-    connect=run_connect(pdb_file)
-    crystal_contacts_connect=get_crystal_contacts_connect(crystal,crystal_contacts,connect)
-    
-    # Build Model
-    model=build_model(crystal=crystal,contacts=crystal_contacts)
-    models=model.run_build_contacts(connect_contacts=crystal_contacts_connect)
-
-    # Add Model
-    s_add=[10,3,4]
-    out_add=get_model_connect(crystal,crystal_contacts,connect,s_add)
-    print(out_add)
-
-    # TODO: Here starts build model infrastructure. 
-        
-    # models is a dict containing all information necessar
-    #models=build_models(connections,t_matrix,s_matrix)
-    #tmp=add_nodes(fibril,models)
-    #print(tmp)
-
+    # TODO: PATH LOGIC    
+    system_=build_geometry(path_wd=str(args.working_directory),
+                            pdb_file=str(args.file).replace('.pdb',''),
+                            contact_distance=args.contact_distance,
+                            crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''),
+                            crystalcontacts_optimize=args.crystalcontacts_optimize,
+                            cut_off=float(args.cut_off))
 
     # TODO: AA FF
+   # system_aa_=generate_atomistic_topology(system=system_,crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''))
     
     # TODO CG FF
     
     # MAP GO-Model
 #    map_go_itp.run_map_go_itp(path,file_name)
 
-main()
 
 if __name__ == '__main__':
     main()
-    
