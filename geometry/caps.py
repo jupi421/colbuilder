@@ -2,6 +2,14 @@ import os
 import sys
 from pymol import cmd, editor
 
+def cap_system(system_size=None):
+    """
+    
+    Function to add caps to each model of the system
+    
+    """
+
+    residues_
 
 class Caps:
     """
@@ -52,17 +60,17 @@ class Caps:
         """
         if cap=='N': index=0
         elif cap=='C': index=-1
+        print(self.model['A'])
         return [['resi '+str(self.model[chain_id][index])+' and chain '+str(chain_id)+' and name '+str(cap)] for chain_id in self.chains]
 
     
-    def add_caps(self,pdb_file=None):
+    def add_caps(self,pdb_id=None):
         """
         
         adds caps to both ends of each model
         
         """
-        
-        cmd.load(pdb_file)
+        cmd.load(str(pdb_id)+'.pdb')
         for cap in self.caps:
             for chain in self.chains:
                 tmp=self.write_pymol(cap=cap)
