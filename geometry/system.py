@@ -46,19 +46,6 @@ class System:
         if system==None: system=self.system
         self.size_models=len(self.system)
         return self.size_models
-
-    def size_models_connect(self,system=None):
-        """
-        
-        counts all models in system
-        
-        """
-        if system==None: system=self.system
-        cnt=0
-        for model in system:
-            cmt+=len(self.system[model])
-        self.size_models_connect=cnt
-        return self.size_models_connect
     
     def get_model(self,model_id=None):
         """
@@ -77,7 +64,6 @@ class System:
         if system==None: system=self.system
         self.keys=[model_key for model_key in system]
         return self.keys
-
 
     def get_system_connect(self,system=None):
         """

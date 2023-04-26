@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Apr  3 10:09:18 2023
+#!/store/conda/envs/colbuilder/bin/python3.9
 
-@author: broszms
-"""
+# -*- coding: utf-8 -*-

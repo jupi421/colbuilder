@@ -9,7 +9,7 @@ import argparse
 import logging
 from colbuilder.geometry import (
     crystal, crystalcontacts, chimera, connect,
-    model, system, optimize
+    model, system, optimize, caps
 )
 
 def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,
@@ -45,7 +45,7 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,
         print('-- Build System from '+str(crystalcontacts_file)+'.txt --')
         system_=build_system(crystal=crystal_,crystalcontacts=crystalcontacts_)
 
-        print('-- Connect Models System built from '+str(crystalcontacts_file)+'.txt --')
+        print('-- Connect Models System built --')
         system_,connect_=connect_system(system=system_)
 
         print('-- Optimize System by Adding Models --')
@@ -87,9 +87,14 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,
         print('Error: Input does not make sense, please provide either Contact Distance or CrystalContacts and not both.')
         return exit()
     
-    print('-- Generate System of '+str(crystalcontacts_file)+'.txt with Chimera --')
+    print('-- Generate Microfibril from '+str(crystalcontacts_file)+' with Chimera --')
+    print('-- Please wait, this may take some time ... --')
     chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_file+'_connect',
-                       fibril_number=system_.size_system(system=system_),cut_off=cut_off)   
+                       system_size=system_.size_system(system=system_),cut_off=cut_off)   
+
+    print('-- Microfibril was generated, now N-, and C- termini are capped ... --')
+    caps_=cap_system(system=system_)
+
 
     return system_
 
@@ -119,6 +124,20 @@ def connect_system(system : system.System) -> tuple[system.System, connect.Conne
     for key_m in system_connect:
         system.get_model(model_id=key_m).add_model_connect(model_connect_id=key_m,model_connect=system_connect[key_m])
     return system,connect_
+
+def cap_system(system : system.System):
+    """
+    
+    Caps each model of system
+    
+    """
+    caps_=caps.Caps(system_size=system.size_models)
+    for model_id in range(system.size_models):
+        caps_.add_caps(model_id=model_id)
+
+    return caps_
+    print('hhelo')
+   # for model in system.size_system
 
 
 def generate_atomistic_topology(system : system.System,crystalcontacts_file=str):

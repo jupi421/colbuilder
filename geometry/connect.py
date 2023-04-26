@@ -51,6 +51,20 @@ def merge_pairs(pairs=None):
     for ref_key,key in product(pairs,repeat=2):
         if key==ref_key or pairs[key]==None or pairs[ref_key]==None: continue
         elif ref_key==pairs[key] or key==pairs[ref_key] or pairs[key]==pairs[ref_key]: model_connect[ref_key].append(key)
+    return clean_connect(model_connect)
+
+def clean_connect(model_connect=None):
+    """
+    
+    cleans merged pairs to prevent double or triple counting of pairs tripletts of models
+
+    --
+
+    output  :   cleaned connections between all models 
+    
+    """
+    remove_model=np.unique([key for key in model_connect for model in model_connect[key] if key>model])
+    for key in remove_model: model_connect.pop(key) 
     return model_connect
 
 class Connect:
@@ -152,15 +166,11 @@ class Connect:
         
         """
         if system==None: system=self.system
-        model_set=set()
         with open(system_file+'.txt','w') as f:
-            for model in system.get_keys():
-                write_connect=set(system.get_model(model_id=model).model_connect)
-                if len(write_connect)>1 and not set(write_connect).issubset(set(model_set)):
-                    for model in write_connect:
-                        f.write(str(int(model)+1)+'.caps.pdb ')
-                        model_set.update(write_connect)
-                    f.write('\n')
+            for connect_id in system.get_keys():
+                for model_id in system.get_model(model_id=connect_id).model_connect:
+                    f.write(str(int(model_id)+1)+'.caps.pdb ')
+                f.write('\n')
         f.close()
         return 
 

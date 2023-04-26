@@ -49,10 +49,10 @@ class CrystalContacts:
             system=self.read_contacts(crystalcontact_file)
             with open(crystalcontact_file+'.txt','w') as f:
                 for key_cc,val_cc in system:
-                    f.write(str(key_cc)+'\n')
+                    f.write('Model '+str(float(key_cc))+'\n')
                     f.write('         1 0 0 %s\n' % (round(val_cc[0],3)))
-                    f.write('         1 0 0 %s\n' % (round(val_cc[1],3)))
-                    f.write('         1 0 0 %s\n' % (round(val_cc[2],3)))
+                    f.write('         0 1 0 %s\n' % (round(val_cc[1],3)))
+                    f.write('         0 0 1 %s\n' % (round(val_cc[2],3)))
             f.close()
         else:
             with open(crystalcontact_file+'.txt','w') as f:

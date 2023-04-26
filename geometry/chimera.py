@@ -44,10 +44,10 @@ class Chimera:
             str(pdb)+'.pdb '+str(contact_distance)+' '+str(crystalcontacts)+'"',
             shell=True,stdout=subprocess.DEVNULL)        
     
-    def matrixset(self,pdb=None,crystalcontacts=str,fibril_number=int,cut_off=float):
+    def matrixset(self,pdb=None,crystalcontacts=str,system_size=int,cut_off=float):
         if pdb==None: pdb=self.pdb_file
         path_matrix=os.path.dirname(os.path.realpath(__file__))+'/'
         return subprocess.run(
             'chimera --nogui --silent --script "'+str(path_matrix)+'matrixset.py '+
-            str(pdb)+'.pdb '+str(crystalcontacts)+' '+str(fibril_number)+' '+
+            str(pdb)+'.pdb '+str(crystalcontacts)+' '+str(system_size)+' '+
             str(cut_off)+'"',shell=True,stdout=subprocess.DEVNULL)
