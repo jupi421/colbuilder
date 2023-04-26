@@ -7,7 +7,7 @@ import typing
 #
 import argparse
 import logging
-from colbuilder.geometry import (
+from geometry import (
     crystal, crystalcontacts, chimera, connect,
     model, system, optimize, caps
 )
