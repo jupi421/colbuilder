@@ -72,15 +72,15 @@ class Caps:
         adds caps to both ends of each model
         
         """
-        print(self.chain_length)
         cmd.load(str(pdb_id)+'.pdb')
         for cap in self.caps:
             for chain in self.chains:
                 line_cap=self.write_pymol(cap=cap,chain_id=chain)
-                if line_cap.split(' ')[1]!=1 and cap=='N':
+                if int(line_cap.split(' ')[1])!=1 and cap=='N':
                     cmd.edit(line_cap)
+                    print(line_cap.split(' ')[1])
                     editor.attach_amino_acid("pk1",'ace',ss=0)
-                elif line_cap.split(' ')[1]!=int(self.chain_length[cap]) and cap=='C': 
+                elif int(line_cap.split(' ')[1])!=int(self.chain_length[cap]) and cap=='C': 
                     cmd.edit(line_cap)
                     editor.attach_amino_acid("pk1",'nme',ss=0)
                 break

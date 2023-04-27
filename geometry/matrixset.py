@@ -19,9 +19,9 @@ endPos[2]=endPos[2]+cut_off
 
 rc("matrixset "+crystalcontacts_file+".txt")
 
-cnt=1
+cnt=0
 for model in openModels.list():
-    rc("write #"+str(model.id)+" "+str(model.id+1)+".pdb")
+    rc("write #"+str(model.id)+" "+str(model.id)+".pdb")
     rc("del #"+str(model.id))
     rc("open "+str(cnt)+".pdb")
     os.remove(str(cnt)+".pdb")
@@ -44,4 +44,4 @@ rc("sel invert")
 rc("del sel")
 
 for model in openModels.list(): 
-    rc("write #"+str(model.id)+' '+str(model.id+1)+".pdb")
+    rc("write #"+str(model.id)+' '+str(model.id)+".pdb")
