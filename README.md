@@ -12,7 +12,7 @@ Other options, such as using a virtual environment should also be possible, howe
 git clone git@github.com:mbrosz/colbuilder.git
 cd colbuilder/
 ```
-Enter the cloned directory and install colbuilder using pip:
+Enter the cloned directory and install colbuilder 2.0 with pip:
 ```
 pip install .
 ```
