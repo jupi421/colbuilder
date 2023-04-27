@@ -7,7 +7,8 @@ import typing
 #
 import argparse
 import logging
-from geometry import (
+import colbuilder
+from colbuilder.geometry import (
     crystal, crystalcontacts, chimera, connect,
     model, system, optimize, caps
 )
@@ -39,7 +40,7 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,
         print('-- Build System from '+str(pdb_file)+'.pdb and Contact Distance '+str(contact_distance)+' A --')
         chimera_.matrixget(pdb=path_pdb_file,contact_distance=contact_distance,crystalcontacts=crystalcontacts_file)
 
-        print('-- Save CrystalContacts of Systems in '+str(crystalcontacts_file)+'.txt --')
+        print('-- Write CrystalContacts of Systems to '+str(crystalcontacts_file)+'.txt --')
         crystalcontacts_=crystalcontacts.CrystalContacts(crystalcontacts_file)
 
         print('-- Build System from '+str(crystalcontacts_file)+'.txt --')
@@ -57,7 +58,7 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,
         print('-- Write Connected Models from Optimized System --')
         crystalcontacts_.write_contacts(system=system_,crystalcontact_file=crystalcontacts_file+'_connect')
 
-    elif pdb_file!=None and contact_distance==None and crystalcontacts_file!='chimera_crystalcontacts':
+    elif pdb_file!=None and contact_distance==None:
         """
     
         PART TWO: Generate System of Models based user-specific CrystalContacts and PDB-File of Single Molecule
@@ -91,10 +92,12 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,
     print('-- Please wait, this may take some time ... --')
     chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_file+'_connect',
                        system_size=system_.size_system(system=system_),cut_off=cut_off)   
-
-    print('-- Microfibril was generated, now N-, and C- termini are capped ... --')
+    
+    print('-- Cap N- and C- termini of each Model within Microfibril --')
     caps_=cap_system(system=system_)
 
+    print('-- Merge capped Models to Microfibril --')
+    system_=system_.write_system_pdb(system=system_)
 
     return system_
 
@@ -131,31 +134,11 @@ def cap_system(system : system.System):
     Caps each model of system
     
     """
-    caps_=caps.Caps(system_size=system.size_models)
-    for model_id in range(system.size_models):
-        caps_.add_caps(model_id=model_id)
-
+    caps_=caps.Caps(system=system)
+    for model_id in range(system.size_system(system=system)):
+        caps_.read_residues(pdb_id=int(model_id))
+        caps_.add_caps(pdb_id=int(model_id))
     return caps_
-    print('hhelo')
-   # for model in system.size_system
-
-
-def generate_atomistic_topology(system : system.System,crystalcontacts_file=str):
-    """
-    
-    Generates atomistis topology based on connect information of system
-    
-    """
-
-
-    print('hello world')
-
-
-
-
-    return print('Atomistic topology written')
-
-
 
 def main():
     
