@@ -16,9 +16,9 @@ Enter the cloned directory and install colbuilder 2.0 with pip:
 ```
 pip install .
 ```
-As aforementioned, two non-phyton packages have to be installed to make colbuilder 2.0 work. According to https://pymol.org/2/?#download, PyMol can be directly installed from the Schrodinger Anaconda Channel. For this, please type in the following.
+As aforementioned, two non-phyton packages have to be installed to make colbuilder 2.0 work. According to https://pymol.org/conda/, PyMol can be directly installed from the Schrodinger Anaconda Channel. For this, please type in the following.
 ```
-conda install -c conda-forge pymol
+conda install -c conda-forge -c schrodinger pymol-bundle
 ```
 Last but not least, we need UCSF Chimera to be properly installed on your OS. The following installation instruction are taken form (Section 2 on https://pychimera.readthedocs.io/en/latest/install.html): For the installation of UCSF Chimera go to the respective download page (https://www.cgl.ucsf.edu/chimera/download.html) and download the actural version of UCSF Chimera (Note: We are working with UCSF Chimera and not with CHIMERAX. This might change in the future). Navigate yourself to the chimera-binarz and make it executable and run the installer
 ```

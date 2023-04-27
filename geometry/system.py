@@ -1,14 +1,14 @@
 class System:
     """
 
-    Base class representing a system of models: 
+    Base class representing a system of models 
     dict { model_id: model }
     
     --
     
-    input:  -f      user-input: class : crystall & class : contacts
+    input:  class : crystall    &     class : crystalcontacts
    
-    output: -o      class : system with all class: models
+    output: class : system containing all models
 
     """
     def __init__(self,crystal=None,crystalcontacts=None):
@@ -22,7 +22,7 @@ class System:
     def add_model(self,model):
         """
 
-        Adds a model to the system
+        add one model to the system
         
         """
         self.system.update({model.model_id : model})
@@ -30,7 +30,7 @@ class System:
     def set_crystal(self,crystal=None):
         """
         
-        Sets crystal information for each model
+        set crystal information for each model
         
         """
         if crystal==None: crystal=self.crystal
@@ -40,7 +40,7 @@ class System:
     def size_system(self,system=None):
         """
         
-        gets length of system
+        get length of system
         
         """
         if system==None: system=self.system
@@ -50,7 +50,7 @@ class System:
     def get_model(self,model_id=None):
         """
         
-        Gets information about a specific model in system
+        grep/ get specific model from system through model_id
         
         """
         return self.system[model_id]
@@ -58,7 +58,7 @@ class System:
     def get_keys(self,system=None):
         """
 
-        Get key for each model in list
+        Get key for each model in system
         
         """
         if system==None: system=self.system
@@ -68,7 +68,7 @@ class System:
     def get_system_connect(self,system=None):
         """
         
-        Gets information about a specific model in system
+        Get crystal contacts information about a specific model in system
         
         """
         if system==None: system=self.system
@@ -77,16 +77,18 @@ class System:
             system_connect[system.get_model(model_id=id).model_id]=system.get_model(model_id=id).model_connect
         return system_connect
     
-    def write_system_pdb(self,system=None,pdb_file=None):
+    def write_system_pdb(self,system=None):
         """
         
-        writes system of models to connected file 
+        writes all models of system to a single file representing the whole system 
+        first line is the crystal information taken from the user-specified pdb-file
         
         """
         if system==None: system=self.system
-        with open('All'+pdb_file+'Long.pdb','w') as f:
-            for model in system.get_keys():
-                    f.write('\n')
-                    self.size_models_connect+=1
+        with open(system.crystal.pdb_file+'_system.pdb','w') as f:
+            f.write(open(system.crystal.pdb_file+'.pdb').readline())
+            for model in range(system.size_models):
+                pdb_model=open(str(model)+'.caps.pdb','r').readlines()
+                f.write("".join(i for i in pdb_model))
+            f.write("END")
         f.close()
-        return 

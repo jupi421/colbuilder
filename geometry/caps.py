@@ -1,4 +1,3 @@
-import os
 from pymol import cmd, editor
 
 class Caps:
@@ -6,7 +5,7 @@ class Caps:
 
     Adding Caps to a single triple helix
 
-    Original version implemented by Dr. Agnieszka Obarska-Kosinska from  
+    Original version implemented by Agnieszka Obarska-Kosinska taken from  
     
     Obarska-Kosinska A, Rennekamp B, Ünal A, Gräter F. 
     ColBuilder: A server to build collagen fibril models.
@@ -16,13 +15,12 @@ class Caps:
 
 
     """
-    # TODO: Do not just copy Agnieszka awesomve version, but think to make it better
-    def __init__(self,system=None,pdb=None):
+    def __init__(self,system=None):
         self.system=system
-        self.pdb_file=pdb
         self.system_size=system.size_models
         self.chains=['A','B','C']
         self.caps=['N','C']
+        self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
         self.chain_length={ k:0 for k in self.chains }
         self.model={ k:[] for k in self.chains}
         self.get_chain_length(system=system)
@@ -38,15 +36,16 @@ class Caps:
         input   :   pdb file for single triple helix
         
         """
+        self.model={ k:[] for k in self.chains}
         with open(str(pdb_id)+'.pdb','r') as f:
             for l in f:
-                if l[0:6] in ('ATOM  ', 'HETATM', 'ANISOU', 'TER   '):
+                if l[0:6] in self.is_line:
                     if l[13:15]=='CA' and l[21]=='A': self.model['A'].append(int(l[22:26]))
                     elif l[13:15]=='CA' and l[21]=='B': self.model['B'].append(int(l[22:26]))
                     elif l[13:15]=='CA' and l[21]=='C': self.model['C'].append(int(l[22:26]))
         f.close()
 
-    def write_pymol(self,cap=None,chain_id=None):
+    def get_line(self,cap=None,chain_id=None):
         """
         
         Writes command to be used in pymol to add a cap
@@ -59,7 +58,7 @@ class Caps:
     def get_chain_length(self,system=None):
         """
         
-        Gets the chain length for the initial model 0.0
+        Gets the chain length for the initial model
 
         """
         self.read_residues(pdb_id=system.crystal.pdb_file)
@@ -75,13 +74,26 @@ class Caps:
         cmd.load(str(pdb_id)+'.pdb')
         for cap in self.caps:
             for chain in self.chains:
-                line_cap=self.write_pymol(cap=cap,chain_id=chain)
-                if int(line_cap.split(' ')[1])!=1 and cap=='N':
+                line_cap=self.get_line(cap=cap,chain_id=chain)
+                if cap=='N' and int(line_cap.split(' ')[1])!=1:
                     cmd.edit(line_cap)
-                    print(line_cap.split(' ')[1])
-                    editor.attach_amino_acid("pk1",'ace',ss=0)
-                elif int(line_cap.split(' ')[1])!=int(self.chain_length[cap]) and cap=='C': 
+                    editor.attach_amino_acid('pk1','ace',ss=0)
+                if cap=='C' and int(line_cap.split(' ')[1])!=int(self.chain_length[cap]): 
                     cmd.edit(line_cap)
-                    editor.attach_amino_acid("pk1",'nme',ss=0)
-                break
+                    editor.attach_amino_acid('pk1','nme',ss=0)
+        cmd.save('tmp.pdb')
+        cmd.delete(name=str(pdb_id))
+        return self.write_caps(pdb='tmp.pdb',pdb_id=pdb_id)
 
+    def write_caps(self,pdb=None,pdb_id=0):
+        """
+        
+        write pdb file with caps
+        
+        """
+        pdb_file=[l.strip() for l in open(str(pdb),'r') if l[0:6] in self.is_line and l[0:3]!='TER']
+        with open(str(pdb_id)+'.caps.pdb','w') as f:
+            for idx in pdb_file:
+                f.write(idx+'\n')
+                if idx[17:20]=='NME' and idx[12:16]=='3HH3': f.write('TER \n')
+        f.close()
