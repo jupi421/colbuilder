@@ -17,11 +17,15 @@ class Caps:
 
     """
     # TODO: Do not just copy Agnieszka awesomve version, but think to make it better
-    def __init__(self,system_size=None):
-        self.system_size=system_size
+    def __init__(self,system=None,pdb=None):
+        self.system=system
+        self.pdb_file=pdb
+        self.system_size=system.size_models
         self.chains=['A','B','C']
         self.caps=['N','C']
+        self.chain_length={ k:0 for k in self.chains }
         self.model={ k:[] for k in self.chains}
+        self.get_chain_length(system=system)
 
     def read_residues(self,pdb_id=None):
         """
@@ -41,7 +45,6 @@ class Caps:
                     elif l[13:15]=='CA' and l[21]=='B': self.model['B'].append(int(l[22:26]))
                     elif l[13:15]=='CA' and l[21]=='C': self.model['C'].append(int(l[22:26]))
         f.close()
-        return 
 
     def write_pymol(self,cap=None,chain_id=None):
         """
@@ -53,18 +56,32 @@ class Caps:
         elif cap=='C': index=-1
         return 'resi '+str(self.model[chain_id][index])+' and chain '+str(chain_id)+' and name '+str(cap)
     
+    def get_chain_length(self,system=None):
+        """
+        
+        Gets the chain length for the initial model 0.0
+
+        """
+        self.read_residues(pdb_id=system.crystal.pdb_file)
+        for chain in self.model:
+            self.chain_length[chain]=len(self.model[chain])
+
     def add_caps(self,pdb_id=None):
         """
         
         adds caps to both ends of each model
         
         """
+        print(self.chain_length)
         cmd.load(str(pdb_id)+'.pdb')
         for cap in self.caps:
             for chain in self.chains:
                 line_cap=self.write_pymol(cap=cap,chain_id=chain)
-                cmd.edit(line_cap)
-                if cap=='N': editor.attach_amino_acid("pk1",'ace',ss=0)
-                elif cap=='C': editor.attach_amino_acid("pk1",'nme',ss=0)
+                if line_cap.split(' ')[1]!=1 and cap=='N':
+                    cmd.edit(line_cap)
+                    editor.attach_amino_acid("pk1",'ace',ss=0)
+                elif line_cap.split(' ')[1]!=int(self.chain_length[cap]) and cap=='C': 
+                    cmd.edit(line_cap)
+                    editor.attach_amino_acid("pk1",'nme',ss=0)
                 break
 
