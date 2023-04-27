@@ -1,15 +1,5 @@
 import os
-import sys
 from pymol import cmd, editor
-
-def cap_system(system_size=None):
-    """
-    
-    Function to add caps to each model of the system
-    
-    """
-
-    residues_
 
 class Caps:
     """
@@ -33,7 +23,7 @@ class Caps:
         self.caps=['N','C']
         self.model={ k:[] for k in self.chains}
 
-    def read_residues(self,pdb_file=None):
+    def read_residues(self,pdb_id=None):
         """
         
         Reads pdb-file for each chain in the triple helix to obtain
@@ -44,15 +34,16 @@ class Caps:
         input   :   pdb file for single triple helix
         
         """
-        with open(pdb_file,'r') as f:
+        with open(str(pdb_id)+'.pdb','r') as f:
             for l in f:
                 if l[0:6] in ('ATOM  ', 'HETATM', 'ANISOU', 'TER   '):
                     if l[13:15]=='CA' and l[21]=='A': self.model['A'].append(int(l[22:26]))
                     elif l[13:15]=='CA' and l[21]=='B': self.model['B'].append(int(l[22:26]))
                     elif l[13:15]=='CA' and l[21]=='C': self.model['C'].append(int(l[22:26]))
         f.close()
+        return 
 
-    def write_pymol(self,cap=None):
+    def write_pymol(self,cap=None,chain_id=None):
         """
         
         Writes command to be used in pymol to add a cap
@@ -60,9 +51,7 @@ class Caps:
         """
         if cap=='N': index=0
         elif cap=='C': index=-1
-        print(self.model['A'])
-        return [['resi '+str(self.model[chain_id][index])+' and chain '+str(chain_id)+' and name '+str(cap)] for chain_id in self.chains]
-
+        return 'resi '+str(self.model[chain_id][index])+' and chain '+str(chain_id)+' and name '+str(cap)
     
     def add_caps(self,pdb_id=None):
         """
@@ -73,7 +62,9 @@ class Caps:
         cmd.load(str(pdb_id)+'.pdb')
         for cap in self.caps:
             for chain in self.chains:
-                tmp=self.write_pymol(cap=cap)
-                print(tmp)
+                line_cap=self.write_pymol(cap=cap,chain_id=chain)
+                cmd.edit(line_cap)
+                if cap=='N': editor.attach_amino_acid("pk1",'ace',ss=0)
+                elif cap=='C': editor.attach_amino_acid("pk1",'nme',ss=0)
                 break
 

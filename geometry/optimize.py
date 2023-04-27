@@ -1,5 +1,5 @@
 import numpy as np
-from geometry import model
+from colbuilder.geometry import model
 
 class Optimizer:
     """
