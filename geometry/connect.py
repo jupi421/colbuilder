@@ -63,9 +63,10 @@ def clean_connect(model_connect=None):
     output  :   cleaned connections between all models 
     
     """
+    # TODO: HERE IS SOMETHING WRONG.
     remove_model=np.unique([key for key in model_connect for model in model_connect[key] if key>model])
-    for key in remove_model: model_connect.pop(key) 
-    return model_connect
+    for key in remove_model: del model_connect[key] 
+    return { k:v for k,v in model_connect.items() if v!=None }
 
 class Connect:
     """
@@ -159,20 +160,19 @@ class Connect:
         for ref_c,c in product(ref_model,model):
             if np.linalg.norm(ref_model[ref_c]-model[c])<cut_off:  return True
 
-    def write_connect(self,system=None,system_file=None):
+    def write_connect(self,system=None,connect_file=None):
         """
         
         writes system of connected models to connected file 
         
         """
-        if system==None: system=self.system
-        with open(system_file+'.txt','w') as f:
-            for connect_id in system.get_keys():
-                for model_id in system.get_model(model_id=connect_id).model_connect:
-                    f.write(str(int(model_id)+1)+'.caps.pdb ')
-                f.write('\n')
+        with open(connect_file+'.txt','w') as f:
+            for idx in system.get_keys(system=system):
+                if system.get_model(model_id=idx).model_connect!=None:
+                    for model in system.get_model(model_id=idx).model_connect:
+                        f.write(str(int(model))+'.caps.pdb ')
+                    f.write('\n')
         f.close()
-        return 
 
     def run_connect(self,system=None,s_model=None):
         """
@@ -181,7 +181,7 @@ class Connect:
         if models are closer than cut-off, and therefore connected
         
         """
-        t_crystalcontacts={ system.get_model(model_id=key).model_id : system.get_model(model_id=key).model_t for key in system.get_keys() }
+        t_crystalcontacts={ system.get_model(model_id=key).model_id : system.get_model(model_id=key).model_t for key in system.get_keys(system=system) }
         crystalcontacts_coords={ key: self.translate_model(translate_vector=t_crystalcontacts[key]) for key in t_crystalcontacts}
 
         if s_model==None: # Gets all connections within crystal contacts

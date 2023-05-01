@@ -15,7 +15,7 @@ class CrystalContacts:
         self.crystalcontact_file=crystalcontact_file
         self.t_matrix={ }
 
-    def read_contacts(self,crystalcontact_file=None):
+    def read_crystalcontacts(self,crystalcontact_file=None):
         """
         
         Read crystal contacts information from chimera contact output-file
@@ -30,7 +30,7 @@ class CrystalContacts:
         Read transformation matrix T from contact file 
         
         """
-        if crystalcontacts==None: crystalcontacts=self.read_contacts(crystalcontact_file)
+        if crystalcontacts==None: crystalcontacts=self.read_crystalcontacts(crystalcontact_file)
         for idx in range(0,len(crystalcontacts),4):
             self.t_matrix[float(crystalcontacts[idx].split(' ')[1])]=[   
                 float(crystalcontacts[idx+1].split(' ')[-1]),
@@ -38,7 +38,7 @@ class CrystalContacts:
                 float(crystalcontacts[idx+3].split(' ')[-1])]
         return self.t_matrix
     
-    def write_contacts(self,system=None,crystalcontact_file=None):
+    def write_crystalcontacts(self,system=None,crystalcontact_file=None):
         """
         
         Writes crystal contacts to txt file for chimera
@@ -46,7 +46,7 @@ class CrystalContacts:
         """
         if crystalcontact_file==None: crystalcontact_file=self.crystalcontact_file
         if system==None: 
-            system=self.read_contacts(crystalcontact_file)
+            system=self.read_crystalcontacts(crystalcontact_file)
             with open(crystalcontact_file+'.txt','w') as f:
                 for key_cc,val_cc in system:
                     f.write('Model '+str(float(key_cc))+'\n')
@@ -62,7 +62,6 @@ class CrystalContacts:
                     f.write('         0 1 0 %s\n' % (system.get_model(model_id=model).model_t[1]))
                     f.write('         0 0 1 %s\n' % (system.get_model(model_id=model).model_t[2]))
             f.close()
-        return
 
     def find_contact(self,model_id=None):
         """
