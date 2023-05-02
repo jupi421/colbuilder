@@ -1,7 +1,7 @@
-# colbuilder 2.0
+# Colbuilder 2.0
 Colbuilder 2.0 generates a collagen microfibril from a single collagen molecule. Input parameters are the collagen molecule type (e.g. organism, N-terminal crosslink, C-terminal crosslink), which can be downloaded from the colbuilder 1.0 webportal https://colbuilder.h-its.org/, and the approximate number of chains or the contact distance within the fibrillar structure. Colbuilder 2.0 reads the crystallographic and coordinate system transformation section from the coordinate input pdb-file (CRYST1) and combines it with the crystal contacts output from UCSF Chimera to perform a structural optimization of the microfibril. As a result, a fully crosslink fibril is obtained. Additional fine-tuning of the microfibril properties is possible by selecting different crosslink-types (divalent, trivalent, divalent-trivalent or trivalent-divalent) or by introducing random crosslink mutations to mimic systems closer to biological reality. To this end, both atomistic and coarse-grained topology files, using the Amber99sb-ildnp- and the Martini 3 force field, are generated for the molecular dynamics simulation engine Gromacs.
 
-Installation Guide
+## Installation Guide
 
 For the installation of colbuilder 2.0, which can be performed directly through github, additional non-phyton packages, in particular UCSF Chimera and PyMol have to be installed on the OS. For colbuilder 2.0, we recommend to install the git-repository in an own conda environment according to
 ```
