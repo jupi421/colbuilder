@@ -1,10 +1,9 @@
-#!/hits/fast/mbm/broszms/software/conda/envs/colbuilder/bin/python3.9
 
 import os
 from setuptools import setup
 #
 import argparse
-from geometry import build_geometry
+from colbuilder.geometry import build_geometry
 
 def colbuilder():
     
