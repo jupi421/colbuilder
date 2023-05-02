@@ -77,8 +77,6 @@ class Connect:
     --
 
     -input      :  *.pdb -> coordinate file 
-
-    -output     : ?
     
     """
     def __init__(self,pdb=str):

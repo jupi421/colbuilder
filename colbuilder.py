@@ -4,7 +4,7 @@ import os
 from setuptools import setup
 #
 import argparse
-from colbuilder.geometry.build_geometry import build_geometry
+from geometry import build_geometry
 
 def colbuilder():
     
