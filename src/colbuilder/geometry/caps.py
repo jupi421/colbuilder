@@ -17,7 +17,7 @@ class Caps:
     """
     def __init__(self,system=None):
         self.system=system
-        self.system_size=system.system_size
+        self.system_size=system.size
         self.chains=['A','B','C']
         self.caps=['N','C']
         self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')

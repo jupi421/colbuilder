@@ -26,7 +26,7 @@ class Chimera:
                 -> Gets transformation matrices based on crystal contacts 
                    (e.g. no_cc = 60) to setup skeleton of microfibril
                 
-    matrixset:  Call Chimera via Python 2.7 script frpm terminal    
+    matrixset:  Call Chimera via Python 2.7 script from terminal    
     
                 -> set pdb-models based on updated, symmetriyzed transformation
                    matrices.
@@ -42,7 +42,7 @@ class Chimera:
         return subprocess.run(
             'chimera --nogui --silent --script "'+str(path_matrix)+'matrixget.py '+
             str(pdb)+'.pdb '+str(contact_distance)+' '+str(crystalcontacts)+'"',
-            shell=True,stdout=subprocess.DEVNULL)        
+            shell=True,stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)        
     
     def matrixset(self,pdb=None,crystalcontacts=str,system_size=int,cut_off=float):
         if pdb==None: pdb=self.pdb_file
@@ -50,4 +50,4 @@ class Chimera:
         return subprocess.run(
             'chimera --nogui --silent --script "'+str(path_matrix)+'matrixset.py '+
             str(pdb)+'.pdb '+str(crystalcontacts)+' '+str(system_size)+' '+
-            str(cut_off)+'"',shell=True,stdout=subprocess.DEVNULL)
+            str(cut_off)+'"',shell=True,stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)

@@ -58,9 +58,9 @@ class CrystalContacts:
             with open(crystalcontact_file+'.txt','w') as f:
                 for model in system.get_keys():
                     f.write('Model '+str(float(model))+'\n')
-                    f.write('         1 0 0 %s\n' % (system.get_model(model_id=model).model_t[0]))
-                    f.write('         0 1 0 %s\n' % (system.get_model(model_id=model).model_t[1]))
-                    f.write('         0 0 1 %s\n' % (system.get_model(model_id=model).model_t[2]))
+                    f.write('         1 0 0 %s\n' % (system.get_model(model_id=model).transformation[0]))
+                    f.write('         0 1 0 %s\n' % (system.get_model(model_id=model).transformation[1]))
+                    f.write('         0 0 1 %s\n' % (system.get_model(model_id=model).transformation[2]))
             f.close()
 
     def find_contact(self,model_id=None):

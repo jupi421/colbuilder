@@ -2,7 +2,7 @@ import numpy as np
 import logging
 from itertools import product
 
-def find_model_connect(crystal=None,crystalcontacts_coords=None,s_model=None):
+def find_model_connect(crystal=None,crystalcontacts_coords=None,unit_cell=None):
     """
     
     compares added model to connected model pairs by computing the distances between translated crosslinks.
@@ -13,8 +13,8 @@ def find_model_connect(crystal=None,crystalcontacts_coords=None,s_model=None):
     
     """
     connect=Connect(crystal.pdb_file)    
-    t_model=crystal.get_t_matrix(s_matrix=s_model)
-    model_coords={ 'add': connect.translate_model(translate_vector=t_model) }
+    transformation=crystal.get_t_matrix(s_matrix=unit_cell)
+    model_coords={ 'add': connect.translate_model(translate=transformation) }
     for ref_model in crystalcontacts_coords:
         if connect.get_model_connect(ref_model=crystalcontacts_coords[ref_model],model=model_coords['add'])==True:
             return True
@@ -63,10 +63,9 @@ def clean_connect(model_connect=None):
     output  :   cleaned connections between all models 
     
     """
-    # TODO: HERE IS SOMETHING WRONG.
-    remove_model=np.unique([key for key in model_connect for model in model_connect[key] if key>model])
+    remove_model=set([key for key in model_connect for model in model_connect[key] if key>model])
     for key in remove_model: del model_connect[key] 
-    return { k:v for k,v in model_connect.items() if v!=None }
+    return { k:v for k,v in model_connect.items() if v!=None and len(v)>1 }
 
 class Connect:
     """
@@ -93,7 +92,6 @@ class Connect:
             self.pdb_crosslink={ }
             with open(pdb_file+'.pdb') as f:
                 for l in f:
-                    # problem may arise here: check syntax in pdb file
                     if l[17:20]=='LYX' and l[13:16]=='C13' or l[17:20]=='LY3' and l[13:15]=='CG': 
                         self.pdb_crosslink[int(l[6:10])]={ k:[] for k in ['resname','chain_id','position'] }
                         self.pdb_crosslink[int(l[6:10])]['resname']=l[17:20]
@@ -110,7 +108,7 @@ class Connect:
         
         return self.pdb_crosslink
     
-    def translate_model(self,pdb_file=None,translate_vector=[]):
+    def translate_model(self,pdb_file=None,translate=[]):
         """
         
         Translates one model according to translation vector
@@ -123,11 +121,11 @@ class Connect:
         """
         try:
             if pdb_file==None: pdb_crosslink=self.read_crosslink(pdb_file=pdb_file)
-            return { c: self.translate_crosslink(translate_vector=translate_vector,crosslink=self.pdb_crosslink[c]['position']) for c in pdb_crosslink }
+            return { c: self.translate_crosslink(translate=translate,crosslink=self.pdb_crosslink[c]['position']) for c in pdb_crosslink }
         except:
             logging.error('Error: No translate vector given to translate crosslink')
     
-    def translate_crosslink(self,translate_vector=[],crosslink=[]):
+    def translate_crosslink(self,translate=[],crosslink=[]):
         """
         
         Translates one crosslink of one model according to translation vector
@@ -139,7 +137,7 @@ class Connect:
 
         """
         try:
-            return np.add(translate_vector,crosslink)
+            return np.add(translate,crosslink)
         except:
             logging.error('Error: No translate vector or crosslink coordinates given')
     
@@ -165,25 +163,43 @@ class Connect:
         
         """
         with open(connect_file+'.txt','w') as f:
-            for idx in system.get_keys(system=system):
-                if system.get_model(model_id=idx).model_connect!=None:
-                    for model in system.get_model(model_id=idx).model_connect:
+            for idx in system.get_keys():
+                if system.get_model(model_id=idx).connect!=None:
+                    for model in system.get_model(model_id=idx).connect:
                         f.write(str(int(model))+'.caps.pdb ')
                     f.write('\n')
         f.close()
-
-    def run_connect(self,system=None,s_model=None):
+    
+    def write_mix_connect(self,system=None,connect_file=None):
         """
         
-        Translates each modelof system according to translation vector and returns ids 
-        if models are closer than cut-off, and therefore connected
+        writes system of connected models to connected file 
         
         """
-        t_crystalcontacts={ system.get_model(model_id=key).model_id : system.get_model(model_id=key).model_t for key in system.get_keys(system=system) }
-        crystalcontacts_coords={ key: self.translate_model(translate_vector=t_crystalcontacts[key]) for key in t_crystalcontacts}
+        with open(connect_file+'.txt','w') as f:
+            for idx in system.get_keys():
+                if system.get_model(model_id=idx).connect!=None:
+                    for model in system.get_model(model_id=idx).connect:
+                        f.write(str(int(model))+'.caps.pdb ')
+                    if system.get_model(model_id=idx).crosslink_type!=None:
+                        f.write(' ; '+str(system.get_model(model_id=idx).crosslink_type))
+                    f.write('\n')
+        f.close()
+        print('file writte '+connect_file+'.txt')
 
-        if s_model==None: # Gets all connections within crystal contacts
+    def run_connect(self,system=None,unit_cell=None):
+        """
+        
+        Translates each model of system according to translation vector and returns ids 
+        if models are closer than cut-off, and therefore models are connected.
+        Also check if added models, from optimization setup, is connected to any other model
+        
+        """
+        t_crystalcontacts={ system.get_model(model_id=key).id : system.get_model(model_id=key).transformation for key in system.get_keys() }
+        crystalcontacts_coords={ key: self.translate_model(translate=t_crystalcontacts[key]) for key in t_crystalcontacts}
+
+        if unit_cell==None:
             return find_contact_connect(crystal=system.crystal,crystalcontacts_coords=crystalcontacts_coords)
         
-        if s_model!=None: # check if added model is connected
-            return find_model_connect(crystal=system.crystal,crystalcontacts_coords=crystalcontacts_coords,s_model=s_model)
+        if unit_cell!=None:
+            return find_model_connect(crystal=system.crystal,crystalcontacts_coords=crystalcontacts_coords,unit_cell=unit_cell)

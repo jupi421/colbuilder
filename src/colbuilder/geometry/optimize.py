@@ -28,7 +28,7 @@ class Optimizer:
         try:
             return np.array([[c[0],c[1],z_grid] for c in s_matrix.values() if c[2]==z_grid])
         except:
-            print('Error: No shift-matrix given')
+            print('Error: No unit-cell information given')
     
     def extend_grid(self,z_grid=0,d_x=1,s_matrix=None):
         """
@@ -88,7 +88,7 @@ class Optimizer:
         check if the node is connected to any other node of the system    
         
         """
-        return connect.run_connect(system=system,s_model=node)
+        return connect.run_connect(system=system,unit_cell=node)
 
     def optimize_crystalcontacts(self,s_matrix=None,connect=None,system=None):
         """
@@ -104,10 +104,10 @@ class Optimizer:
         for plane in range(z_grid-2,z_grid+1,1):
             for node in self.set_grid(z_grid=plane,s_matrix=s_matrix):
                 if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)==True:
-                    pr_node=[i*(-1) for i in node] # Get point reflection of node candidate to be added
+                    pr_node=[i*(-1) for i in node] 
                     if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=pr_node)==True:
-                        system.add_model(model.Model(model_id=float(system.get_size(system=system)),model_s=node, # node
-                                            model_t=system.crystal.get_t_matrix(s_matrix=node)))                        
-                        system.add_model(model.Model(model_id=float(system.get_size(system=system)),model_s=pr_node, # point reflected node
-                                             model_t=system.crystal.get_t_matrix(s_matrix=pr_node)))
+                        system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=node, # node
+                                            transformation=system.crystal.get_t_matrix(s_matrix=node)))                        
+                        system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=pr_node, # point reflected node
+                                            transformation=system.crystal.get_t_matrix(s_matrix=pr_node)))
         return system

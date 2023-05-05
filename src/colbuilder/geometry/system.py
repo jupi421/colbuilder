@@ -13,11 +13,12 @@ class System:
     """
     def __init__(self,crystal=None,crystalcontacts=None):
         self.system={ }
+        self.connect={ }
         self.keys=[]
         self.crystal=crystal
         self.crystalcontacts=crystalcontacts
-        self.models_size=0
-        self.system_size=0
+        self.size_models=0
+        self.size=0
 
     def add_model(self,model):
         """
@@ -25,7 +26,7 @@ class System:
         add one model to the system
         
         """
-        self.system.update({model.model_id : model})
+        self.system.update({model.id : model})
     
     def set_crystal(self,crystal=None):
         """
@@ -43,8 +44,8 @@ class System:
         get length of system
         
         """
-        self.system_size=len(self.system)
-        return self.system_size
+        self.size=len(self.system)
+        return self.size
     
     def get_model(self,model_id=None):
         """
@@ -54,7 +55,7 @@ class System:
         """
         return self.system[model_id]
     
-    def get_keys(self,system=None):
+    def get_keys(self):
         """
 
         Get key for each model in system
@@ -63,45 +64,74 @@ class System:
         self.keys=[model for model in self.system]
         return self.keys
 
-    def get_connect(self,system=None):
+    def get_connect(self):
         """
         
         Get crystal contacts information about a specific model in system
         
         """
-        system_connect={ self.get_model(model_id=key).model_id : self.get_model(model_id=key).model_t for key in self.get_keys() }
+        self.connect={ self.get_model(model_id=key).id : self.get_model(model_id=key).transformation for key in self.get_keys() }
         for idx in self.keys:
-            self.connet[self.get_model(model_id=idx).model_id]=self.get_model(model_id=idx).model_connect
+            self.connect[self.get_model(model_id=idx).id]=self.get_model(model_id=idx).connect
         return self.connect
     
-    def write_pdb(self,system=None):
+    def write_pdb(self,pdb_out=None):
         """
         
         writes all models of system to a single file representing the whole system 
         first line is the crystal information taken from the user-specified pdb-file
         
         """
-        with open(self.crystal.pdb_file+'_system.pdb','w') as f:
+        if pdb_out==None: pdb_out=self.crystal.pdb_file+'_system.pdb'
+        with open(pdb_out+'.pdb','w') as f:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
-            for model in range(self.system_size):
+
+            for model in range(self.size):
                 pdb_model=open(str(model)+'.caps.pdb','r').readlines()
                 f.write("".join(i for i in pdb_model))
+
             f.write("END")
         f.close()
 
-    def read_pdb(self,system_pdb_file=None,system=None):
+    def write_mix_pdb(self,pdb_out=None):
         """
-        
-        reads pdb-file of whole system and separates in models.
-        Large file -> read line-by-line
-        
+
+        writes mixed models of system to a single file representing the whole system
+        first line is the crystal information taken from the user-specified pdb-file
+
         """
-        # TODO: What happes if there is just a large pdb file?
-        self.system_pdb={ }
-        self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
-        model_id=0
-        with open(system_pdb_file+'.pdb','r') as f:
-            for l in f: 
-                if l[0:6] in self.is_line:
-                    tmp=[]
+        if pdb_out==None: pdb_out=self.crystal.pdb_file+'_mix_system'
+        with open(pdb_out+'.pdb','w') as f:
+            f.write(open(self.crystal.pdb_file+'.pdb').readline())
+
+            for model in range(self.size):
+                cross=self.get_model(model_id=model).crosslink_type
+                if cross!=None: 
+                    pdb_model=open(str(cross)+'/'+str(model)+'.caps.pdb','r').readlines()
+                    f.write("".join(i for i in pdb_model))
+
+            f.write("END")
         f.close()
+    
+    def write_mut_pdb(self,pdb_out=None):
+        """
+
+        writes mixed models of system to a single file representing the whole system
+        first line is the crystal information taken from the user-specified pdb-file
+
+        """
+        if pdb_out==None: pdb_out=self.crystal.pdb_file+'_mut_system.pdb'
+        with open(pdb_out+'.pdb','w') as f:
+            f.write(open(self.crystal.pdb_file+'.pdb').readline())
+
+            for model in range(self.size):
+                cross=self.get_model(model_id=model).crosslink_type
+                if cross!=None: 
+                    pdb_model=open(str(cross)+'/'+str(model)+'.caps.pdb','r').readlines()
+                    f.write("".join(i for i in pdb_model))
+
+            f.write("END")
+        f.close()
+
+
+    # TODO: What happes if there is just a large pdb file?
