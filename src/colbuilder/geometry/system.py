@@ -74,6 +74,15 @@ class System:
         for idx in self.keys:
             self.connect[self.get_model(model_id=idx).id]=self.get_model(model_id=idx).connect
         return self.connect
+
+    def delete_model(self,model_id=None):
+        """
+        
+        delete model from system
+        
+        """
+        del self.system[model_id]
+        return self.system
     
     def write_pdb(self,pdb_out=None):
         """
@@ -86,8 +95,8 @@ class System:
         with open(pdb_out+'.pdb','w') as f:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
 
-            for model in range(self.size):
-                pdb_model=open(str(model)+'.caps.pdb','r').readlines()
+            for model in self.get_keys():
+                pdb_model=open(str(int(model))+'.caps.pdb','r').readlines()
                 f.write("".join(i for i in pdb_model))
 
             f.write("END")
@@ -104,10 +113,10 @@ class System:
         with open(pdb_out+'.pdb','w') as f:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
 
-            for model in range(self.size):
+            for model in self.get_keys():
                 cross=self.get_model(model_id=model).crosslink_type
                 if cross!=None: 
-                    pdb_model=open(str(cross)+'/'+str(model)+'.caps.pdb','r').readlines()
+                    pdb_model=open(str(cross)+'/'+str(int(model))+'.caps.pdb','r').readlines()
                     f.write("".join(i for i in pdb_model))
 
             f.write("END")

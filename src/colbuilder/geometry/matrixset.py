@@ -1,21 +1,24 @@
 import os
 import sys
+import math
 from chimera import runCommand as rc
 from chimera import openModels,selection,Point
 
 pdb_file=str(sys.argv[1])
 crystalcontacts_file=str(sys.argv[2])
 system_size=int(sys.argv[3])
-cut_off=float(sys.argv[4])
+fibril_length=float(sys.argv[4]) * 10 # from nm to Angstrom
+
+
 
 for i in range(0,system_size): 
     rc("open "+pdb_file)
 
-startPos=openModels.list()[0].atoms[0].coord()
-endPos=openModels.list()[0].atoms[-1].coord()
-cut_off=int(cut_off-300)/2
-startPos[2]=startPos[2]-cut_off
-endPos[2]=endPos[2]+cut_off
+start_pos=openModels.list()[0].atoms[0].coord()
+end_pos=openModels.list()[0].atoms[-1].coord()
+center_pos=math.sqrt( (abs(end_pos[2])-abs(start_pos[2]))**2 ) / 2 + start_pos[2]
+start_pos[2]=center_pos-.5*fibril_length
+end_pos[2]=center_pos+.5*fibril_length
 
 rc("matrixset "+crystalcontacts_file+".txt")
 
@@ -32,7 +35,7 @@ for model in openModels.list():
     for residue in model.residues:
         mass=[atom.element.mass for atom in residue.atoms]
         com=Point([atom.coord() for atom in residue.atoms],mass)
-        if com[2]>=startPos[2] and com[2]<=endPos[2]:
+        if com[2]>=start_pos[2] and com[2]<=end_pos[2]:
             for atom in residue.atoms: 
                 selectAtoms.append(atom)
 
@@ -45,3 +48,5 @@ rc("del sel")
 
 for model in openModels.list(): 
     rc("write #"+str(model.id)+' '+str(model.id)+".pdb")
+
+rc("matrixget "+crystalcontacts_file+".txt")

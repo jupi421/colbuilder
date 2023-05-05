@@ -20,14 +20,14 @@ class Model:
 
     """
     def __init__(self,id=None,transformation=None,unit_cell=None,connect=None,
-                 connect_id=None,crosslink_type=None,crosslinks=None,mutate=None):
+                 connect_id=None,crosslink_type=None,crosslink=None,mutate=None):
         self.id=id
         self.transformation=transformation
         self.unit_cell=unit_cell
         self.connect=connect
         self.connect_id=connect_id
         self.crosslink_type=crosslink_type
-        self.crosslinks=crosslinks
+        self.crosslink=crosslink
         self.mutate=mutate
 
     def add_connect(self,connect_id=None,connect=None):
@@ -54,3 +54,11 @@ class Model:
         
         """
         self.mutate=mutate
+    
+    def add_crosslink(self,crosslink=None):
+        """
+        
+        add one crosslink to model
+        
+        """
+        self.crosslink.update({crosslink.id: crosslink})
