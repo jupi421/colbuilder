@@ -3,42 +3,78 @@ import numpy as np
 class Mutate:
     """
 
-    Mutate connected models with different restrictions to obtain a system
-    with mutated crosslinks
+    mutate connected models with restrictions to obtain mutated crosslinked system
 
     """
-    def __init__(self,setup=None,system=None,mutate_rate=None):
-        self.setup=setup
+    def __init__(self,mutate_ratio=None,system=None,fibril_length=None):
+        self.mutate_ratio=mutate_ratio
         self.system=system
-        self.mutate_rate=mutate_rate
-        self.mutate=[]
-        self.protect=[]
-        self.keep=[]
+        self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
+        self.z_min=self.system.get_model(model_id=0.0).cog - fibril_length/2
+        self.z_max=self.system.get_model(model_id=0.0).cog + fibril_length/2
 
-    def add_mut(self,setup=None,system=None):
+    def run_mutate(self,mutate_ratio=None,system=None):
         """
         
-        Set mutation of crystalcontacts according to user specific ratio
+        set mutation of crystalcontacts according to mutate ratio
         
         """
-        for idx in self.system.get_keys():
-            self.system.get_model(model_id=idx)
-
-
+        while self.system.count_states(state='mut') / ( self.system.count_states(state='no') + 
+                                                    self.system.count_states(state='prot') + 
+                                                    self.system.count_states(state='mut')  ) <  int(self.mutate_ratio) / 100:
+            model=self.system.get_model(model_id=self.draw_model(system=self.system))
+            self.mutate_model(model=model)
         return self.system
 
-    def get_mut(self,setup=None):
+    def mutate_model(self,model=None):
         """
-        
-        get user-defined mixture of crosslinks
-        
-        """
-        return np.random.choice(list(self.setup.keys()),p=[int(i)/100 for i in self.setup.values()])
 
-    def check_mut(self,setup=None):
+        change status of mutate for crosslink and protects nearest neighbor
+
+        """
+        mut_id=self.draw_crosslink(model)
+        if model.crosslink[mut_id].state!='mut' or model.crosslink[mut_id].state!='prot' or model.crosslink[mut_id].position[2]<self.z_min or model.crosslink[mut_id].position[2]>self.z_max: 
+            model.crosslink[mut_id].state='mut'
+            for cross in model.crosslink:
+                if cross!=model.crosslink[mut_id] and np.linalg.norm(cross.position-model.crosslink[mut_id].position)<=10: cross.state='mut'
+                elif cross!=model.crosslink[mut_id] and 11<=np.linalg.norm(cross.position-model.crosslink[mut_id].position)<=1000: cross.state='prot'
+    
+    def draw_model(self,system):
         """
         
-        check that each chain is at least on one side to another one
+        draw a random model from system
         
         """
-        return np.random.choice(list(self.setup.keys()),p=[int(i)/100 for i in self.setup.values()])
+        return np.random.choice(system.get_keys())
+    
+    def draw_crosslink(self,model):
+        """
+        
+        draw a random crosslink from model
+        
+        """
+        return np.random.randint(0,len(model.crosslink))
+    
+    def write_mutate(self,system=None,mutation_file='mutation'):
+        """
+        
+        write mutations of system to file used as input for chimera
+        
+        """
+        with open(mutation_file+'.txt','w') as f:
+            for key in system.get_keys():
+                for cross in system.get_model(model_id=key).crosslink:
+                    if cross.state=='mut': f.write(str(int(key))+'.caps.pdb '+str(cross.resname)+' '+str(cross.resid)+' '+str(cross.chain)+'\n' )
+        f.close()
+    
+    def clean_pdb(self,system=None):
+        """
+        
+        write pdb file with mutations
+        
+        """
+        for model in system.get_keys():
+            pdb_file=[l.strip() for l in open(str(system.get_model(model_id=0.0).type)+'/'+str(int(model))+'.caps.pdb','r') if l[0:6] in self.is_line and l[0:3]!='TER']
+            with open(str(system.get_model(model_id=0.0).type)+'/'+str(int(model))+'.caps.pdb','w') as f:
+                for idx in pdb_file: f.write(idx+'\n')
+            f.close()

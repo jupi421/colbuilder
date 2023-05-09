@@ -18,7 +18,7 @@ class Mix:
         """
         for idx in self.system.get_keys():
             if self.system.get_model(model_id=idx).connect!=None:
-                self.system.get_model(model_id=idx).add_crosslink_type(crosslink_type=self.get_mix(setup=self.setup))
+                self.system.get_model(model_id=idx).type=self.get_mix(setup=self.setup)
         return self.system
 
     def get_mix(self,setup=None):

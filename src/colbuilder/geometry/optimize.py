@@ -4,12 +4,10 @@ from  colbuilder.geometry import model
 class Optimizer:
     """
     
-    Optimizer sets up a meshgrid to draw random models and check if 
-    they are connected. As a result, the initial system is optimized
-
-    --
-
-    output  :   class : model
+    optimizer sets up a grid, depending on the z-pos, and extends the current plane by
+    adding nodes in integer space. Final check if added node is kept: Added node and 
+    point-reflecion node have to be connected in euclidean space. 
+    As a result, the initial system is optimized.
 
     """
     def __init__(self,system=None):
@@ -21,7 +19,7 @@ class Optimizer:
     def get_grid(self,z_grid=0,s_matrix=None):
         """
         
-        Get (x,y) meshgrid at specific z-pos from shift matrix S 
+        get (x,y) grid at specific z-pos from unit-cell shift matrix
         
         """
         if s_matrix==None: s_matrix=self.s_matrix
@@ -33,7 +31,7 @@ class Optimizer:
     def extend_grid(self,z_grid=0,d_x=1,s_matrix=None):
         """
         
-        Update mesh-grid (x,y) at specific z-pos by adding nodes or filling up the meshgrid 
+        update grid (x,y) at specific z-pos by adding nodes or filling up the grid 
         from -i_max-d_ij to i_max+d_ij with i,j=(x,y) with i!=j
         
         """        
@@ -47,8 +45,8 @@ class Optimizer:
     def get_nodes(self,z_grid=0,s_matrix=None):
         """
 
-        Compare nodes before (grid_init) & after grid extension (grid_extent) step and update shift matrix S
-        Symmetric difference between sets: (self.get_grid) difference (self.extend_grid)
+        compare nodes before (grid_init) & after grid extension (grid_extent) step and update nodes in integer space
+        using the symmetric difference between sets: (self.get_grid) difference (self.extend_grid)
 
         """
         if s_matrix==None: s_matrix=self.s_matrix
@@ -62,7 +60,7 @@ class Optimizer:
     def set_grid(self,z_grid=None,s_matrix=None):
         """
         
-        Set up new meshgrid with more nodes to fill-up gaps at each z-pos
+        set up new meshgrid with more nodes to fill-up gaps at each z-pos
         
         """
         if s_matrix==None: s_matrix=self.s_matrix
@@ -72,9 +70,9 @@ class Optimizer:
     def run_optimize(self,s_matrix=None,connect=None,system=None):
         """
         
-        optimizes the grid for each plane in integer spaced z-position.
-        check if point reflection is also connected
-        adds model to system 
+        wrapper to perform the grid-optimization in integer space. The grid for each plane is optimized 
+        in the intege space by checking if added node and point reflection of node are connected
+        to any other node 
          
         """
         if s_matrix==None: s_matrix=self.s_matrix
@@ -85,7 +83,7 @@ class Optimizer:
     def check_node_connect(self,connect=None,system=None,z_grid=None,node=None):
         """
         
-        check if the node is connected to any other node of the system    
+        check if the added node is connected to any other node of the grid    
         
         """
         return connect.run_connect(system=system,unit_cell=node)
@@ -93,11 +91,9 @@ class Optimizer:
     def optimize_crystalcontacts(self,s_matrix=None,connect=None,system=None):
         """
         
-        Algorithm to add models to the system structures and keep them if they are connected
-        to any other model.
-        Here a double check if performed based on the point symmetry of the structure, both
-        added model and point-reflection have to find a connection partner to be added as
-        a new model to the grid.
+        algorithm adds models to the system if they are connected to any other model.
+        Double check based on the point reflection of system: 
+        Both added model and point reflection have to be connected to be added.
         
         """
         z_grid=np.max(list(s_matrix.values()),axis=0)[2]
@@ -108,6 +104,6 @@ class Optimizer:
                     if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=pr_node)==True:
                         system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=node, # node
                                             transformation=system.crystal.get_t_matrix(s_matrix=node),pdb_file=system.crystal.pdb_file))                     
-                        system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=pr_node, # point reflected node
+                        system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=pr_node, # point reflection node
                                             transformation=system.crystal.get_t_matrix(s_matrix=pr_node),pdb_file=system.crystal.pdb_file))
         return system

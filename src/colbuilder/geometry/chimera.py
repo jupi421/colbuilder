@@ -53,3 +53,9 @@ class Chimera:
             'chimera --nogui --silent --script "'+str(path_matrix)+'matrixset.py '+
             str(pdb)+'.pdb '+str(crystalcontacts)+' '+str(system_size)+' '+
             str(fibril_length)+'"',shell=True,stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)
+
+    def swapaa(self,mutation=str,system_type=str):
+        path_matrix=os.path.dirname(os.path.realpath(__file__))+'/'
+        return subprocess.run(
+            'chimera --nogui --silent --script "'+str(path_matrix)+'swapaa.py '+
+            str(mutation)+' '+str(system_type)+'"',shell=True,stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)
