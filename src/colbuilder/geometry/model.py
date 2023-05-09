@@ -1,3 +1,5 @@
+from  colbuilder.geometry import crosslink
+
 class Model:
     """
     
@@ -20,14 +22,14 @@ class Model:
 
     """
     def __init__(self,id=None,transformation=None,unit_cell=None,connect=None,
-                 connect_id=None,crosslink_type=None,crosslink=None,mutate=None):
+                 connect_id=None,mutate=None,pdb_file=None):
         self.id=id
         self.transformation=transformation
         self.unit_cell=unit_cell
         self.connect=connect
         self.connect_id=connect_id
-        self.crosslink_type=crosslink_type
-        self.crosslink=crosslink
+        self.crosslink=self.add_crosslink(crosslink=crosslink.read_crosslink(pdb_file=pdb_file))
+        self.type="".join(i for i in set([cross.type for cross in self.crosslink]))
         self.mutate=mutate
 
     def add_connect(self,connect_id=None,connect=None):
@@ -39,14 +41,6 @@ class Model:
         self.connect_id=connect_id
         self.connect=connect
     
-    def add_crosslink_type(self,crosslink_type=None):
-        """
-        
-        Adds crosslink-type to model for connection
-        
-        """
-        self.crosslink_type=crosslink_type
-    
     def set_mutate(self,mutate=None):
         """
         
@@ -54,11 +48,13 @@ class Model:
         
         """
         self.mutate=mutate
-    
+
     def add_crosslink(self,crosslink=None):
         """
-        
-        add one crosslink to model
-        
+    
+        adds crosslink coords and type according to transformation matrix
+    
         """
-        self.crosslink.update({crosslink.id: crosslink})
+        for cross in crosslink:
+            cross.set_transform(model_id=self.id,transform=self.transformation)
+        return crosslink

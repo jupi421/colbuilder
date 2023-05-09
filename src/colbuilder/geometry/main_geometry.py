@@ -5,8 +5,9 @@ Module to build the collagen microfibril from a single collagen triple helix
 """
 import subprocess
 from colbuilder.geometry import (
-    crystal, crystalcontacts, chimera, connect,
-    model, system, optimize, caps, mix, mutate
+    crystal, crystalcontacts, chimera, crosslink,
+    model, system, connect, caps, 
+    optimize, mix, mutate,
 )
 
 def mutate_geometry(path_wd=None,crystalcontacts_file=None,crystalcontacts_optimize=None,fibril_length=None,
@@ -38,9 +39,6 @@ def mix_geometry(path_wd=None,crystalcontacts_file=None,crystalcontacts_optimize
     mix_setup={ idx.split(':')[0]:idx.split(':')[1] for idx in setup_mix }
     mix_pdb=dict(zip(mix_setup.keys(),pdb_files))
 
-    subprocess.run('mkdir '+path_wd+'/'+str(list(mix_setup.keys())[0]),shell=True)
-    subprocess.run('mv *.caps.pdb '+str(list(mix_setup.keys())[0]),shell=True)
-
     print('-- Prepare Mix '+str(setup_mix)+' --')
     if crystalcontacts_optimize: crystalcontacts_file=crystalcontacts_file+'_opt'
 
@@ -51,7 +49,7 @@ def mix_geometry(path_wd=None,crystalcontacts_file=None,crystalcontacts_optimize
     for key in list(mix_pdb.keys())[1:]:
         subprocess.run('mkdir '+path_wd+'/'+key,shell=True)
 
-        print('-- Generate Structure for '+str(key)+' with '+str(mix_pdb[key])+' --')
+        print('-- Generate System for '+str(key)+' with '+str(mix_pdb[key])+' --')
         chimera_.matrixset(pdb=mix_pdb[key],crystalcontacts=crystalcontacts_file,
                     system_size=system.get_size(system=system),fibril_length=fibril_length)
         
@@ -62,12 +60,11 @@ def mix_geometry(path_wd=None,crystalcontacts_file=None,crystalcontacts_optimize
 
     system_=mix.Mix(setup=mix_setup,system=system).add_mix()
 
-    print('-- Write Mix Connect --')
+    print('-- Mix System --')
     connect_file=crystalcontacts_file.replace('opt','')+'_connect_mix'
     connect.Connect(pdb=pdb_files[0]).write_mix_connect(system=system_,connect_file=connect_file)
 
-    print('-- Write Mix System --')
-    system_.write_mix_pdb(pdb_out=pdb_out)
+    system_.write_pdb(pdb_out=pdb_out)
 
     return system_
 
@@ -109,8 +106,9 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     
     write_system(system_=system_,crystalcontacts_=crystalcontacts_,connect_=connect_)
 
-    print('-- Generate System from '+str(crystalcontacts_file)+' --')
+    print('-- Generate System from '+str(crystalcontacts_file)+'_opt --')
     print('-- Please wait, this may take some time ... --')
+    
     chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_file+'_opt',
                        system_size=system_.get_size(system=system_),fibril_length=fibril_length)   
     
@@ -119,7 +117,9 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
                              crystalcontacts_file=crystalcontacts_file+'_opt')
 
     print('-- Add Caps --')
+    subprocess.run('mkdir '+path_wd+'/'+system_.get_model(model_id=0.0).type,shell=True)
     cap_system(system=system_)
+    subprocess.run('mv *.caps.pdb '+system_.get_model(model_id=0.0).type,shell=True)
 
     print('-- Merge Models to Microfibril --')
     system_.write_pdb(pdb_out=pdb_out)
@@ -134,10 +134,12 @@ def build_system(crystal : crystal.Crystal,
     
     """
     system_=system.System(crystal=crystal,crystalcontacts=crystalcontacts)
+
     transformation=system_.crystalcontacts.read_t_matrix()
     unit_cell={ k:system_.crystal.get_s_matrix(t_matrix=transformation[k]) for k in transformation }
+
     for key_m in transformation:
-        model_=model.Model(id=key_m,transformation=transformation[key_m],unit_cell=unit_cell[key_m])
+        model_=model.Model(id=key_m,transformation=transformation[key_m],unit_cell=unit_cell[key_m],pdb_file=crystal.pdb_file)
         system_.add_model(model=model_)
     return system_
 
@@ -147,7 +149,7 @@ def connect_system(system : system.System) -> tuple[system.System, connect.Conne
     Identifies connections within a build system 
     
     """
-    connect_=connect.Connect(system.crystal.pdb_file)
+    connect_=connect.Connect(system=system)
     system_connect=connect_.run_connect(system=system)
     for key_m in system_connect:
         system.get_model(model_id=key_m).add_connect(connect_id=key_m,connect=system_connect[key_m])
@@ -205,13 +207,13 @@ def build_from_contactdistance(path_wd=str,pdb_file=None,contact_distance=float,
     chimera_.matrixget(pdb=path_pdb_file,contact_distance=contact_distance,
                        crystalcontacts=crystalcontacts_file)
 
-    print('-- Write CrystalContacts '+str(crystalcontacts_file)+'.txt --')
+    print('-- Write CrystalContacts to '+str(crystalcontacts_file)+' --')
     crystalcontacts_=crystalcontacts.CrystalContacts(crystalcontacts_file)
 
     print('-- Build System --')
     system_=build_system(crystal=crystal_,crystalcontacts=crystalcontacts_)
         
-    print('-- Connect Models --')
+    print('-- Connect System --')
     system_,connect_=connect_system(system=system_)
 
     print('-- Optimize System --')
@@ -229,10 +231,10 @@ def build_from_crystalcontacts(crystalcontacts_file=str,crystal_=crystal.Crystal
     """
     crystalcontacts_=crystalcontacts.CrystalContacts(crystalcontacts_file)
     
-    print('-- Build System from CrystalContacts --')
+    print('-- Build System --')
     system_=build_system(crystal=crystal_,crystalcontacts=crystalcontacts_)
 
-    print('-- Connect Models --')
+    print('-- Connect System --')
     system_,connect_=connect_system(system=system_)
    
     if crystalcontacts_optimize:

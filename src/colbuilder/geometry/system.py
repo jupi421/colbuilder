@@ -19,6 +19,7 @@ class System:
         self.crystalcontacts=crystalcontacts
         self.size_models=0
         self.size=0
+        self.type=''
 
     def add_model(self,model):
         """
@@ -96,28 +97,8 @@ class System:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
 
             for model in self.get_keys():
-                pdb_model=open(str(int(model))+'.caps.pdb','r').readlines()
+                pdb_model=open(str(self.get_model(model_id=model).type)+'/'+str(int(model))+'.caps.pdb','r').readlines()
                 f.write("".join(i for i in pdb_model))
-
-            f.write("END")
-        f.close()
-
-    def write_mix_pdb(self,pdb_out=None):
-        """
-
-        writes mixed models of system to a single file representing the whole system
-        first line is the crystal information taken from the user-specified pdb-file
-
-        """
-        if pdb_out==None: pdb_out=self.crystal.pdb_file+'_mix_system'
-        with open(pdb_out+'.pdb','w') as f:
-            f.write(open(self.crystal.pdb_file+'.pdb').readline())
-
-            for model in self.get_keys():
-                cross=self.get_model(model_id=model).crosslink_type
-                if cross!=None: 
-                    pdb_model=open(str(cross)+'/'+str(int(model))+'.caps.pdb','r').readlines()
-                    f.write("".join(i for i in pdb_model))
 
             f.write("END")
         f.close()
@@ -134,13 +115,12 @@ class System:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
 
             for model in range(self.size):
-                cross=self.get_model(model_id=model).crosslink_type
+                cross=self.get_model(model_id=model).type
                 if cross!=None: 
                     pdb_model=open(str(cross)+'/'+str(model)+'.caps.pdb','r').readlines()
                     f.write("".join(i for i in pdb_model))
 
             f.write("END")
         f.close()
-
 
     # TODO: What happes if there is just a large pdb file?
