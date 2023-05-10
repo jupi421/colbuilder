@@ -66,15 +66,3 @@ class Mutate:
                 for cross in system.get_model(model_id=key).crosslink:
                     if cross.state=='mut': f.write(str(int(key))+'.caps.pdb '+str(cross.resname)+' '+str(cross.resid)+' '+str(cross.chain)+'\n' )
         f.close()
-    
-    def clean_pdb(self,system=None):
-        """
-        
-        write pdb file with mutations
-        
-        """
-        for model in system.get_keys():
-            pdb_file=[l.strip() for l in open(str(system.get_model(model_id=0.0).type)+'/'+str(int(model))+'.caps.pdb','r') if l[0:6] in self.is_line and l[0:3]!='TER']
-            with open(str(system.get_model(model_id=0.0).type)+'/'+str(int(model))+'.caps.pdb','w') as f:
-                for idx in pdb_file: f.write(idx+'\n')
-            f.close()

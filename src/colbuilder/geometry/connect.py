@@ -12,6 +12,7 @@ class Connect:
         self.system=system
         self.pairs={ key: None for key in self.system.get_keys() }
         self.connect={ }
+        self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
 
     def get_model_connect(self,system=None,unit_cell=None):
         """
@@ -68,6 +69,21 @@ class Connect:
         """
         for ref_c,c in product(ref_model.crosslink,model.crosslink):
             if np.linalg.norm(ref_c.position-c.position)<cut_off: return True
+    
+    # TODO: Here or only @ Topology
+    def merge_pdbs(self,system=None,connect_id=None):
+        """
+        
+        merge pdb's according to connect_id in system
+        
+        """
+        if system.get_model(model_id=connect_id).connect!=None:
+            with open(str(connect_id)+'_merge.pdb','w') as f:
+                for model in system.get_model(model_id=connect_id).connect:
+                    pdb_model=open(str(self.get_model(model_id=connect_id).type)+'/'+str(int(model))+'.caps.pdb','r').readlines()
+                    f.write("".join(i for i in pdb_model if i[0:6] in self.is_line))
+                f.write("END")
+            f.close()
 
     def write_connect(self,system=None,connect_file=None):
         """

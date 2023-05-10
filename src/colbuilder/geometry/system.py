@@ -12,6 +12,7 @@ class System:
         self.crystal=crystal
         self.crystalcontacts=crystalcontacts
         self.size_models=0
+        self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
         self.size=0
         self.type=''
 
@@ -62,10 +63,10 @@ class System:
     def get_connect(self):
         """
         
-        get crystal contacts about a model in system
+        get crystal contacts for a model in system
         
         """
-        self.connect={ self.get_model(model_id=key).id : self.get_model(model_id=key).transformation for key in self.get_keys() }
+        self.connect={ self.get_model(model_id=key).id : self.get_model(model_id=key).transformation for key in self.get_keys() } # TODO: Why transform here? not needed
         for idx in self.keys:
             self.connect[self.get_model(model_id=idx).id]=self.get_model(model_id=idx).connect
         return self.connect
@@ -101,6 +102,6 @@ class System:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
             for model in self.get_keys():
                 pdb_model=open(str(self.get_model(model_id=model).type)+'/'+str(int(model))+'.caps.pdb','r').readlines()
-                f.write("".join(i for i in pdb_model))
+                f.write("".join(i for i in pdb_model if i[0:6] in self.is_line and i[0:3]!='TER'))
             f.write("END")
         f.close()

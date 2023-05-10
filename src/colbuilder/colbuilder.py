@@ -5,7 +5,7 @@ from setuptools import setup
 import argparse
 from pathlib import Path
 from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, mutate_geometry
-
+from colbuilder.topology.main_topology import build_topology
     
 def colbuilder():
     
@@ -25,14 +25,22 @@ def colbuilder():
                         help='read crystalcontacts from file (default: crystalcontacts)',default='crystalcontacts')
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
                         help='optimize crystalcontacts (default: False)',default=False)
+    
     parser.add_argument('-mix','--setup_mix', required=False,nargs='+',
                         help=("""ratio for mix-crosslink setup, e.g. 70% T; 30% D -> -mix T:70 D:30.
                               Please use -f_mix flag to input pdb-files in the exact same order"""),default=None)
     parser.add_argument('-fmix','--files_mix', required=False,nargs='+',
                         help=("""PDB-files with different crosslink-types, e.g. 70% T; 30 -> fmix Rat-T.pdb Rat-D.pdb
                         Please make sure that -fmix has the exact same order as mix-setup -mix."""),default=[])
+    
     parser.add_argument('-mutate','--setup_mutate', required=False,
                         help=("ratio of mutated crosslinks, e.g. -mutate 25 means 25% mutated, values between 0 to 50%"),default=None)
+    
+    parser.add_argument('-ff','--force_field', required=False,
+                        help=("specifiy force field to be used, e.g. -ff amber99 OR -ff martini3"),default=None)
+    
+    
+    
     args=parser.parse_args()
 
     print('-- Colbuilder --')
@@ -72,6 +80,8 @@ def colbuilder():
     
 
     # TODO: AA FF
+    system_=build_topology(system=system_,
+                           force_field=args.force_field)
    # system_aa_=generate_atomistic_topology(system=system_,crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''))
     
     # TODO CG FF

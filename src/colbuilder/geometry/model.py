@@ -61,5 +61,4 @@ class Model:
         count crosslinks with certain state (no, mut, prot) in model
         
         """
-        return len([cross for cross in self.crosslink if cross.state==state])
-                
+        return len([cross for cross in self.crosslink if cross.state==state])        

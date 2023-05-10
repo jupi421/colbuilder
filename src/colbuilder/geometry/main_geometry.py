@@ -30,8 +30,8 @@ def mutate_geometry(path_wd=str,setup_mutate=None,system=system.System,
     chimera_=chimera.Chimera(path_wd+'/'+system_.crystal.pdb_file)
     chimera_.swapaa(mutation='mutation',system_type=system_.get_model(model_id=0.0).type)
 
-    mutate_.clean_pdb(system=system_)
     system_.write_pdb(pdb_out=pdb_out)
+
     return system_
 
 

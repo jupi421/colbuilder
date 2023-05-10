@@ -98,5 +98,4 @@ class Caps:
                 f.write(idx+'\n')
                 if idx[17:20]=='NME' and idx[12:16]=='3HH3': f.write('TER \n')
         f.close()
-        
         subprocess.run('rm '+str(pdb_id)+'.pdb',shell=True)
