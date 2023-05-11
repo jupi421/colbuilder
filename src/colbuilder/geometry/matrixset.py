@@ -46,7 +46,7 @@ selection.mergeCurrent(selection.REPLACE,selectFibril)
 rc("sel invert")
 rc("del sel")
 
-with open(str(crystalcontacts_file).replace("_opt","_id")+".txt",'w') as f:
+with open(str(crystalcontacts_file).replace('_opt','')+"_id.txt",'w') as f:
     for model in openModels.list(): 
         rc("write #"+str(model.id)+' '+str(model.id)+".pdb")
         f.write('Model '+str(model.id)+'\n')

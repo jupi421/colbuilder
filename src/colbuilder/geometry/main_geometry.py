@@ -100,7 +100,7 @@ def mix_geometry(path_wd=str,crystalcontacts_file=str,crystalcontacts_optimize=N
         subprocess.run('mkdir '+path_wd+'/'+key,shell=True)
 
         print('-- Generate '+str(key)+' system from '+str(mix_pdb[key])+' --')
-        chimera_.matrixset(pdb=mix_pdb[key],crystalcontacts=crystalcontacts_file,
+        chimera_.matrixset(pdb=mix_pdb[key],crystalcontacts=system_.crystalcontacts.crystalcontacts_file,
                     system_size=system.get_size(system=system),fibril_length=fibril_length)
         
         print('-- Add caps --')
@@ -111,8 +111,8 @@ def mix_geometry(path_wd=str,crystalcontacts_file=str,crystalcontacts_optimize=N
     system_=mix.Mix(setup=mix_setup,system=system).add_mix()
 
     print('-- Mix system --')
-    connect_file=crystalcontacts_file.replace('opt','')+'_connect_mix'
-    connect.Connect(system=system_).write_connect(system=system_,connect_file=connect_file)
+    connect.Connect(system=system_).write_connect(system=system_,
+                    connect_file=system_.crystalcontacts.crystalcontacts_file.replace('.opt','')+'_connect_mix')
 
     system_.write_pdb(pdb_out=pdb_out)
 
@@ -159,13 +159,13 @@ def cap_system(system: system.System) -> caps.Caps:
         caps_.add_caps(pdb_id=int(idx))
     return caps_
 
-def matrixset_system(system: system.System, crystalcontacts_file=str) -> system.System:
+def matrixset_system(system: system.System,crystalcontacts_file=str) -> system.System:
     """
     
     set system after the matrixset command in chimera
     
     """
-    contacts=[float(i.split(' ')[1]) for i in open(crystalcontacts_file.replace('_opt','_id')+'.txt','r').readlines()]
+    contacts=[float(i.split(' ')[1]) for i in open(crystalcontacts_file.replace('_opt','')+'_id.txt','r').readlines()]
     for model in system.get_models():
         if model not in contacts: system.delete_model(model_id=model)
         elif system.get_model(model_id=model).connect!=None:

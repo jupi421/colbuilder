@@ -64,8 +64,6 @@ def colbuilder():
     # Mix-System
     if args.setup_mix!=None: 
         system_=mix_geometry(path_wd=str(args.working_directory),
-                            crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''),
-                            crystalcontacts_optimize=args.crystalcontacts_optimize,
                             fibril_length=float(args.fibril_length),
                             pdb_files=[str(file).replace('.pdb','') for file in args.files_mix],
                             setup_mix=args.setup_mix,
