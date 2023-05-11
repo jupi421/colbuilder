@@ -100,7 +100,8 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
         print('Error: Input does not make sense, please provide either Contact Distance or CrystalContacts and not both.')
         return exit()
     
-    write_system(system_=system_,crystalcontacts_=crystalcontacts_,connect_=connect_)
+    print('-- Write '+str(crystalcontacts_.crystalcontact_file)+'_opt --')
+    crystalcontacts_.write_crystalcontacts(system=system_,crystalcontact_file=crystalcontacts_.crystalcontact_file+'_opt')
 
     print('-- Generate system from '+str(crystalcontacts_file)+'_opt --')
     print('-- Please wait, this may take some time ... --')
@@ -108,11 +109,15 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_file+'_opt',
                        system_size=system_.get_size(system=system_),fibril_length=fibril_length)   
     
-    print('-- Update system after matrixset --')
+    print('-- Cut system to '+str(fibril_length)+'nm --')
     system_=matrixset_system(system_=system_,crystalcontacts_=crystalcontacts_,
                              crystalcontacts_file=crystalcontacts_file+'_opt')
 
+    print('-- Write '+str(crystalcontacts_.crystalcontact_file)+'_connect --')
+    connect_.write_connect(system=system_,connect_file=crystalcontacts_.crystalcontact_file+'_connect')
+
     print('-- Add caps --')
+    subprocess.run('rm -r '+path_wd+'/'+system_.get_model(model_id=0.0).type,shell=True)
     subprocess.run('mkdir '+path_wd+'/'+system_.get_model(model_id=0.0).type,shell=True)
     cap_system(system=system_)
     subprocess.run('mv *.caps.pdb '+system_.get_model(model_id=0.0).type,shell=True)
@@ -170,9 +175,14 @@ def matrixset_system(system_ : system.System,crystalcontacts_ : crystalcontacts.
     set system after the matrixset command in chimera
     
     """
-    contacts=crystalcontacts_.get_models(crystalcontact_file=crystalcontacts_file)
-    for model_id in system_.get_keys():
-        if model_id not in contacts: system_.delete_model(model_id=model_id)
+    print(system_.get_size())
+    contacts=[float(i.split(' ')[1]) for i in open(crystalcontacts_file.replace('_opt','_id')+'.txt','r').readlines()]
+    print(contacts)
+    for model in system_.get_keys():
+        if model not in contacts: 
+            print(model)
+            system_.delete_model(model_id=model)
+    print(system_.get_size())
     return system_
 
 def write_system(system_ : system.System,crystalcontacts_ : crystalcontacts.CrystalContacts,
@@ -182,11 +192,9 @@ def write_system(system_ : system.System,crystalcontacts_ : crystalcontacts.Crys
     wrtie crystalcontacts and connections of system to file
     
     """
-    print('-- Write '+str(crystalcontacts_.crystalcontact_file)+'_opt --')
-    crystalcontacts_.write_crystalcontacts(system=system_,crystalcontact_file=crystalcontacts_.crystalcontact_file+'_opt')
+
     
-    print('-- Write '+str(crystalcontacts_.crystalcontact_file)+'_connect --')
-    connect_.write_connect(system=system_,connect_file=crystalcontacts_.crystalcontact_file+'_connect')
+
 
 def build_from_contactdistance(path_wd=str,pdb_file=None,contact_distance=float,
                                crystalcontacts_file=str,chimera_=chimera.Chimera,

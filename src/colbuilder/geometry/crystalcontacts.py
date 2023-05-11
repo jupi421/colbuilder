@@ -38,15 +38,6 @@ class CrystalContacts:
                 float(crystalcontacts[idx+2].split(' ')[-1]),
                 float(crystalcontacts[idx+3].split(' ')[-1])]
         return self.t_matrix
-
-    def get_models(self,crystalcontact_file=None,crystalcontacts=None):
-        """
-        
-        Get model_ids from crystal contacts file 
-        
-        """
-        if crystalcontacts==None: crystalcontacts=self.read_crystalcontacts(crystalcontact_file)
-        return [float(crystalcontacts[idx].split(' ')[1]) for idx in range(0,len(self.read_crystalcontacts(crystalcontact_file)),4)]
     
     def write_crystalcontacts(self,system=None,crystalcontact_file=None):
         """
