@@ -17,7 +17,7 @@ Enter the cloned directory and use pip to install colbuilder 2.0 and its require
 cd colbuilder/
 pip install .
 ```
-If everything went well, colbuilder 2.0 should be installed properly in your conda environment. In order to run colbuilder 2.0, additional non-python software has to be installed on the OS. In detail, PyMol should be installed by using the Schrodinger anaconda channel (https://pymol.org/conda/). Make sure you have your conda environment colbuilder still activated.
+If everything went well, colbuilder 2.0 should be installed properly in your conda environment. In order to run colbuilder 2.0, additional non-python software has to be installed on the OS. In detail, PyMol should be installed by using the Schrodinger anaconda channel from https://pymol.org/conda/. Make sure you have your conda environment colbuilder still activated.
 ```
 conda install -c conda-forge -c schrodinger pymol-bundle
 ```
