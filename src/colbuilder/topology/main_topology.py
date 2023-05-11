@@ -1,12 +1,8 @@
-
-import os
 import subprocess
-
 from colbuilder.geometry import system
-from colbuilder.topology import amber, martini
-                                 
+from colbuilder.topology import amber, martini                              
 
-def build_martini3(system=None,force_field=None,topology_file=None):
+def build_martini3(system: system.System,force_field=None,topology_file=None) -> martini.Martini:
     """
     
     build martini 3 force field topology
@@ -14,7 +10,7 @@ def build_martini3(system=None,force_field=None,topology_file=None):
     """
     ff=force_field
     martini_=martini.Martini(system=system,force_field=ff)
-    for model_id in system.get_keys():
+    for model_id in system.get_models():
         for connect_id in system.get_model(model_id=model_id).connect:
             martini_.set_pdb(connect_id=connect_id)
             martini_.write_pdb(connect_id=connect_id)
@@ -25,7 +21,7 @@ def build_martini3(system=None,force_field=None,topology_file=None):
     
     return martini_
                                  
-def build_amber99(system=None,force_field=None,topology_file=None):
+def build_amber99(system: system.System,force_field=None,topology_file=None) -> amber.Amber:
     """"
     
     builder amber99 force field topology
@@ -40,7 +36,7 @@ def build_amber99(system=None,force_field=None,topology_file=None):
         print('Error: No force field. Get '+str(ff)+'-force field from colbuilder 1.0.')
         exit()
 
-    for model in system.get_keys():
+    for model in system.get_models():
         amber_.merge_pdbs(connect_id=model)
 
         subprocess.run(
@@ -52,7 +48,7 @@ def build_amber99(system=None,force_field=None,topology_file=None):
     
     return amber_
 
-def build_topology(system : system.System,force_field=None,top_file=None,gro_file=None) -> system.System:
+def build_topology(system: system.System,force_field=None,top_file=None,gro_file=None) -> system.System:
     """
     
     builds topology of a system

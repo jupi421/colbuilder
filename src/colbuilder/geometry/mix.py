@@ -16,7 +16,7 @@ class Mix:
         Set mixture of crystalcontacts according to user specific ratio
         
         """
-        for idx in self.system.get_keys():
+        for idx in self.system.get_models():
             if self.system.get_model(model_id=idx).connect!=None:
                 self.system.get_model(model_id=idx).type=self.get_mix(setup=self.setup)
         return self.system

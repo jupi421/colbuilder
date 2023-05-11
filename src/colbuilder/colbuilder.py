@@ -1,9 +1,7 @@
 
-import os
-from setuptools import setup
-#
 import argparse
 from pathlib import Path
+
 from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, mutate_geometry, build_fibril
 from colbuilder.topology.main_topology import build_topology
     
@@ -39,14 +37,11 @@ def colbuilder():
     parser.add_argument('-mutate','--setup_mutate', required=False,
                         help=("ratio of mutated crosslinks, e.g. -mutate 25 means 25% mutated, values between 0 to 50%"),default=None)
     
-    parser.add_argument('-ff','--force_field', required=False,
-                        help=("specifiy force field to be used, e.g. -ff amber99 OR -ff martini3"),default=None)
-    
     parser.add_argument('-p','--topology_file', required=False,
                         help=("specifiy name of topology file (default: system.top)"),default='system.top')
-    
-    
-    
+    parser.add_argument('-ff','--force_field', required=False,
+                        help=("specifiy force field to be used, e.g. -ff amber99 OR -ff martini3"),default=None)
+        
     args=parser.parse_args()
 
     print('-- Colbuilder 2.0 --')
@@ -85,7 +80,7 @@ def colbuilder():
                                 fibril_length=float(args.fibril_length),
                                 pdb_out=args.output+'_mut')
 
-    # Topology-System
+    # Build Topology for System
     system_=build_topology(system=system_,
                            force_field=args.force_field,
                            top_file=args.output+'.top',

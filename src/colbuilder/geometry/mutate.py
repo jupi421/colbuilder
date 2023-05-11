@@ -45,7 +45,7 @@ class Mutate:
         draw a random model from system
         
         """
-        return np.random.choice(system.get_keys())
+        return np.random.choice(system.get_models())
     
     def draw_crosslink(self,model):
         """
@@ -62,7 +62,7 @@ class Mutate:
         
         """
         with open(mutation_file+'.txt','w') as f:
-            for key in system.get_keys():
+            for key in system.get_models():
                 for cross in system.get_model(model_id=key).crosslink:
                     if cross.state=='mut': f.write(str(int(key))+'.caps.pdb '+str(cross.resname)+' '+str(cross.resid)+' '+str(cross.chain)+'\n' )
         f.close()

@@ -10,7 +10,7 @@ class Connect:
     """
     def __init__(self,system=None):
         self.system=system
-        self.pairs={ key: None for key in self.system.get_keys() }
+        self.pairs={ key: None for key in self.system.get_models() }
         self.connect={ }
         self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
 
@@ -22,7 +22,7 @@ class Connect:
         """ 
         transformation=system.crystal.get_t_matrix(s_matrix=unit_cell)
         add_=model.Model(id='add',transformation=transformation,pdb_file=system.crystal.pdb_file)
-        for ref_model in self.system.get_keys():
+        for ref_model in self.system.get_models():
             if self.get_connect(ref_model=system.get_model(model_id=ref_model),model=add_)==True: 
                                 del add_; return True
         del add_
@@ -33,7 +33,7 @@ class Connect:
         get connection between all models/contacts in system
 
         """
-        for ref_model,model in product(self.system.get_keys(),repeat=2):
+        for ref_model,model in product(self.system.get_models(),repeat=2):
             if ref_model!=model and self.get_connect(ref_model=system.get_model(model_id=ref_model),
                                                     model=system.get_model(model_id=model))==True:
                 self.pairs[ref_model]=model
@@ -77,7 +77,7 @@ class Connect:
         
         """
         with open(connect_file+'.txt','w') as f:
-            for model in system.get_keys():
+            for model in system.get_models():
                 if system.get_model(model_id=model).connect!=None:
                     for connect in system.get_model(model_id=model).connect:
                         f.write(str(int(connect))+'.caps.pdb ')

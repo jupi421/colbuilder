@@ -78,7 +78,6 @@ class Optimizer:
         if s_matrix==None: s_matrix=self.s_matrix
         if system==None: system=self.system
         return self.optimize_crystalcontacts(s_matrix=s_matrix,connect=connect,system=system)
-        
 
     def check_node_connect(self,connect=None,system=None,z_grid=None,node=None):
         """
@@ -102,8 +101,10 @@ class Optimizer:
                 if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)==True:
                     pr_node=[i*(-1) for i in node] 
                     if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=pr_node)==True:
-                        system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=node, # node
-                                            transformation=system.crystal.get_t_matrix(s_matrix=node),pdb_file=system.crystal.pdb_file))                     
-                        system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=pr_node, # point reflection node
+
+                        system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=node, 
+                                            transformation=system.crystal.get_t_matrix(s_matrix=node),pdb_file=system.crystal.pdb_file))   
+                                          
+                        system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=pr_node, 
                                             transformation=system.crystal.get_t_matrix(s_matrix=pr_node),pdb_file=system.crystal.pdb_file))
         return system

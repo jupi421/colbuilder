@@ -77,4 +77,4 @@ class Amber:
                 with open('col_'+str(int(model))+'.gro','w') as f:
                     f.write(line)
                 f.close()
-
+        # TODO: Merge all gro's in one

@@ -86,7 +86,7 @@ class Caps:
         cmd.delete(name=str(pdb_id))
         return self.write_caps(pdb='tmp.pdb',pdb_id=pdb_id)
 
-    def write_caps(self,pdb=None,pdb_id=0):
+    def write_caps(self,pdb=None,pdb_id=int):
         """
         
         write pdb file with caps

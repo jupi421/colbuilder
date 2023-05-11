@@ -1,10 +1,4 @@
-"""
-
-Module to built from colbuilder 1.0 fibril
-
-"""
-import numpy as np
-from colbuilder.geometry import model, connect
+from colbuilder.geometry import model
 
 class Fibril:
     """
@@ -22,7 +16,7 @@ class Fibril:
     def seperate_system(self,pdb_file=None):
         """
         
-        separate system in models and writes pdb
+        separate system in models and write pdbs
         
         """
         if pdb_file==None: self.pdb_file=pdb_file ; self.fibril=open(pdb_file,'r').readlines()
@@ -74,7 +68,7 @@ class Fibril:
         
         """
         with open(connect_file+'.txt','w') as f:
-            for model in system.get_keys():
+            for model in system.get_models():
                 if system.get_model(model_id=model).connect==None:
                     f.write(str(int(model))+'.caps.pdb')
                 else:

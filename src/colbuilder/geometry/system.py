@@ -8,7 +8,7 @@ class System:
     def __init__(self,crystal=None,crystalcontacts=None,pdb_fibril=None):
         self.system={ }
         self.connect={ }
-        self.keys=[]
+        self.models=[]
         self.crystal=crystal
         self.crystalcontacts=crystalcontacts
         self.size_models=0
@@ -52,14 +52,14 @@ class System:
         """
         return self.system[model_id]
     
-    def get_keys(self):
+    def get_models(self):
         """
 
-        get key for each model in system
+        get models from system
         
         """
-        self.keys=[model for model in self.system]
-        return self.keys
+        self.models=[model for model in self.system]
+        return self.models
 
     def get_connect(self):
         """
@@ -67,7 +67,7 @@ class System:
         get crystal contacts for a model in system
         
         """
-        self.connect={ self.get_model(model_id=key).id : self.get_model(model_id=key).transformation for key in self.get_keys() } # TODO: Why transform here? not needed
+        self.connect={ self.get_model(model_id=key).id : self.get_model(model_id=key).transformation for key in self.get_models() } # TODO: Why transform here? not needed
         for idx in self.keys:
             self.connect[self.get_model(model_id=idx).id]=self.get_model(model_id=idx).connect
         return self.connect
@@ -88,11 +88,10 @@ class System:
         
         """
         cnt=0
-        for key in self.get_keys():
+        for key in self.get_models():
             cnt+=self.get_model(model_id=key).count_state(state=state)
         return cnt
 
-    
     def write_pdb(self,pdb_out=None):
         """
         
@@ -101,7 +100,7 @@ class System:
         """
         with open(pdb_out+'.pdb','w') as f:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
-            for model in self.get_keys():
+            for model in self.get_models():
                 pdb_model=open(str(self.get_model(model_id=model).type)+'/'+str(int(model))+'.caps.pdb','r').readlines()
                 f.write("".join(i for i in pdb_model if i[0:6] in self.is_line and i[0:3]!='TER'))
             f.write("END")
