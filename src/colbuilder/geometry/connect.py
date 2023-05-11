@@ -76,16 +76,15 @@ class Connect:
         writes system of model connections to file 
         
         """
-        print(system.get_keys())
         with open(connect_file+'.txt','w') as f:
-            for idx in system.get_keys():
-                if system.get_model(model_id=idx).connect!=None:
-                    for model in system.get_model(model_id=idx).connect:
-                        f.write(str(int(model))+'.caps.pdb ')
-                    f.write(' ; '+str(system.get_model(model_id=idx).type))
+            for model in system.get_keys():
+                if system.get_model(model_id=model).connect!=None:
+                    for connect in system.get_model(model_id=model).connect:
+                        f.write(str(int(connect))+'.caps.pdb ')
+                    f.write(' ; '+str(system.get_model(model_id=model).type))
                     f.write('\n')
         f.close()
-    
+
     def run_connect(self,system=None,unit_cell=None):
         """
         

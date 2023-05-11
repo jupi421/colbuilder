@@ -17,7 +17,7 @@ class Model:
 
     """
     def __init__(self,id=None,transformation=None,unit_cell=None,connect=None,
-                 connect_id=None,mutate=None,pdb_file=None):
+                 connect_id=None,pdb_file=None):
         self.id=id
         self.transformation=transformation
         self.unit_cell=unit_cell
@@ -25,7 +25,6 @@ class Model:
         self.connect_id=connect_id
         self.crosslink=self.add_crosslink(crosslink=crosslink.read_crosslink(pdb_file=pdb_file))
         self.type="".join(i for i in set([cross.type for cross in self.crosslink]))
-        self.cog=self.get_cog()
 
     def add_connect(self,connect_id=None,connect=None):
         """
@@ -50,11 +49,16 @@ class Model:
         add and transform crosslink according to transformation matrix of model
     
         """
-        for cross in crosslink:
-            cross.set_transform(model_id=self.id,transform=self.transformation)
+        try:
+            for cross in crosslink:
+                cross.set_transform(model_id=self.id,transform=self.transformation)
+
+            self.cog=self.get_cog(crosslink=self.crosslink)
+        except:
+            crosslink=crosslink
         return crosslink
 
-    def get_cog(self):
+    def get_cog(self,crosslink=None):
         """
         
         get center-of-geometry of model

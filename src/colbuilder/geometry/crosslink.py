@@ -29,7 +29,7 @@ class Crosslink:
         self.resid=resid
         self.resname=resname
         self.chain=chain
-        self.position=position
+        self.position=np.array(position)
         self.type=type
         self.state='no'
 

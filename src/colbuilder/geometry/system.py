@@ -5,7 +5,7 @@ class System:
     dict { model_id: model }
 
     """
-    def __init__(self,crystal=None,crystalcontacts=None):
+    def __init__(self,crystal=None,crystalcontacts=None,pdb_fibril=None):
         self.system={ }
         self.connect={ }
         self.keys=[]
@@ -15,6 +15,7 @@ class System:
         self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
         self.size=0
         self.type=''
+        self.pdb_fibril=pdb_fibril
 
     def add_model(self,model):
         """

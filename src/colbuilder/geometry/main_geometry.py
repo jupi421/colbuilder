@@ -6,7 +6,7 @@ module to build the collagen microfibril from a single collagen triple helix
 import subprocess
 from colbuilder.geometry import (
     crystal, crystalcontacts, chimera, model, system, connect, caps, 
-    optimize, mix, mutate,
+    optimize, mix, mutate, fibril
 )
 
 def mutate_geometry(path_wd=str,setup_mutate=None,system=system.System,
@@ -234,3 +234,28 @@ def build_from_crystalcontacts(crystalcontacts_file=str,crystal_=crystal.Crystal
         system_,connect_=connect_system(system=system_)
 
     return system_,crystalcontacts_,connect_
+
+def build_fibril(pdb_file=None):
+    """"
+    
+    build a system from colbuilder 1.0 fibril
+    
+    """
+    system_=system.System(pdb_fibril=pdb_file)
+
+    print('-- Read fibril '+str(pdb_file)+' from colbuilder 1.0 --')
+    fibril_=fibril.Fibril(system=system_,pdb_file=pdb_file)
+
+    print('-- Separate system --')
+    fibril_.seperate_system(pdb_file=pdb_file)
+
+    print('-- Build system --')
+    system_=fibril_.build_system(system=system_)
+
+    print('-- Connect system --')
+    system_,connect_=connect_system(system=system_)
+
+    print('-- Write fibril_connect --')
+    fibril_.write_connect(system=system_,connect_file='fibril_connect')
+
+    return system_
