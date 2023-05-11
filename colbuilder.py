@@ -4,7 +4,7 @@ from setuptools import setup
 #
 import argparse
 from pathlib import Path
-from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, mutate_geometry
+from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, mutate_geometry, build_fibril
 from colbuilder.topology.main_topology import build_topology
     
 def colbuilder():
@@ -26,6 +26,9 @@ def colbuilder():
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
                         help='optimize crystalcontacts (default: False)',default=False)
     
+    parser.add_argument('-fibril', '--fibril', required=False, 
+                        help='PDB-file of colbuilder 1 fibril',default=None)
+    
     parser.add_argument('-mix','--setup_mix', required=False,nargs='+',
                         help=("""ratio for mix-crosslink setup, e.g. 70% T; 30% D -> -mix T:70 D:30.
                               Please use -f_mix flag to input pdb-files in the exact same order"""),default=None)
@@ -39,17 +42,20 @@ def colbuilder():
     parser.add_argument('-ff','--force_field', required=False,
                         help=("specifiy force field to be used, e.g. -ff amber99 OR -ff martini3"),default=None)
     
+    parser.add_argument('-p','--topology_file', required=False,
+                        help=("specifiy name of topology file (default: system.top)"),default='system.top')
+    
     
     
     args=parser.parse_args()
 
-    print('-- Colbuilder --')
-    print('-- Read input parameters --')
+    print('-- Colbuilder 2.0 --')
 
     if args.file==None and args.files_mix!=[]: args.file=args.files_mix[0]
 
     # Build Geometry of Microfibril
-    system_=build_geometry(path_wd=str(args.working_directory),
+    if args.fibril==None:
+        system_=build_geometry(path_wd=str(args.working_directory),
                         pdb_file=str(args.file).replace('.pdb',''),
                         contact_distance=args.contact_distance,
                         crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''),
@@ -57,6 +63,9 @@ def colbuilder():
                         fibril_length=float(args.fibril_length),
                         pdb_out=args.output)
     
+    if args.file==None and args.fibril!=None:
+        system_=build_fibril(pdb_file=args.fibril)
+
     # Mix-System
     if args.setup_mix!=None: 
         system_=mix_geometry(path_wd=str(args.working_directory),
@@ -75,16 +84,12 @@ def colbuilder():
                                 system=system_,
                                 fibril_length=float(args.fibril_length),
                                 pdb_out=args.output+'_mut')
-    
 
-    
-
-    # TODO: AA FF
+    # Topology-System
     system_=build_topology(system=system_,
-                           force_field=args.force_field)
-   # system_aa_=generate_atomistic_topology(system=system_,crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''))
-    
-    # TODO CG FF
+                           force_field=args.force_field,
+                           top_file=args.output+'.top',
+                           gro_file=args.output+'.gro')
     
     # MAP GO-Model
 #    map_go_itp.run_map_go_itp(path,file_name)
