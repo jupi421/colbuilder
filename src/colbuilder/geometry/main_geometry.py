@@ -109,7 +109,7 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_file+'_opt',
                        system_size=system_.get_size(system=system_),fibril_length=fibril_length)   
     
-    print('-- Cut system to '+str(fibril_length)+'nm --')
+    print('-- Cut system to '+str(fibril_length)+' nm --')
     system_=matrixset_system(system_=system_,crystalcontacts_=crystalcontacts_,
                              crystalcontacts_file=crystalcontacts_file+'_opt')
 
@@ -175,26 +175,13 @@ def matrixset_system(system_ : system.System,crystalcontacts_ : crystalcontacts.
     set system after the matrixset command in chimera
     
     """
-    print(system_.get_size())
     contacts=[float(i.split(' ')[1]) for i in open(crystalcontacts_file.replace('_opt','_id')+'.txt','r').readlines()]
-    print(contacts)
     for model in system_.get_keys():
-        if model not in contacts: 
-            print(model)
-            system_.delete_model(model_id=model)
-    print(system_.get_size())
+        if model not in contacts: system_.delete_model(model_id=model)
+        elif system_.get_model(model_id=model).connect!=None:
+            for connect in system_.get_model(model_id=model).connect:
+                if connect not in contacts: system_.get_model(model_id=model).delete_connect(connect_id=connect)
     return system_
-
-def write_system(system_ : system.System,crystalcontacts_ : crystalcontacts.CrystalContacts,
-                 connect_ : connect.Connect):
-    """
-    
-    wrtie crystalcontacts and connections of system to file
-    
-    """
-
-    
-
 
 def build_from_contactdistance(path_wd=str,pdb_file=None,contact_distance=float,
                                crystalcontacts_file=str,chimera_=chimera.Chimera,

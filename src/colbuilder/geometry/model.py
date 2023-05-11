@@ -36,6 +36,13 @@ class Model:
         self.connect_id=connect_id
         self.connect=connect
     
+    def delete_connect(self,connect_id=None):
+        """
+        
+        delete connect_id from model in system
+        
+        """
+        self.connect=[i for i in self.connect if i !=connect_id]
 
     def add_crosslink(self,crosslink=None):
         """

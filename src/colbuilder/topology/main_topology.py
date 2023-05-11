@@ -1,13 +1,9 @@
-"""
 
-module to build the topology for the system
-
-"""
+import os
 import subprocess
-from colbuilder.geometry import ( system,
-)
-from colbuilder.topology import ( merge
-)
+
+from colbuilder.geometry import system
+from topology import amber
                                  
 def prepare_pdbs(system=None,force_field=None):
     """"
@@ -15,25 +11,36 @@ def prepare_pdbs(system=None,force_field=None):
     prepare pdbs for  force field
     
     """
-    merge_=merge.Merge(system=system)
+    amber_=amber.Amber(system=system)
     if force_field=='amber99':
         for model in system.get_keys():
-            merge_.merge_pdbs(connect_id=model)
+            amber_.merge_pdbs(connect_id=model)
                                  
-def build_amber99(system=None):
+def build_amber99(system=None,force_field=None):
     """"
     
     builder amber99 force field
     
     """
-    merge_=merge.Merge(system=system)
-    for model in system.get_keys():
-        merge_.merge_pdbs(connect_id=model)
-        subprocess.run(
-        'printf '"1\n6\n"'gmx pdb2gmx -f '+str(int(model))+'.merge.pdb -ignh'+ 
-        '-merge all'+'-p col_'+str(model)+'.top'+'-o col_'+str(model)+'.gro'+
-        '-p posre_'+str(model)+'.itp',shell=True)
+    amber_=amber.Amber(system=system)
+    ff=force_field+'sb-star-ildnp'
+    try:
+        subprocess.run('cp '+str(ff)+'.ff/residuetypes.dat .',shell=True)
+        subprocess.run('cp '+str(ff)+'.ff/specbont.dat .',shell=True)
+    except:
+        print('Error: No force field. Get '+str(ff)+'-force field from colbuilder 1.0.')
+        exit()
 
+    for model in system.get_keys():
+        amber_.merge_pdbs(connect_id=model)
+
+        subprocess.run(
+        'gmx pdb2gmx -f '+str(int(model))+'.merge.pdb -ignh '+'-merge all '+
+        '-ff '+str(ff)+' -water tip3p -p col_'+str(int(model))+'.top '+
+        '-o col_'+str(int(model))+'.gro '+'-i posre_'+str(int(model))+'.itp',shell=True)
+
+        amber_.
+        
 def build_topology(system : system.System,force_field=None):
     """
     
@@ -42,5 +49,5 @@ def build_topology(system : system.System,force_field=None):
     """
     prepare_pdbs(system=system,force_field=force_field)
     if force_field=='amber99':
-        build_amber99(system=system)
+        build_amber99(system=system,force_field=force_field)
 
