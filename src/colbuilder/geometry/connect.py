@@ -58,8 +58,9 @@ class Connect:
     
         """
         remove_model=set([key for key in contactpairs for model in contactpairs[key] if key>model])
-        for key in remove_model: del contactpairs[key] 
-        return { k:v for k,v in contactpairs.items() if v!=None and len(v)>1 }
+        for key in remove_model: contactpairs[key]=False
+        self.connect={ k:v for k,v in contactpairs.items() if v!=None and v!=False }
+        return self.connect
 
     def get_connect(self,ref_model=None,model=None,cut_off=2.0):
         """

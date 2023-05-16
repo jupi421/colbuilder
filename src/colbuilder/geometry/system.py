@@ -61,14 +61,14 @@ class System:
         self.models=[model for model in self.system]
         return self.models
 
-    def get_connect(self):
+    def get_connect(self,connect=None):
         """
         
         get crystal contacts for a model in system
         
         """
-        self.connect={ self.get_model(model_id=key).id : self.get_model(model_id=key).transformation for key in self.get_models() } # TODO: Why transform here? not needed
-        for idx in self.keys:
+        self.connect={ self.get_model(model_id=key).id : [] for key in self.get_models() } # TODO: Why transform here? not needed
+        for idx in self.get_models():
             self.connect[self.get_model(model_id=idx).id]=self.get_model(model_id=idx).connect
         return self.connect
 

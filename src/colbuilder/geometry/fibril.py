@@ -1,3 +1,5 @@
+import subprocess
+import os
 from colbuilder.geometry import model
 
 class Fibril:
@@ -67,12 +69,25 @@ class Fibril:
         writes system of model connections to file 
         
         """
+        subprocess.run("rm -r N/ T/ D/ TD/ DT/ ",shell=True,
+                       stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)
+        
         with open(connect_file+'.txt','w') as f:
             for model in system.get_models():
-                if system.get_model(model_id=model).connect==None:
+                if system.get_model(model_id=model).connect==None: continue
+                elif len(system.get_model(model_id=model).connect)==1:
+                    if not os.path.exists(os.getcwd()+'/N'): subprocess.run("mkdir N",shell=True)
                     f.write(str(int(model))+'.caps.pdb')
+                    f.write(' ; N \n')
+                    subprocess.run("mv "+str(int(model))+'.caps.pdb N/',shell=True,
+                                   stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)
                 else:
+                    if not os.path.exists(os.getcwd()+'/'+str( system.get_model(model_id=model).type)): 
+                        subprocess.run("mkdir "+str( system.get_model(model_id=model).type),shell=True)
+
                     for connect in system.get_model(model_id=model).connect:
                         f.write(str(int(connect))+'.caps.pdb ')
-                f.write('\n')
+                        subprocess.run("mv "+str(int(connect))+".caps.pdb "+str(system.get_model(model_id=model).type)+"/",shell=True)
+                    f.write(' ; '+str(system.get_model(model_id=model).type)+'\n')
+
         f.close()

@@ -59,7 +59,8 @@ def colbuilder():
                         pdb_out=args.output)
     
     if args.file==None and args.fibril!=None:
-        system_=build_fibril(pdb_file=args.fibril)
+        system_=build_fibril(path_wd=str(args.working_directory),
+                            pdb_file=args.fibril)
 
     # Mix-System
     if args.setup_mix!=None: 

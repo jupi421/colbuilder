@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 from colbuilder.geometry import (
     crystal, crystalcontacts, chimera, model, system, connect, caps, 
     optimize, mix, mutate, fibril
@@ -228,7 +229,7 @@ def build_from_crystalcontacts(crystalcontacts_file=str,crystal=crystal.Crystal,
 
     return system_,crystalcontacts_,connect_
 
-def build_fibril(pdb_file=None) -> system.System:
+def build_fibril(path_wd=None,pdb_file=None) -> system.System:
     """"
     
     build a system from colbuilder 1.0 fibril
@@ -247,7 +248,7 @@ def build_fibril(pdb_file=None) -> system.System:
 
     print('-- Connect system --')
     system_,connect_=connect_system(system=system_)
-
+    
     print('-- Write fibril_connect --')
     fibril_.write_connect(system=system_,connect_file='fibril_connect')
 
