@@ -24,7 +24,7 @@ class Connect:
         add_=model.Model(id='add',transformation=transformation,pdb_file=system.crystal.pdb_file)
         for ref_model in self.system.get_models():
             if self.get_connect(ref_model=system.get_model(model_id=ref_model),model=add_)==True: 
-                                del add_; return True
+                del add_ ; return True
         del add_
 
     def get_contact_connect(self,system=None):
@@ -80,10 +80,11 @@ class Connect:
         with open(connect_file+'.txt','w') as f:
             for model in system.get_models():
                 if system.get_model(model_id=model).connect!=None:
-                    for connect in system.get_model(model_id=model).connect:
-                        f.write(str(int(connect))+'.caps.pdb ')
-                    f.write(' ; '+str(system.get_model(model_id=model).type))
-                    f.write('\n')
+                    if len(system.get_model(model_id=model).connect)!=1:
+                        for connect in system.get_model(model_id=model).connect:
+                            f.write(str(int(connect))+'.caps.pdb ')
+                        f.write(' ; '+str(system.get_model(model_id=model).type))
+                        f.write('\n')
         f.close()
 
     def run_connect(self,system=None,unit_cell=None):

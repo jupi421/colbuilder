@@ -10,8 +10,9 @@ class Optimizer:
     As a result, the initial system is optimized.
 
     """
-    def __init__(self,system=None):
+    def __init__(self,system=None,solution_space=None):
         self.system=system
+        self.solution_space=solution_space
         self.t_matrix=system.crystalcontacts.read_t_matrix()
         self.s_matrix={ k:system.crystal.get_s_matrix(t_matrix=self.t_matrix[k]) for k in self.t_matrix }
         self.grid=[]
@@ -28,18 +29,21 @@ class Optimizer:
         except:
             print('Error: No unit-cell information given')
     
-    def extend_grid(self,z_grid=0,d_x=1,s_matrix=None):
+    def extend_grid(self,z_grid=0,d_x=1,d_y=0,s_matrix=None):
         """
         
         update grid (x,y) at specific z-pos by adding nodes or filling up the grid 
         from -i_max-d_ij to i_max+d_ij with i,j=(x,y) with i!=j
         
-        """        
+        """
+        d_x=int(self.solution_space[0])
+        d_y=int(self.solution_space[1])
+
         x_max=np.max(self.get_grid(z_grid=z_grid,s_matrix=s_matrix)[:,0])
         x_min=np.min(self.get_grid(z_grid=z_grid,s_matrix=s_matrix)[:,0])
         y_max=np.max(self.get_grid(z_grid=z_grid,s_matrix=s_matrix)[:,1])   
         x_mesh=np.linspace(x_min-d_x,x_max+d_x,x_max-x_min+2*d_x+1)
-        y_mesh=np.linspace(-y_max,y_max,2*y_max+1)        
+        y_mesh=np.linspace(-y_max-d_y,y_max+d_y,2*y_max+2*d_y+1)        
         return np.transpose(np.vstack(list(map(np.ravel,np.meshgrid(x_mesh,y_mesh,z_grid)))))
     
     def get_nodes(self,z_grid=0,s_matrix=None):
@@ -87,7 +91,7 @@ class Optimizer:
         """
         return connect.run_connect(system=system,unit_cell=node)
 
-    def optimize_crystalcontacts(self,s_matrix=None,connect=None,system=None):
+    def optimize_crystalcontacts(self,s_matrix=None,connect=None,system=None,d_z=1):
         """
         
         algorithm adds models to the system if they are connected to any other model.
@@ -95,8 +99,9 @@ class Optimizer:
         Both added model and point reflection have to be connected to be added.
         
         """
+        d_z=int(self.solution_space[2])
         z_grid=np.max(list(s_matrix.values()),axis=0)[2]
-        for plane in range(z_grid-2,z_grid+1,1):
+        for plane in range(z_grid-d_z,z_grid+1,1):
             for node in self.set_grid(z_grid=plane,s_matrix=s_matrix):
                 if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)==True:
                     pr_node=[i*(-1) for i in node] 

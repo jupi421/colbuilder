@@ -23,6 +23,8 @@ def colbuilder():
                         help='read crystalcontacts from file (default: crystalcontacts)',default='crystalcontacts')
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
                         help='optimize crystalcontacts (default: False)',default=False)
+    parser.add_argument('-space','--solution_space', nargs='+', required=False,
+                        help='solution space of optimisation problem [ d_x d_y d_z ] (default: [1 1 1] )',default=[1,1,1])
     
     parser.add_argument('-fibril', '--fibril', required=False, 
                         help='PDB-file of colbuilder 1 fibril',default=None)
@@ -55,6 +57,7 @@ def colbuilder():
                         contact_distance=args.contact_distance,
                         crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''),
                         crystalcontacts_optimize=args.crystalcontacts_optimize,
+                        solution_space=args.solution_space,
                         fibril_length=float(args.fibril_length),
                         pdb_out=args.output)
     
