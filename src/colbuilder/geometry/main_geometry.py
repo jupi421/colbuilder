@@ -39,11 +39,11 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     print('-- Generate system from '+str(crystalcontacts_.crystalcontacts_file)+' --')
     print('-- Please wait, this may take some time ... --')
     
-    #chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_.crystalcontacts_file,
-    #                   system_size=system_.get_size(system=system_),fibril_length=fibril_length)   
+    chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_.crystalcontacts_file,
+                       system_size=system_.get_size(system=system_),fibril_length=fibril_length)   
     
     print('-- Cut system to '+str(fibril_length)+' nm --')
-    #system_=matrixset_system(system=system_,crystalcontacts_file=crystalcontacts_.crystalcontacts_file)
+    system_=matrixset_system(system=system_,crystalcontacts_file=crystalcontacts_.crystalcontacts_file)
 
     print('-- Write '+str(crystalcontacts_file)+'_connect --')
     connect_.write_connect(system=system_,connect_file=crystalcontacts_file+'_connect')
