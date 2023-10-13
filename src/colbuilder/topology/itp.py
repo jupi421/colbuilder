@@ -203,28 +203,29 @@ class Itp:
         tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,k[2],format(float(k[3]),'.10f'),format(float(k[4]),'.10f'),';',k[-2],k[-1]+'\n'] for k in self.pairs[cnt_con]]
         for k in tmp: self.final_pairs.append(k)
 
-    def make_topology(self,model_id=None):
+    def make_topology(self,model_id=None,cnt_model=None):
         """
         
         make topology for merged itps and crosslinks
         
         """
+        print(cnt_model)
         self.crosslink_bonds=crosslink.Crosslink(model_id=model_id).set_crosslink_bonds(model_id=model_id)
         for cnt_con in range(len(self.system.get_model(model_id=model_id).connect)):
             self.merge_topology(cnt_con=cnt_con)
-            self.write_topology(cnt_con=cnt_con)
-            self.write_excl(cnt_con=cnt_con)
+        self.write_topology(cnt_model=cnt_model)
+        self.write_excl(cnt_model=cnt_model)
 
-    def write_topology(self,cnt_con=None):
+    def write_topology(self,cnt_model=None):
         """
         
         write merged topology to itp file
         
         """
-        with open('col_'+str(int(cnt_con))+'.itp','w') as f:
+        with open('col_'+str(int(cnt_model))+'.itp','w') as f:
             f.write('; Merging of topologies for models due to system\n')
             f.write('[ moleculetype ]\n')
-            f.write('col_'+str(cnt_con)+' 1\n')
+            f.write('col_'+str(cnt_model)+' 1\n')
             f.write('\n\n[ atoms ]\n')
             for a in self.final_atoms: f.write('{:>7}{:>7}{:>7}{:>7}{:>7}{:>7}{:>7}\n'.format(a[0],a[1],a[2],a[3],a[4],a[5],a[6]))
 
@@ -264,13 +265,13 @@ class Itp:
             f.write(" ".join(str(i) for ex in self.final_exclusions for i in ex))
         f.close()
 
-    def write_excl(self,cnt_con=None):
+    def write_excl(self,cnt_model=None):
         """
         
         write merged exclusion to itp file
         
         """
-        with open('col_'+str(cnt_con)+'_go-excl.itp','w') as f:
+        with open('col_'+str(cnt_model)+'_go-excl.itp','w') as f:
             f.write(';[ exclusions ]\n')
             for ex in self.final_go_exclusions:
                 for k in ex[:-1]: f.write(str(k)+' ')

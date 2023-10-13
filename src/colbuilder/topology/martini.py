@@ -97,21 +97,20 @@ class Martini:
         f.close()
     
 
-    def get_system_pdb(self,size_models=None):
+    def get_system_pdb(self,size=None):
         """
         
         write system pdb 
         
         """
         pdb=[]
-        for model in range(size_models):
+        for model in range(size):
             with open(str(int(model))+'.merge.pdb','r') as f:
-                for l in pdb: 
-                    pdb.append(l)
+                for l in f: pdb.append(l)
             f.close()
         return pdb  
       
-    def write_system_topology(self,size_models=None):
+    def write_system_topology(self,size=None):
         """
         
         write final topology file 
@@ -123,7 +122,7 @@ class Martini:
             f.write('#include "martini_v3.0.0.itp"\n')
             f.write('#include "./sites/go-sites.itp"\n\n')
 
-            for m in range(size_models):
+            for m in range(size):
                 f.write('#include "./itps/col_'+str(m)+'.itp"\n')
                 f.write('#include "./excl/col_'+str(m)+'_go-excl.itp"\n')
             f.write('\n#include "martini_v3.0.0_solvents_v1.itp"\n')
@@ -132,7 +131,7 @@ class Martini:
             f.write('\n[ system ]\n')
             f.write('Collagen, Martini 3 and Go-Potentials \n')
             f.write('\n[ molecules ]\n')
-            for t in range(size_models):
+            for t in range(size):
                 f.write('col_'+str(t)+'     1\n')
         f.close()
 

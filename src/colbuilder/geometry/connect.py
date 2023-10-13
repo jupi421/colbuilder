@@ -21,7 +21,8 @@ class Connect:
         read extenal connect-file and and clean system-connect
         
         """
-        if connect_file!=None: self.external_connect=[float(l.split(' ')[0].replace('.caps.pdb',''))-1 for l in open(connect_file+'.txt').readlines() ]
+        if connect_file!=None: self.external_connect=[float(l.split(' ')[0].replace('.caps.pdb','')) for l in open(connect_file+'.txt').readlines() ]
+        if np.min(self.external_connect)>0: self.external_connect=[i-1 for i in self.external_connect]
         for model_id in system.get_connect().keys():
             if model_id not in self.external_connect: 
                 system.get_model(model_id=model_id).connect=None

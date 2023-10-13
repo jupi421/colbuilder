@@ -11,7 +11,7 @@ def clean_directory(model_id=None):
     """
     subprocess.run('rm topol.top && rm '+str(int(model_id))+'.*.CG.pdb && rm col_'+str(int(model_id))+'.*.itp && rm \#*',shell=True)
 
-def build_martini3(system: system.System,force_field=None,topology_file=None) -> martini.Martini:
+def build_martini3(system: system.System,force_field=None,topology_file=None,go_epsilon=float) -> martini.Martini:
     """
     
     build martini 3 force field topology
@@ -21,6 +21,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None) ->
     cnt_model=0
     martini_=martini.Martini(system=system,force_field=force_field)
     for model_id in system.get_models():
+
         if system.get_model(model_id=model_id).connect!=None:
             print('-- Build microfibrillar topology: '+str(int(100 * cnt_model / len(system.get_models())))+' %' )
             itp_=itp.Itp(system=system,model_id=model_id)
@@ -49,19 +50,19 @@ def build_martini3(system: system.System,force_field=None,topology_file=None) ->
 
                 subprocess.run(
                 'python create_goVirt.py -s '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
-                '-f map.out --moltype col_'+str(int(model_id))+'.'+str(int(connect_id))+' --go_eps 9.414',
+                '-f map.out --moltype col_'+str(int(model_id))+'.'+str(int(connect_id))+' --go_eps '+str(go_epsilon),
                 shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)      
             
             martini_.merge_pdbs(model_id=model_id)
             
             itp_.read_model(model_id=model_id)
             itp_.go_to_pairs(model_id=model_id)
-            itp_.make_topology(model_id=model_id)
+            itp_.make_topology(model_id=model_id,cnt_model=cnt_model)
 
             clean_directory(model_id=model_id)
             cnt_model+=1
 
-    system_pdb=martini_.get_system_pdb(size_models=cnt_model)
+    system_pdb=martini_.get_system_pdb(size=cnt_model)
     martini_.write_pdb(pdb=system_pdb,file='collagen_fibril_martini3.pdb')
     martini_.write_system_topology(size=cnt_model)
 
@@ -98,7 +99,8 @@ def build_amber99(system: system.System,force_field=None,topology_file=None) -> 
 
     return amber_
 
-def build_topology(system: system.System,force_field=None,top_file=None,gro_file=None) -> system.System:
+def build_topology(system: system.System,force_field=None,top_file=None,gro_file=None,
+                   go_epsilon=float) -> system.System:
     """
     
     builds topology of a system
@@ -115,6 +117,9 @@ def build_topology(system: system.System,force_field=None,top_file=None,gro_file
     if force_field=='martini3':
         ff=force_field+'C'
         print('-- Build topology based on '+str(ff)+' --')
-        martini_=build_martini3(system=system,force_field=force_field)
+        martini_=build_martini3(system=system,force_field=force_field,go_epsilon=go_epsilon)
+    
+    if force_field==None:
+        print('Error: Please specifify force field to generate topology, e.g., martini3 or amber99')
 
     return system
