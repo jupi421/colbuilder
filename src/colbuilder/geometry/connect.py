@@ -12,7 +12,20 @@ class Connect:
         self.system=system
         self.pairs={ key: None for key in self.system.get_models() }
         self.connect={ }
+        self.external_connect=[]
         self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
+
+    def clean_contact_connect(self,system=None,connect_file=None):
+        """
+        
+        read extenal connect-file and and clean system-connect
+        
+        """
+        if connect_file!=None: self.external_connect=[float(l.split(' ')[0].replace('.caps.pdb',''))-1 for l in open(connect_file+'.txt').readlines() ]
+        for model_id in system.get_connect().keys():
+            if model_id not in self.external_connect: 
+                system.get_model(model_id=model_id).connect=None
+        return system
 
     def get_model_connect(self,system=None,unit_cell=None):
         """

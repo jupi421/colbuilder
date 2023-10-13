@@ -9,8 +9,6 @@ crystalcontacts_file=str(sys.argv[2])
 system_size=int(sys.argv[3])
 fibril_length=float(sys.argv[4]) * 10 # from nm to Angstrom
 
-
-
 for i in range(0,system_size): 
     rc("open "+pdb_file)
 

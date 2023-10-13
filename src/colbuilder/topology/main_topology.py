@@ -1,7 +1,15 @@
 import subprocess
 import os
 from colbuilder.geometry import system
-from colbuilder.topology import amber, martini                              
+from colbuilder.topology import amber, martini, itp
+
+def clean_directory(model_id=None):
+    """
+    
+    delete files that are not needed anymore
+    
+    """
+    subprocess.run('rm topol.top && rm '+str(int(model_id))+'.*.CG.pdb && rm col_'+str(int(model_id))+'.*.itp && rm \#*',shell=True)
 
 def build_martini3(system: system.System,force_field=None,topology_file=None) -> martini.Martini:
     """
@@ -9,17 +17,54 @@ def build_martini3(system: system.System,force_field=None,topology_file=None) ->
     build martini 3 force field topology
     
     """
-    ff=force_field
-    martini_=martini.Martini(system=system,force_field=ff)
+    order,map=[],[]
+    cnt_model=0
+    martini_=martini.Martini(system=system,force_field=force_field)
     for model_id in system.get_models():
-        for connect_id in system.get_model(model_id=model_id).connect:
-            martini_.set_pdb(connect_id=connect_id)
-            martini_.write_pdb(connect_id=connect_id)
+        if system.get_model(model_id=model_id).connect!=None:
+            print('-- Build microfibrillar topology: '+str(int(100 * cnt_model / len(system.get_models())))+' %' )
+            itp_=itp.Itp(system=system,model_id=model_id)
 
-            #subprocess.run(
-            #'martinize2 -f order.pdb -sep -merge A,B,C -collagen -ff '+str(ff)+'C'+
-            #'-from amber99 -x ')
-    
+            for connect_id in system.get_model(model_id=model_id).connect:
+
+                pdb=martini_.read_pdb(pdb_id=connect_id)
+                trans_pdb=martini_.translate_pdb(pdb=pdb)
+                cap_pdb,cter,nter=martini_.cap_pdb(pdb=trans_pdb)
+                order,map=martini_.set_pdb(pdb=cap_pdb)
+
+                martini_.write_pdb(pdb=order,file='tmp.pdb')  
+                martini_.write_pdb(pdb=map,file='map.pdb')     
+                
+                subprocess.run(
+                'conda run -n colbuilder martinize2 -f tmp.pdb -sep -merge A,B,C '+
+                '-collagen -from amber99 -o topol.top -bonds-fudge 1.4 -p backbone '+
+                '-ff '+str(force_field)+'00C -x '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
+                '-nter '+str(nter)+' -cter '+str(cter)+' -govs-include -govs-moltype '+
+                'col_'+str(int(model_id))+'.'+str(int(connect_id)),shell=True,
+                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+
+                subprocess.run(
+                './contact_map ../map.pdb > ../map.out',cwd=os.getcwd()+'/contactmap/',shell=True,
+                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+
+                subprocess.run(
+                'python create_goVirt.py -s '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
+                '-f map.out --moltype col_'+str(int(model_id))+'.'+str(int(connect_id))+' --go_eps 9.414',
+                shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)      
+            
+            martini_.merge_pdbs(model_id=model_id)
+            
+            itp_.read_model(model_id=model_id)
+            itp_.go_to_pairs(model_id=model_id)
+            itp_.make_topology(model_id=model_id)
+
+            clean_directory(model_id=model_id)
+            cnt_model+=1
+
+    system_pdb=martini_.get_system_pdb(size_models=cnt_model)
+    martini_.write_pdb(pdb=system_pdb,file='collagen_fibril_martini3.pdb')
+    martini_.write_system_topology(size=cnt_model)
+
     return martini_
                                  
 def build_amber99(system: system.System,force_field=None,topology_file=None) -> amber.Amber:
@@ -38,7 +83,6 @@ def build_amber99(system: system.System,force_field=None,topology_file=None) -> 
         exit()
 
     print('-- Run pdb2gmx with GROMACS using '+str(ff)+'.ff --')
-
     for model in system.get_models():
         type_=amber_.merge_pdbs(connect_id=model)
 
@@ -48,7 +92,7 @@ def build_amber99(system: system.System,force_field=None,topology_file=None) -> 
             'gmx pdb2gmx -f '+str(type_)+"/"+str(int(model))+'.merge.pdb -ignh '+'-merge all '+
             '-ff '+str(ff)+' -water tip3p -p col_'+str(int(model))+'.top '+
             '-o col_'+str(int(model))+'.gro '+'-i posre_'+str(int(model))+'.itp',shell=True,
-            stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)
+            stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 
             amber_.write_itp(itp_file='col_'+str(int(model))+'.top')
 
@@ -71,7 +115,6 @@ def build_topology(system: system.System,force_field=None,top_file=None,gro_file
     if force_field=='martini3':
         ff=force_field+'C'
         print('-- Build topology based on '+str(ff)+' --')
-
         martini_=build_martini3(system=system,force_field=force_field)
 
     return system

@@ -98,10 +98,14 @@ class System:
         writes system to a pdb-file 
         
         """
+        print(self.get_connect())
         with open(pdb_out+'.pdb','w') as f:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
             for model in self.get_models():
-                pdb_model=open(str(self.get_model(model_id=model).type)+'/'+str(int(model))+'.caps.pdb','r').readlines()
-                f.write("".join(i for i in pdb_model if i[0:6] in self.is_line and i[0:3]!='TER'))
+                if self.get_model(model_id=model).connect!=None:
+                    if len(self.get_model(model_id=model).connect)!=1:
+                        for connect in self.get_model(model_id=model).connect:
+                            pdb_model=open(str(self.get_model(model_id=model).type)+'/'+str(int(connect))+'.caps.pdb','r').readlines()
+                            f.write("".join(i for i in pdb_model if i[0:6] in self.is_line and i[0:3]!='TER'))
             f.write("END")
         f.close()
