@@ -19,11 +19,11 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
     """
     order,map=[],[]
     cnt_model=0
+    connect_size=system.get_connect_size()
     martini_=martini.Martini(system=system,force_field=force_field)
     for model_id in system.get_models():
-
         if system.get_model(model_id=model_id).connect!=None:
-            print('-- Build microfibrillar topology: '+str(int(100 * cnt_model / len(system.get_models())))+' %' )
+            print('-- Build microfibrillar topology: '+str(int(100 * cnt_model / connect_size))+' %' )
             itp_=itp.Itp(system=system,model_id=model_id)
 
             for connect_id in system.get_model(model_id=model_id).connect:
@@ -53,7 +53,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
                 '-f map.out --moltype col_'+str(int(model_id))+'.'+str(int(connect_id))+' --go_eps '+str(go_epsilon),
                 shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)      
             
-            martini_.merge_pdbs(model_id=model_id)
+            martini_.merge_pdbs(model_id=model_id,cnt_model=cnt_model)
             
             itp_.read_model(model_id=model_id)
             itp_.go_to_pairs(model_id=model_id)
@@ -113,11 +113,15 @@ def build_topology(system: system.System,force_field=None,top_file=None,gro_file
         amber_=build_amber99(system=system,force_field=force_field)
         amber_.write_topology(system=system,topology_file=top_file)
         amber_.write_gro(system=system,gro_file=gro_file)
+
+        print('-- '+str(ff)+ ' topology generated --')
     
     if force_field=='martini3':
         ff=force_field+'C'
         print('-- Build topology based on '+str(ff)+' --')
         martini_=build_martini3(system=system,force_field=force_field,go_epsilon=go_epsilon)
+
+        print('-- '+str(ff)+ ' topology generated --')
     
     if force_field==None:
         print('Error: Please specifify force field to generate topology, e.g., martini3 or amber99')

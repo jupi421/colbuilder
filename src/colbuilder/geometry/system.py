@@ -44,6 +44,14 @@ class System:
         self.size=len(self.system)
         return self.size
     
+    def get_connect_size(self,system=None):
+        """
+        
+        get length of system with only connected models
+        
+        """
+        return len([model for model in self.models if self.get_model(model_id=model).connect!=None])
+    
     def get_model(self,model_id=None):
         """
         

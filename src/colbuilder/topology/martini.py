@@ -1,4 +1,5 @@
 from colbuilder.topology import itp
+import subprocess
 
 class Martini:
     """
@@ -12,14 +13,14 @@ class Martini:
         self.is_line=('ATOM  ', 'HETATM', 'ANISOU' )
         self.is_chain=('A','B','C')
 
-    def merge_pdbs(self,model_id=None):
+    def merge_pdbs(self,model_id=None,cnt_model=None):
         """
         
         merge pdb's according to connect_id in system
         
         """
         if self.system.get_model(model_id=model_id).connect!=None:
-            with open(str(int(model_id))+'.merge.pdb','w') as f:
+            with open(str(int(cnt_model))+'.merge.pdb','w') as f:
                 for connect_id in self.system.get_model(model_id=model_id).connect:
                     pdb_model=open(str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb','r').readlines()
                     f.write("".join(i for i in pdb_model if i[0:6] in self.is_line))
@@ -143,6 +144,7 @@ class Martini:
         write topology for go-like potentials
         
         """
+        open('go-'+name_type,'w').close()
         with open('go-'+name_type,'w') as f:
             f.write('#include "col_go-'+name_type+'"\n')
         f.close()
