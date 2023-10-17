@@ -8,8 +8,8 @@ class Crosslink:
     class to setup crosslink topology
 
     """
-    def __init__(self,model_id=None):
-        self.file=str(int(model_id))+'.merge.pdb'
+    def __init__(self,cnt_model=None):
+        self.file=str(int(cnt_model))+'.merge.pdb'
         self.crosslink_coords=[]
         self.crosslink_pdb=[]
         self.crosslink_connect=[]
@@ -21,14 +21,14 @@ class Crosslink:
         self.dly45='0.415'
         self.kly45='7000'
 
-    def get_crosslink_coords(self,model_id=None):
+    def get_crosslink_coords(self,cnt_model=None):
         """
 
         Identify Crosslinks from PDB and from Topology  
         
         """
-        if model_id==None: file=self.file
-        elif model_id!=None: file=str(int(model_id))+'.merge.pdb'
+        if cnt_model==None: file=self.file
+        elif cnt_model!=None: file=str(int(cnt_model))+'.merge.pdb'
         it_pdb=0
         with open(file,'r') as f:
             for l in f:
@@ -44,13 +44,13 @@ class Crosslink:
         f.close()
         return self.crosslink_coords
     
-    def get_crosslink_connect(self,model_id=None):
+    def get_crosslink_connect(self,cnt_model=None):
         """
     
         Get nearest crosslinks to determine connection
     
         """
-        self.get_crosslink_coords(model_id=model_id)
+        self.get_crosslink_coords(cnt_model=cnt_model)
 
         pairs=pdist(self.crosslink_coords)
         out=[]
@@ -62,13 +62,13 @@ class Crosslink:
         
         return self.crosslink_connect
     
-    def set_crosslink_bonds(self,model_id=None,crosslink_connect=None):
+    def set_crosslink_bonds(self,cnt_model=None,crosslink_connect=None):
         """
         
         setup topology for crosslinks
         
         """
-        if crosslink_connect==None: crosslink_connect=self.get_crosslink_connect(model_id=model_id)
+        if crosslink_connect==None: crosslink_connect=self.get_crosslink_connect(cnt_model=cnt_model)
         for c in crosslink_connect:
             for clx in c:
                 for cly in c:

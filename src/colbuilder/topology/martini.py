@@ -105,8 +105,8 @@ class Martini:
         
         """
         pdb=[]
-        for model in range(size):
-            with open(str(int(model))+'.merge.pdb','r') as f:
+        for cnt_model in range(size):
+            with open(str(int(cnt_model))+'.merge.pdb','r') as f:
                 for l in f: pdb.append(l)
             f.close()
         return pdb  
