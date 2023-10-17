@@ -21,6 +21,10 @@ If everything went well, colbuilder 2.0 should be installed properly in your con
 ```
 conda install -c conda-forge -c schrodinger pymol-bundle
 ```
+If you encounter problems with installing pymol from the schrodinger channgel, try the following way 
+```
+conda install -c conda-forge pymol-open-source
+```
 For the installation of UCSF Chimera, download the latest version of UCSF Chimera from https://www.cgl.ucsf.edu/chimera/download.html for your OS. Of note, we recommend to use the 64-bit version. Please pay attention to download UCSF Chimera and not UCSF ChimeraX. After downloading the binary, navigate to the download directory, make the binary executable and install it. 
 ```
 cd ~/Downloads # or where you downloaded the chimera binary
