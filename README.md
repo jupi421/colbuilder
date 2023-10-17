@@ -21,7 +21,7 @@ If everything went well, colbuilder 2.0 should be installed properly in your con
 ```
 conda install -c conda-forge -c schrodinger pymol-bundle
 ```
-If you encounter problems with installing pymol from the schrodinger channgel, try the following way 
+If you encounter problems with installing pymol from the schrodinger channel, please try  
 ```
 conda install -c conda-forge pymol-open-source
 ```
