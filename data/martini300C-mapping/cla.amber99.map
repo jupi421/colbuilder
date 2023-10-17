@@ -1,0 +1,42 @@
+; Copyright 2018 University of Groningen
+;
+; Licensed under the Apache License, Version 2.0 (the "License");
+; you may not use this file except in compliance with the License.
+; You may obtain a copy of the License at
+;
+;    http://www.apache.org/licenses/LICENSE-2.0
+;
+; Unless required by applicable law or agreed to in writing, software
+; distributed under the License is distributed on an "AS IS" BASIS,
+; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+; See the License for the specific language governing permissions and
+; limitations under the License.
+
+[ molecule ]
+CLA
+
+[from]
+amber99
+
+[to]
+martini300C
+
+[ martini ]
+BB 
+
+[ mapping ]
+amber99
+
+[ atoms ]
+    1     N    BB
+    2     H    BB
+    3    CA    BB
+    4    HA    !BB
+    5     C    BB
+    6     O    BB
+    7    CB    BB
+    8   HB1    !BB
+    9   HB2    !BB
+   10   HB3    !BB
+   11   OXT    BB
+
