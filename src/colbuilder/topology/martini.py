@@ -94,7 +94,9 @@ class Martini:
         
         """
         with open(file,'w') as f:
-            for l in pdb: f.write(l)
+            for l in pdb: 
+                if l[0:3]!='END': f.write(l)
+            f.write('END')
         f.close()
     
 
@@ -121,11 +123,11 @@ class Martini:
             f.write('; This is the topology for the collagen microibril\n')
             f.write('#define GO_VIRT\n')
             f.write('#include "martini_v3.0.0.itp"\n')
-            f.write('#include "./sites/go-sites.itp"\n\n')
+            f.write('#include "go-sites.itp"\n\n')
 
             for m in range(size):
-                f.write('#include "./itps/col_'+str(m)+'.itp"\n')
-                f.write('#include "./excl/col_'+str(m)+'_go-excl.itp"\n')
+                f.write('#include "col_'+str(m)+'.itp"\n')
+                f.write('#include "col_'+str(m)+'_go-excl.itp"\n')
             f.write('\n#include "martini_v3.0.0_solvents_v1.itp"\n')
             f.write('#include "martini_v3.0.0_ions_v1.itp"\n')
 
