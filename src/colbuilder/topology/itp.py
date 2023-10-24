@@ -92,7 +92,7 @@ class Itp:
                 elif bonded_type=='virtualsites' and l.split(' ')[0] not in self.no_line:
                     self.virtual_sites[cnt_con].append([k for k in l.split(' ') if all([k!='',k!='\n'])])
                 elif bonded_type=='angles' and l.split(' ')[0] not in self.no_line:
-                    self.angles[cnt_con].append([k for k in l.split(' ') if all([k!='',k!='\n'])])
+                    self.angles[cnt_con].append([k.replace('\n','') for k in l.split(' ') if all([k!='',k!='\n'])])
                 elif bonded_type=='exclusions' and l.split(' ')[0] not in self.no_line:
                     self.exclusions[cnt_con].append([k for k in l.split(' ') if all([k!='',k!='\n'])])
                 elif bonded_type=='dihedrals' and l.split(' ')[0] not in self.no_line:
@@ -176,15 +176,17 @@ class Itp:
             if int(k[-1])==1000000: self.final_flex_bonds.append(k)
             else: self.final_bonds.append(k)
         
-        tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,k[3],k[4],k[5]] for k in self.angles[cnt_con]]
+        tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,k[3],k[4],k[5]+'\n'] for k in self.angles[cnt_con]]
         for k in tmp: self.final_angles.append(k)
     
         if len(self.dihedrals[cnt_con][1])==8:
             tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5],k[6],k[7]] for k in self.dihedrals[cnt_con] if len(k)==8]
+            tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5],k[6],k[7],k[8],k[9]] for k in self.dihedrals[cnt_con] if len(k)==10]
         elif len(self.dihedrals[cnt_con][1])==7:
             tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5],k[6]] for k in self.dihedrals[cnt_con] if len(k)==7]
         elif len(self.dihedrals[cnt_con][1])==6:
             tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5]] for k in self.dihedrals[cnt_con] if len(k)==6]
+
         for k in tmp: self.final_dihedrals.append(k)
 
         tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,k[2],k[3]] for k in self.constraints[cnt_con]]
