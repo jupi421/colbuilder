@@ -32,14 +32,13 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     
     elif pdb_file!=None and contact_distance==None and crystalcontacts_file=='crystalcontacts_from_colbuilder':
         system_,crystalcontacts_,connect_=build_from_pdb(path_wd=path_wd,pdb_file=pdb_file,contact_distance=contact_distance,
-                               crystalcontacts_file=crystalcontacts_file,chimera=chimera_,crystal=crystal_)
-
-        if geometry==False:
-            print('-- Set -geometry flag to generate microfibrillar structure --')
-            return system_
+                               crystalcontacts_file=crystalcontacts_file,chimera=chimera_,crystal=crystal_)    
     else:
         print('Error: Please provide either Contact Distance or CrystalContacts and not both.')
         return exit()
+    
+
+    if geometry==False: print('-- Set -geometry flag to generate microfibrillar structure --'); return system_
     
     print('-- Write '+str(crystalcontacts_.crystalcontacts_file)+' --')       
     crystalcontacts_.write_crystalcontacts(system=system_,crystalcontacts_file=crystalcontacts_.crystalcontacts_file)
