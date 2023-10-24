@@ -115,12 +115,10 @@ def mix_geometry(path_wd=str,crystalcontacts_file=str,crystalcontacts_optimize=N
         
         print('-- Add caps --')
         cap_system(system=system)
-
         subprocess.run('mv *.caps.pdb '+key,shell=True)
 
-    system_=mix.Mix(setup=mix_setup,system=system).add_mix()
-
     print('-- Mix system --')
+    system_=mix.Mix(setup=mix_setup,system=system).add_mix()    
     connect.Connect(system=system_).write_connect(system=system_,
                     connect_file=system_.crystalcontacts.crystalcontacts_file.replace('.opt','')+'_connect_mix')
 
@@ -279,15 +277,12 @@ def build_from_pdb(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
 
     if contact_distance==None: contact_distance=0
     print('-- Prepare topology for single PDB-file --')
-    print('-- Please wait, this may take some time ... --')
     chimera.matrixget(pdb=path_pdb_file,contact_distance=contact_distance,
                        crystalcontacts=crystalcontacts_file)
     crystalcontacts_=crystalcontacts.CrystalContacts(crystalcontacts_file)
 
     print('-- Build system --')
     system_=build_system(crystal=crystal,crystalcontacts=crystalcontacts_)
-
-    print('-- Connect system --')
     system_,connect_=connect_system(system=system_)
         
     return system_,crystalcontacts_,connect_

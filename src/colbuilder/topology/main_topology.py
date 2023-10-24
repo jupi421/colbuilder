@@ -59,7 +59,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
             itp_.go_to_pairs(model_id=model_id)
             itp_.make_topology(model_id=model_id,cnt_model=cnt_model)
 
-            #clean_directory(model_id=model_id)
+            clean_directory(model_id=model_id)
             cnt_model+=1
 
     system_pdb=martini_.get_system_pdb(size=cnt_model)
