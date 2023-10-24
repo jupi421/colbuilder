@@ -20,15 +20,19 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     path_pdb_file=path_wd+'/'+pdb_file
     chimera_=chimera.Chimera(path_pdb_file)
 
-    if pdb_file!=None and contact_distance!=None and crystalcontacts_file=='crystalcontacts':
+    if pdb_file!=None and contact_distance!=None and crystalcontacts_file=='crystalcontacts_from_colbuilder':
         system_,crystalcontacts_,connect_=build_from_contactdistance(path_wd=path_wd,pdb_file=pdb_file,
                                             contact_distance=contact_distance,solution_space=solution_space,
                                             crystalcontacts_file=crystalcontacts_file,chimera=chimera_,crystal=crystal_)
 
-    elif pdb_file!=None and contact_distance==None:
+    elif pdb_file!=None and contact_distance==None and crystalcontacts_file!='crystalcontacts_from_colbuilder':
         system_,crystalcontacts_,connect_=build_from_crystalcontacts(crystalcontacts_file=crystalcontacts_file,
                                             solution_space=solution_space,crystal=crystal_,connect_file=connect_file,
                                             crystalcontacts_optimize=crystalcontacts_optimize)
+    
+    elif pdb_file!=None and contact_distance==None and crystalcontacts_file=='crystalcontacts_from_colbuilder':
+        system_,crystalcontacts_,connect_=build_from_pdb(path_wd=path_wd,pdb_file=pdb_file,contact_distance=contact_distance,
+                               crystalcontacts_file=crystalcontacts_file,chimera=chimera_,crystal=crystal_)
 
         if geometry==False:
             print('-- Set -geometry flag to generate microfibrillar structure --')
@@ -43,8 +47,8 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     print('-- Generate system from '+str(crystalcontacts_.crystalcontacts_file)+' --')
     print('-- Please wait, this may take some time ... --')
     
-    #chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_.crystalcontacts_file,
-    #                   system_size=system_.get_size(system=system_),fibril_length=fibril_length)   
+    chimera_.matrixset(pdb=pdb_file,crystalcontacts=crystalcontacts_.crystalcontacts_file,
+                       system_size=system_.get_size(system=system_),fibril_length=fibril_length)   
     
     print('-- Cut system to '+str(fibril_length)+' nm --')
     system_=matrixset_system(system=system_,crystalcontacts_file=crystalcontacts_.crystalcontacts_file)
@@ -53,10 +57,10 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     connect_.write_connect(system=system_,connect_file=connect_file)
 
     print('-- Add caps --')
-    #subprocess.run('rm -r '+path_wd+'/'+system_.get_model(model_id=0.0).type,shell=True)
-    #subprocess.run('mkdir '+path_wd+'/'+system_.get_model(model_id=0.0).type,shell=True)
-    #cap_system(system=system_)
-    #subprocess.run('mv *.caps.pdb '+system_.get_model(model_id=0.0).type,shell=True)
+    subprocess.run('rm -r '+path_wd+'/'+system_.get_model(model_id=0.0).type,shell=True)
+    subprocess.run('mkdir '+path_wd+'/'+system_.get_model(model_id=0.0).type,shell=True)
+    cap_system(system=system_)
+    subprocess.run('mv *.caps.pdb '+system_.get_model(model_id=0.0).type,shell=True)
 
     print('-- Write '+str(pdb_out)+' --')
     system_.write_pdb(pdb_out=pdb_out)
@@ -206,10 +210,12 @@ def build_from_contactdistance(path_wd=str,pdb_file=None,contact_distance=float,
     print('-- Optimize system --')
     system_=optimize.Optimizer(system=system_,solution_space=solution_space).run_optimize(system=system_,connect=connect_)
     system_,connect_=connect_system(system=system_)
-
+    
     crystalcontacts_.crystalcontacts_file=crystalcontacts_.crystalcontacts_file+'_opt'
 
     return system_,crystalcontacts_,connect_
+
+
 
 def build_from_crystalcontacts(crystalcontacts_file=str,crystal=crystal.Crystal,solution_space=[],connect_file=str,
                                crystalcontacts_optimize=bool) -> tuple[system.System, crystalcontacts.CrystalContacts, connect.Connect]:
@@ -262,3 +268,27 @@ def build_fibril(path_wd=None,pdb_file=None) -> system.System:
     fibril_.write_connect(system=system_,connect_file='fibril_connect')
 
     return system_
+
+def build_from_pdb(path_wd=str,pdb_file=None,contact_distance=float,crystalcontacts_file=str,
+                    chimera=chimera.Chimera,crystal=crystal.Crystal) -> tuple[system.System, crystalcontacts.CrystalContacts, connect.Connect]:
+    """
+
+    generate system of models based on contact distance and PDB-file
+    
+    """
+    path_pdb_file=path_wd+'/'+pdb_file
+
+    if contact_distance==None: contact_distance=0
+    print('-- Prepare topology for single PDB-file --')
+    print('-- Please wait, this may take some time ... --')
+    chimera.matrixget(pdb=path_pdb_file,contact_distance=contact_distance,
+                       crystalcontacts=crystalcontacts_file)
+    crystalcontacts_=crystalcontacts.CrystalContacts(crystalcontacts_file)
+
+    print('-- Build system --')
+    system_=build_system(crystal=crystal,crystalcontacts=crystalcontacts_)
+
+    print('-- Connect system --')
+    system_,connect_=connect_system(system=system_)
+        
+    return system_,crystalcontacts_,connect_

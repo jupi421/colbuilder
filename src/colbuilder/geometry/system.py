@@ -106,7 +106,6 @@ class System:
         writes system to a pdb-file 
         
         """
-        print(self.get_connect())
         with open(pdb_out+'.pdb','w') as f:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
             for model in self.get_models():
