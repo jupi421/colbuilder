@@ -42,7 +42,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
                 '-ff '+str(force_field)+'00C -x '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
                 '-nter '+str(nter)+' -cter '+str(cter)+' -govs-include -govs-moltype '+
                 'col_'+str(int(model_id))+'.'+str(int(connect_id)),shell=True,
-                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                stdout=subprocess.DEVNULL)
 
                 subprocess.run(
                 './contact_map ../map.pdb > ../map.out',cwd=os.getcwd()+'/contactmap/',shell=True,
@@ -51,7 +51,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
                 subprocess.run(
                 'python create_goVirt.py -s '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
                 '-f map.out --moltype col_'+str(int(model_id))+'.'+str(int(connect_id))+' --go_eps '+str(go_epsilon),
-                shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)      
+                shell=True,stdout=subprocess.DEVNULL)      
             
             martini_.merge_pdbs(model_id=model_id,cnt_model=cnt_model)
             
@@ -59,7 +59,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
             itp_.go_to_pairs(model_id=model_id)
             itp_.make_topology(model_id=model_id,cnt_model=cnt_model)
 
-            clean_directory(model_id=model_id)
+            #clean_directory(model_id=model_id)
             cnt_model+=1
 
     system_pdb=martini_.get_system_pdb(size=cnt_model)
