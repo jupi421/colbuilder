@@ -10,7 +10,7 @@ def colbuilder():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     
     parser.add_argument('-f', '--file', required=False, 
-                        help='PDB-file of single triple helix',default=None)
+                        help='PDB-input file for single triple helix or colbuilder 1.0 fibril',default=None)
     parser.add_argument('-o', '--output', required=False, 
                         help='Name for PDB-file of microfibril (default: collagen_fibril)',default='collagen_fibril')
     parser.add_argument('-wd','--working_directory', required=False, 
@@ -20,18 +20,17 @@ def colbuilder():
     parser.add_argument('-length','--fibril_length', required=False, 
                         help='lengh of microfibril (default: 334 nm)',default=334)
     parser.add_argument('-contacts','--crystalcontacts_file', required=False, 
-                        help='read crystalcontacts from file (default: crystalcontacts)',default='crystalcontacts')
+                        help='read crystalcontacts from file (default: crystalcontacts_from_colbuilder)',default='crystalcontacts_from_colbuilder')
     parser.add_argument('-connect','--connect_file', required=False, 
-                        help='read external crystalcontacts-connect file  (default: crystalcontacts-file_connect)',default='')
+                        help='read external crystalcontacts-connect file  (default: connect_from_colbuilder)',default='')
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
                         help='optimize crystalcontacts (default: False)',default=False)
     parser.add_argument('-geometry','--geometry_generator', action='store_true', 
                         help='generate geometry files (default: False)',default=False)
     parser.add_argument('-space','--solution_space', nargs='+', required=False,
                         help='solution space of optimisation problem [ d_x d_y d_z ] (default: [1 1 1] )',default=[1,1,1])
-    
-    parser.add_argument('-fibril', '--fibril', required=False, 
-                        help='PDB-file of colbuilder 1 fibril',default=None)
+    parser.add_argument('-fibril', '--fibril', required=False, action='store_true', 
+                        help='Bool argument to generate topology for colbuilder 1.0 67nm-long fibril (default: false) ',default=False)
     
     parser.add_argument('-mix','--setup_mix', required=False,nargs='+',
                         help=("ratio for mix-crosslink setup, e.g. 0.7 T; 0.3 D -> -mix t:70 d:30. Please use -f_mix flag to input pdb-files in the exact same order"),default=None)
@@ -57,7 +56,7 @@ def colbuilder():
     if args.file==None and args.files_mix!=[]: args.file=args.files_mix[0]
 
     # Build Geometry of Microfibril
-    if args.fibril==None:
+    if args.fibril==False:
         system_=build_geometry(path_wd=str(args.working_directory),
                         pdb_file=str(args.file).replace('.pdb',''),
                         contact_distance=args.contact_distance,
@@ -69,9 +68,9 @@ def colbuilder():
                         geometry=args.geometry_generator,
                         pdb_out=args.output)
     
-    if args.file==None and args.fibril!=None:
+    if args.fibril==True:
         system_=build_fibril(path_wd=str(args.working_directory),
-                            pdb_file=args.fibril)
+                            pdb_file=args.file)
 
     # Mix-System
     if args.setup_mix!=None: 
