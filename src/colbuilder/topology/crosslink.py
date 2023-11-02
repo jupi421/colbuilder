@@ -38,7 +38,7 @@ class Crosslink:
                     self.crosslink_pdb.append([str(it_pdb),l[17:20],l[12:15],l[21:26],float(l[29:38]),float(l[38:46]),float(l[46:56])])
                     self.crosslink_coords.append([float(l[29:38]),float(l[38:46]),float(l[46:56])])
             
-                if l[17:20]=='L4Y' and l[12:15]=='SC1' or l[17:20]=='L5Y' and l[12:15]=='SC1':
+                if l[17:20]=='L4Y' and l[12:15]=='SC1' or l[17:20]=='L5Y' and l[12:15]=='SC2':
                     self.crosslink_pdb.append([str(it_pdb),l[17:20],l[12:15],l[21:26],float(l[29:38]),float(l[38:46]),float(l[46:56])])
                     self.crosslink_coords.append([float(l[29:38]),float(l[38:46]),float(l[46:56])])
         f.close()
@@ -69,6 +69,7 @@ class Crosslink:
         
         """
         if crosslink_connect==None: crosslink_connect=self.get_crosslink_connect(cnt_model=cnt_model)
+        print(crosslink_connect)
         for c in crosslink_connect:
             for clx in c:
                 for cly in c:

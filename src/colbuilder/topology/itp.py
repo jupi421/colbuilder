@@ -213,6 +213,7 @@ class Itp:
         """
         try:
             self.crosslink_bonds=crosslink.Crosslink(cnt_model=cnt_model).set_crosslink_bonds(cnt_model=cnt_model)
+            print(self.crosslink_bonds)
         except:
             self.crosslink_bonds=[]
             
