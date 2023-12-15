@@ -10,7 +10,7 @@ class Caps:
     
     Obarska-Kosinska A, Rennekamp B, Ünal A, Gräter F. 
     ColBuilder: A server to build collagen fibril models.
-    Viophys J. 2021 Sep 7;120(17):3544-3549. 
+    Biophys J. 2021 Sep 7;120(17):3544-3549. 
     doi: 10.1016/j.bpj.2021.07.009. 
     Epub 2021 Jul 13. PMID: 34265261; PMCID: PMC8456305.
 
@@ -79,7 +79,7 @@ class Caps:
                 if cap=='N' and int(line_cap.split(' ')[1])!=1:
                     cmd.edit(line_cap)
                     editor.attach_amino_acid('pk1','ace',ss=0)
-                if cap=='C' and int(line_cap.split(' ')[1])!=int(self.chain_length[cap]): 
+                if cap=='C' and int(line_cap.split(' ')[1])!=int(self.chain_length[chain]): 
                     cmd.edit(line_cap)
                     editor.attach_amino_acid('pk1','nme',ss=0)
         cmd.save('tmp.pdb')

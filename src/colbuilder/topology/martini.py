@@ -1,6 +1,3 @@
-from colbuilder.topology import itp
-import subprocess
-
 class Martini:
     """
 
@@ -44,7 +41,13 @@ class Martini:
         first_cnt=int(pdb[1][22:26])-1
         cnt,cnt_map=0,0
         order,map=[],[]
+        chain_store='A'
         for line in pdb:
+            if line[21:22]!=chain_store:
+                order.append('TER\n')
+                if chain_store=='A': chain_store='B'
+                elif chain_store=='B': chain_store='C'
+
             if first_cnt<int(line[22:26]): 
                 first_cnt=int(line[22:26]); cnt+=1; cnt_map+=1
             if first_cnt>int(line[22:26]) and str(line[21:22]) in self.is_chain: 
@@ -77,15 +80,36 @@ class Martini:
         
         """
         cter,nter='NME','ACE'
+        chain_length=self.get_chain_length(pdb)
         for line_it in range(len(pdb)):
             if pdb[line_it][17:20]=='ALA':
-                if pdb[line_it][21:26]=='A1056': pdb[line_it]=pdb[line_it][0:17]+'CLA '+pdb[line_it][21:]
-                if pdb[line_it][21:26]=='B1040': pdb[line_it]=pdb[line_it][0:17]+'CLA '+pdb[line_it][21:]
-                if pdb[line_it][21:26]=='C1056': pdb[line_it]=pdb[line_it][0:17]+'CLA '+pdb[line_it][21:]
+                if pdb[line_it][21:26]=='A'+chain_length['A']:
+                    pdb[line_it]=pdb[line_it][0:17]+'CLA '+pdb[line_it][21:]
+                elif pdb[line_it][21:26]=='B'+chain_length['B']:
+                    pdb[line_it]=pdb[line_it][0:17]+'CLA '+pdb[line_it][21:]
+                elif pdb[line_it][21:26]=='C'+chain_length['C']:
+                    pdb[line_it]=pdb[line_it][0:17]+'CLA '+pdb[line_it][21:]
 
         if pdb[2][17:20]=='GLN': nter='N-ter'
         if pdb[-2][17:20]=='CLA': cter='CLA'
         return pdb,cter,nter
+
+    def get_chain_length(self,pdb=None):
+        """
+        
+        Get length for each chain of the triple helix
+        
+        """
+        chain_length={ key:'' for key in ['A','B','C']}
+        for line_it in range(len(pdb)):
+            if pdb[line_it][21:22]=='A' and pdb[line_it+1][21:22]=='B':
+                chain_length['A']=pdb[line_it][22:26]
+            if pdb[line_it][21:22]=='B' and pdb[line_it+1][21:22]=='C':
+                chain_length['B']=pdb[line_it][22:26]
+            if pdb[line_it][21:22]=='C' and line_it==int(len(pdb)-1):
+                chain_length['C']=pdb[line_it][22:26]
+        return chain_length
+
 
     def write_pdb(self,pdb=None,file=None):
         """

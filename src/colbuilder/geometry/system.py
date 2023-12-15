@@ -75,7 +75,7 @@ class System:
         get crystal contacts for a model in system
         
         """
-        self.connect={ self.get_model(model_id=key).id : [] for key in self.get_models() } # TODO: Why transform here? not needed
+        self.connect={ self.get_model(model_id=key).id : [] for key in self.get_models() } 
         for idx in self.get_models():
             self.connect[self.get_model(model_id=idx).id]=self.get_model(model_id=idx).connect
         return self.connect

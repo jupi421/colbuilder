@@ -1,4 +1,5 @@
 from colbuilder.topology import crosslink
+
 class Itp:
     """
 
@@ -180,13 +181,15 @@ class Itp:
         for k in tmp: self.final_angles.append(k)
     
         if len(self.dihedrals[cnt_con][1])==8:
-            tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5],k[6],k[7]] for k in self.dihedrals[cnt_con] if len(k)==8]
-            tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5],k[6],k[7],k[8],k[9]] for k in self.dihedrals[cnt_con] if len(k)==10]
+            tmp=[]
+            for k in self.dihedrals[cnt_con]:
+                if len(k)==8: tmp.append([int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5],k[6],k[7]])
+                elif len(k)==10: tmp.append([int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5],k[6],k[7],k[8],k[9]])
         elif len(self.dihedrals[cnt_con][1])==7:
             tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5],k[6]] for k in self.dihedrals[cnt_con] if len(k)==7]
         elif len(self.dihedrals[cnt_con][1])==6:
             tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,int(k[2])+self.delta_merge,int(k[3])+self.delta_merge,k[4],k[5]] for k in self.dihedrals[cnt_con] if len(k)==6]
-
+        
         for k in tmp: self.final_dihedrals.append(k)
 
         tmp=[[int(k[0])+self.delta_merge,int(k[1])+self.delta_merge,k[2],k[3]] for k in self.constraints[cnt_con]]
@@ -211,11 +214,7 @@ class Itp:
         make topology for merged itps and crosslinks
         
         """
-        try:
-            self.crosslink_bonds=crosslink.Crosslink(cnt_model=cnt_model).set_crosslink_bonds(cnt_model=cnt_model)
-            print(self.crosslink_bonds)
-        except:
-            self.crosslink_bonds=[]
+        self.crosslink_bonded=crosslink.Crosslink(cnt_model=cnt_model).set_crosslink_bonded(cnt_model=cnt_model)
             
         for cnt_con in range(len(self.system.get_model(model_id=model_id).connect)):
             self.merge_topology(cnt_con=cnt_con)
@@ -248,7 +247,7 @@ class Itp:
             f.write('#endif\n')
     
             f.write('; crosslink bonds \n')
-            f.write(" ".join(str(i) for cb in self.crosslink_bonds for i in cb))
+            f.write(" ".join(str(i) for cb in self.crosslink_bonded['bonds'] for i in cb))
     
             f.write('\n[ pairs ]\n')
             f.write(" ".join(str(i) for p in self.final_pairs for i in p))
@@ -263,9 +262,15 @@ class Itp:
     
             f.write('\n[ angles ]\n')
             f.write(" ".join(str(i) for a in self.final_angles for i in a))
+
+            f.write('; crosslink angles \n')
+            f.write(" ".join(str(i) for ca in self.crosslink_bonded['angles'] for i in ca))
     
             f.write('\n[ dihedrals ]\n')
             f.write(" ".join(str(i) for d in self.final_dihedrals for i in d))
+
+            f.write('; crosslink dihedrals \n')
+            f.write(" ".join(str(i) for cd in self.crosslink_bonded['dihedrals'] for i in cd))
     
             f.write('\n[ exclusions ]\n')
             f.write(" ".join(str(i) for ex in self.final_exclusions for i in ex))
