@@ -32,3 +32,5 @@ chmod +x chimera*.bin
 ./chimera*.bin
 ```
 The installer will ask you where to create the symlink for UCSF Chimera. Here, we recommend to chose a symlink that is already present in your $PATH. If you choose a different location, please do not forget to add the location of UCSF Chimera to your $PATH, such that colbuilder 2.0 finds the correct version.
+
+## Tutorial
