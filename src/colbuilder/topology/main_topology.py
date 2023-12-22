@@ -56,8 +56,6 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
             itp_.make_topology(model_id=model_id,cnt_model=cnt_model)
             cnt_model+=1
 
-    print(cnt_model)
-    print(len( system.get_models()))
     system_pdb=martini_.get_system_pdb(size=cnt_model)
     martini_.write_pdb(pdb=system_pdb,file='collagen_fibril_martini3.pdb')
     martini_.write_system_topology(size=cnt_model)
