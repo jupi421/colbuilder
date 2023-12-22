@@ -14,6 +14,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
     cnt_model=0
     connect_size=system.get_connect_size()
     martini_=martini.Martini(system=system,force_field=force_field)
+    env_=os.environ['CONDA_DEFAULT_ENV']
 
     for model_id in system.get_models():
         
@@ -32,7 +33,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
                 martini_.write_pdb(pdb=map,file='map.pdb')     
                 
                 subprocess.run(
-                'conda run -n colbuilder martinize2 -f tmp.pdb -sep -merge A,B,C '+
+                'conda run -n '+str(env_)+' martinize2 -f tmp.pdb -sep -merge A,B,C '+
                 '-collagen -from amber99 -o topol.top -bonds-fudge 1.4 -p backbone '+
                 '-ff '+str(force_field)+'00C -x '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
                 '-nter '+str(nter)+' -cter '+str(cter)+' -govs-include -govs-moltype '+
@@ -55,8 +56,6 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
             itp_.make_topology(model_id=model_id,cnt_model=cnt_model)
             cnt_model+=1
 
-    print(cnt_model)
-    print(len( system.get_models()))
     system_pdb=martini_.get_system_pdb(size=cnt_model)
     martini_.write_pdb(pdb=system_pdb,file='collagen_fibril_martini3.pdb')
     martini_.write_system_topology(size=cnt_model)
