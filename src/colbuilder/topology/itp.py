@@ -214,8 +214,11 @@ class Itp:
         make topology for merged itps and crosslinks
         
         """
-        self.crosslink_bonded=crosslink.Crosslink(cnt_model=cnt_model).set_crosslink_bonded(cnt_model=cnt_model)
-            
+        if len(self.system.get_model(model_id=model_id).connect)==1:
+            self.crosslink_bonded={ k:[] for k in ['bonds','angles','dihedrals'] }
+        else:
+            self.crosslink_bonded=crosslink.Crosslink(cnt_model=cnt_model).set_crosslink_bonded(cnt_model=cnt_model)
+
         for cnt_con in range(len(self.system.get_model(model_id=model_id).connect)):
             self.merge_topology(cnt_con=cnt_con)
         self.write_topology(cnt_model=cnt_model)
