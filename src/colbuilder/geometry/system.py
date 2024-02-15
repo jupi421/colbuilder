@@ -100,7 +100,7 @@ class System:
             cnt+=self.get_model(model_id=key).count_state(state=state)
         return cnt
 
-    def write_pdb(self,pdb_out=None):
+    def write_pdb(self,pdb_out=None,fibril_length=None):
         """
         
         writes system to a pdb-file 
@@ -110,7 +110,7 @@ class System:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
             for model in self.get_models():
                 if self.get_model(model_id=model).connect!=None:
-                    if len(self.get_model(model_id=model).connect)!=1:
+                    if len(self.get_model(model_id=model).connect)!=1 or fibril_length<=300:
                         for connect in self.get_model(model_id=model).connect:
                             pdb_model=open(str(self.get_model(model_id=model).type)+'/'+str(int(connect))+'.caps.pdb','r').readlines()
                             f.write("".join(i for i in pdb_model if i[0:6] in self.is_line and i[0:3]!='TER'))

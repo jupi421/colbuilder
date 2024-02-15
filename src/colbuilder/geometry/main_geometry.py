@@ -38,7 +38,7 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
         return exit()
     
 
-    if geometry==False: print('-- Set -geometry flag to generate microfibrillar structure --'); return system_
+    if geometry==False: print('-- !! Set -geometry flag to generate microfibrillar structure pdb file !! --'); return system_
     
     print('-- Write '+str(crystalcontacts_.crystalcontacts_file)+' --')       
     crystalcontacts_.write_crystalcontacts(system=system_,crystalcontacts_file=crystalcontacts_.crystalcontacts_file)
@@ -62,7 +62,7 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     subprocess.run('mv *.caps.pdb '+system_.get_model(model_id=0.0).type,shell=True)
 
     print('-- Write '+str(pdb_out)+' --')
-    system_.write_pdb(pdb_out=pdb_out)
+    system_.write_pdb(pdb_out=pdb_out,fibril_length=fibril_length)
 
     return system_
 
@@ -99,7 +99,7 @@ def mix_geometry(path_wd=str,crystalcontacts_file=str,crystalcontacts_optimize=N
     mix_pdb=dict(zip(mix_setup.keys(),pdb_files))
 
     print('-- Prepare mix '+str(setup_mix)+' --')
-    # TODO: crystalcontacts file is stored in system?
+   
     if crystalcontacts_optimize: crystalcontacts_file=system.crystalcontacts.crystalcontacts_file #    crystalcontacts_file+'_opt'
 
     mix_setup={ idx.split(':')[0]:idx.split(':')[1] for idx in setup_mix }
@@ -175,7 +175,8 @@ def matrixset_system(system: system.System,crystalcontacts_file=str) -> system.S
     """
     contacts=[float(i.split(' ')[1]) for i in open(crystalcontacts_file.replace('_opt','')+'_id.txt','r').readlines()]
     for model in system.get_models():
-        if model not in contacts: system.delete_model(model_id=model)
+        if model not in contacts: 
+            system.delete_model(model_id=model)
         elif system.get_model(model_id=model).connect!=None:
             for connect in system.get_model(model_id=model).connect:
                 if connect not in contacts: system.get_model(model_id=model).delete_connect(connect_id=connect)
