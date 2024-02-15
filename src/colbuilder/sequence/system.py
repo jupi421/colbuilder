@@ -33,27 +33,19 @@ class System:
         with open(pdb_filename+'.pdb','r') as f:
             for l in f: 
                 if l[0:4]=='ATOM':
-                    line_split=[i for i in l.split(' ') if i!='']
-                    self.atoms['atom_id'].append(line_split[1])
-                    self.atoms['atom_type'].append(line_split[2])
-                    self.atoms['atom_cnt'].append(cnt)
-                    self.atoms['resname'].append(line_split[3])
-                    self.atoms['modified_resname'].append(line_split[3])
-                    self.atoms['chain_id'].append(line_split[4][0])
+                    line_list=[l[0:7],l[7:13],l[13:17],l[17:20],l[21:22],l[22:26],l[30:38],l[38:46],l[46:54],l[56:]]
+                    self.atoms['atom_id'].append(line_list[1])
+                    self.atoms['atom_type'].append(line_list[2])
+                    self.atoms['atom_cnt'].append(str(cnt))
+                    self.atoms['resname'].append(line_list[3])
+                    self.atoms['modified_resname'].append(line_list[3])
+                    self.atoms['chain_id'].append(line_list[4])
+                    self.atoms['resid'].append(line_list[5])
+                    self.atoms['x'].append(line_list[6])
+                    self.atoms['y'].append(line_list[7])
+                    self.atoms['z'].append(line_list[8])
+                    self.atoms['element'].append(line_list[9].replace('\n',''))
                     cnt+=1
-                    
-                    if len(line_split)==9:
-                        self.atoms['resid'].append(line_split[4][1:])
-                        self.atoms['x'].append(line_split[5])
-                        self.atoms['y'].append(line_split[6])
-                        self.atoms['z'].append(line_split[7])
-                        self.atoms['element'].append(line_split[8].replace('\n',''))
-                    elif len(line_split)==10:
-                        self.atoms['resid'].append(line_split[5])
-                        self.atoms['x'].append(line_split[6])
-                        self.atoms['y'].append(line_split[7])
-                        self.atoms['z'].append(line_split[8])
-                        self.atoms['element'].append(line_split[9].replace('\n',''))
     
     def prepare_pdb(self,atoms=None):
         """
@@ -72,22 +64,25 @@ class System:
         if atoms==None: atoms=self.atoms
         self.atoms['fasta']=[self.aminoacids[resname] for resname in atoms['modified_resname']]
 
-    def write_pdb(self,pdb_filename=None,atoms=None):
+    def write_pdb(self,pdb_filename=None,atoms=None,modified=False):
         """
         
         write modified atoms of pdb file 
         
         """
-        atom_id=self.atoms['atom_id']
-        atom_type=self.atoms['atom_type']
-        chain_id=self.atoms['chain_id']
-        resname=self.atoms['resname']
-        resid=self.atoms['resid']
-        x=self.atoms['x']
-        y=self.atoms['y']
-        z=self.atoms['z']
-        element=self.atoms['element']
+        if atoms==None: atoms=self.atoms
+        atom_id=atoms['atom_id']
+        atom_type=atoms['atom_type']
+        chain_id=atoms['chain_id']
+        resname=atoms['resname']
+        resid=atoms['resid']
+        x=atoms['x']
+        y=atoms['y']
+        z=atoms['z']
+        element=atoms['element']
+
+        if modified==True: resname=atoms['modified_resname']
         with open(pdb_filename+'_mod.pdb','w') as f:
             for i in range(len(atom_id)):
-                f.write("%6s%5d%4s%3s%4d%8.3f%8.3f%8.3f%2s\n" % ('ATOM',int(atom_id[i]),atom_type[i],resname[i],chain_id[i],int(resid[i]),float(x[i]),float(y[i]),float(z[i]),element[i]))
+                f.write("%6s%5i %4s %3s %1s%4i    %8.3f%8.3f%8.3f%22s\n" % ('ATOM  ',int(atom_id[i]),atom_type[i],resname[i],chain_id[i],int(resid[i]),float(x[i]),float(y[i]),float(z[i]),element[i]))
             f.close()

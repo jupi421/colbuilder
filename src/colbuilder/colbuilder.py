@@ -4,6 +4,7 @@ from pathlib import Path
 
 from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, mutate_geometry, build_fibril
 from colbuilder.topology.main_topology import build_topology
+from colbuilder.sequence.main_sequence import build_sequence
     
 def colbuilder():
     
@@ -12,17 +13,17 @@ def colbuilder():
     parser.add_argument('-f', '--file', required=False, 
                         help='PDB-input file for single triple helix or colbuilder 1.0 fibril',default=None)
     parser.add_argument('-o', '--output', required=False, 
-                        help='Name for PDB-file of microfibril (default: collagen_fibril)',default='collagen_fibril')
+                        help='Name for PDB-file of microfibril ',default='collagen_fibril')
     parser.add_argument('-wd','--working_directory', required=False, 
-                        help='set working directory (default: cwd)',default=Path.cwd())
+                        help='set working directory ',default=Path.cwd())
     parser.add_argument('-dc','--contact_distance', required=False, 
-                        help='contact distance as input for radial size of microfibril, e.g. 10 to 60 (default: None)',default=None)
+                        help='contact distance as input for radial size of microfibril, e.g. 10 to 60 ',default=None)
     parser.add_argument('-length','--fibril_length', required=False, 
-                        help='lengh of microfibril (default: 334 nm)',default=334)
+                        help='lengh of microfibril ',default=334)
     parser.add_argument('-contacts','--crystalcontacts_file', required=False, 
-                        help='read crystalcontacts from file (default: crystalcontacts_from_colbuilder)',default='crystalcontacts_from_colbuilder')
+                        help='read crystalcontacts from file ',default='crystalcontacts_from_colbuilder')
     parser.add_argument('-connect','--connect_file', required=False, 
-                        help='read external crystalcontacts-connect file  (default: connect_from_colbuilder)',default='')
+                        help='read external crystalcontacts-connect file',default='')
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
                         help='optimize crystalcontacts (default: False)',default=False)
     parser.add_argument('-geometry','--geometry_generator', action='store_true', 
@@ -40,13 +41,24 @@ def colbuilder():
                         help=("ratio of mutated crosslinks, e.g. -mutate 0.25 -> 0.25 mutated, values between 0 to 0.5"),default=None)
     
     parser.add_argument('-topology','--topology_generator', action='store_true', 
-                        help='generate topology files (default: False)',default=False)
+                        help='generate topology files ',default=False)
     parser.add_argument('-go','--go_eps', required=False,
-                        help=("specifiy potential well of go-like potential (default: 9.414)"),default='9.414')
+                        help=("specifiy potential well of go-like potential "),default='9.414')
     parser.add_argument('-p','--topology_file', required=False,
-                        help=("specifiy name of topology file (default: system.top)"),default='system.top')
+                        help=("specifiy name of topology file "),default='system.top')
     parser.add_argument('-ff','--force_field', required=False,
                         help=("specifiy force field to be used, e.g. -ff amber99 OR -ff martini3"),default=None)
+    
+    parser.add_argument('-sequence','--sequence_generator', action='store_true', 
+                        help='generate triple helix from sequence ',default=False)
+    parser.add_argument('-type','--collagen_type', required=False,
+                        help=("specifiy type of collagen molecule "),default=1)
+    parser.add_argument('-crosslink','--crosslink_topology', required=False,
+                        help=("specifiy crosslink types of the triple helix "),default=['no','no'])
+    parser.add_argument('-register','--register_topology', required=False,
+                        help=("specifiy register of chains, e.g., A,A,C "),default='A,B,C')
+    parser.add_argument('-chain','--chain_id', required=False,
+                        help=("specifiy the chain id: chain 1=A, chain 2=C, chain 3=B "),default='A,B,C')
         
     args=parser.parse_args()
     if args.connect_file=='': args.connect_file=str(args.crystalcontacts_file).replace('.txt','')+'_connect.txt'
@@ -54,6 +66,15 @@ def colbuilder():
     print('-- Colbuilder 2.0 --')
 
     if args.file==None and args.files_mix!=[]: args.file=args.files_mix[0]
+
+    # Build Triple Helix from sequence
+    if args.sequence_generator==True:
+        system_=build_sequence(path_wd=str(args.working_directory),
+                        pdb_file=str(args.file).replace('.pdb',''),
+                        collagen_type=args.collagen_type,
+                        dict_chain={ i: args.chain_id[i] for i in range(len(args.chain_id.split(',')))},
+                        register=[str(i) for i in args.register_topology.split(',')],
+                        crosslink=args.crosslink_topology)
 
     # Build Geometry of Microfibril
     if args.fibril==False:

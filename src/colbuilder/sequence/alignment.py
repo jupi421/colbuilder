@@ -6,9 +6,10 @@ class Alignment:
     class holds functions to perform the sequence alignment with fasta
     
     """
-    def __init__(self,atoms=None):
+    def __init__(self,atoms=None,file=None):
         self.atoms=atoms 
         self.sequence={ k:[] for k in ['A','B','C']}
+        self.file=file
     
     def get_sequence(self,atoms=None):
         """
@@ -18,12 +19,12 @@ class Alignment:
         """
         if atoms==None: atoms=self.atoms
         for atom_cnt in atoms['atom_cnt']:
-            if atoms['atom_type'][atom_cnt]=='CA' and atoms['chain_id'][atom_cnt]=='A':
-                self.sequence['A'].append(atoms['fasta'][atom_cnt])
-            elif atoms['atom_type'][atom_cnt]=='CA' and atoms['chain_id'][atom_cnt]=='B':
-                self.sequence['B'].append(atoms['fasta'][atom_cnt])
-            elif atoms['atom_type'][atom_cnt]=='CA' and atoms['chain_id'][atom_cnt]=='C':
-                self.sequence['C'].append(atoms['fasta'][atom_cnt])
+            if atoms['atom_type'][int(atom_cnt)].replace(' ','')=='CA' and atoms['chain_id'][int(atom_cnt)]=='A':
+                self.sequence['A'].append(atoms['fasta'][int(atom_cnt)])
+            elif atoms['atom_type'][int(atom_cnt)].replace(' ','')=='CA' and atoms['chain_id'][int(atom_cnt)]=='B':
+                self.sequence['B'].append(atoms['fasta'][int(atom_cnt)])
+            elif atoms['atom_type'][int(atom_cnt)].replace(' ','')=='CA' and atoms['chain_id'][int(atom_cnt)]=='C':
+                self.sequence['C'].append(atoms['fasta'][int(atom_cnt)])
     
     def write_sequence(self,sequence=None):
         """
@@ -32,14 +33,14 @@ class Alignment:
         
         """
         if sequence==None: sequence=self.sequence
-        with open('tmp.fasta','w') as f:
-            f.write('>tmp:A\n')
+        with open(self.file+'.fasta','w') as f:
+            f.write('>'+self.file+':A\n')
             for s in sequence['A']:
                 f.write(str(s))
-            f.write('\n>tmp:B\n')
+            f.write('\n>'+self.file+':B\n')
             for s in sequence['B']:
                 f.write(str(s))
-            f.write('\n>tmp:C\n')
+            f.write('\n>'+self.file+':C\n')
             for s in sequence['C']:
                 f.write(str(s))
             f.write('\n')
@@ -54,5 +55,7 @@ class Alignment:
         self.get_sequence(atoms=atoms)
         self.write_sequence(sequence=self.sequence)
 
-        subprocess.run('muscle -in tmp.fasta -out tmp.afa' ,shell=True,
-                       stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        subprocess.run('muscle -in '+self.file+'.fasta -out '+self.file+'.afa' ,
+                       shell=True)#,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    
+        self.fasta=self.sequence
