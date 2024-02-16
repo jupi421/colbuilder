@@ -21,6 +21,7 @@ class System:
             'MSE':'M'
             }
         self.pattern=re.compile("^ATOM\s{2,6}\d{1,5}\s{2}CA\s[\sA]([A-Z]{3})\s([\s\w])|^HETATM\s{0,4}\d{1,5}\s{2}CA\s[\sA](MSE)\s([\s\w])")
+        self.crystal=''
     
     def read_pdb(self,pdb_filename=None):
         """
@@ -31,7 +32,7 @@ class System:
         if pdb_filename==None: pdb_filename=self.pdb_filename
         cnt=0
         with open(pdb_filename+'.pdb','r') as f:
-            for l in f: 
+            for l in f:
                 if l[0:4]=='ATOM':
                     line_list=[l[0:7],l[7:13],l[13:17],l[17:20],l[21:22],l[22:26],l[30:38],l[38:46],l[46:54],l[56:]]
                     self.atoms['atom_id'].append(line_list[1])
@@ -46,13 +47,15 @@ class System:
                     self.atoms['z'].append(line_list[8])
                     self.atoms['element'].append(line_list[9].replace('\n',''))
                     cnt+=1
+                elif l[0:5]=='CRYST':
+                    self.crystal=l
     
     def prepare_pdb(self,atoms=None):
         """
         
         prepare pdb-file for input in modeller
         
-        """
+        """ 
         self.atoms['modified_resname']=[ 'PRO' if resname=='HYP' else resname for resname in self.atoms['resname'] ]
 
     def pdb_to_fasta(self,atoms=None):
@@ -83,6 +86,8 @@ class System:
 
         if modified==True: resname=atoms['modified_resname']
         with open(pdb_filename+'_mod.pdb','w') as f:
+            f.write(self.crystal)
             for i in range(len(atom_id)):
                 f.write("%6s%5i %4s %3s %1s%4i    %8.3f%8.3f%8.3f%22s\n" % ('ATOM  ',int(atom_id[i]),atom_type[i],resname[i],chain_id[i],int(resid[i]),float(x[i]),float(y[i]),float(z[i]),element[i]))
+                if atom_type[i].strip()=='OXT': f.write('TER\n')
             f.close()

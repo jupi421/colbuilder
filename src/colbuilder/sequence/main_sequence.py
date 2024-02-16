@@ -1,7 +1,7 @@
-from colbuilder.sequence import alignment,system,modeller
+from colbuilder.sequence import muscle,system,modeller
 
 
-def build_sequence(path_wd=str,pdb_file=None,collagen_type=int,
+def build_sequence(path_wd=str,pdb_file=None,collagen_type=int,ensemble=int,
                       dict_chain={},register=[],crosslink={}):
     """
     
@@ -19,14 +19,12 @@ def build_sequence(path_wd=str,pdb_file=None,collagen_type=int,
     print('-- Convert PDB to Fasta format --')
     system_.pdb_to_fasta(atoms=system_.atoms)
 
-    print('-- Sequence Alignment with Muscle --')
     file_='tmp_'+"".join([i for i in register])
-    alignment_=alignment.Alignment(atoms=system_.atoms,file=file_)
-    alignment_.align_sequence(atoms=system_.atoms)
+    print('-- Sequence Alignment with Muscle: '+str(file_)+' --')
+    muscle_=muscle.Muscle(atoms=system_.atoms,file=file_)
+    muscle_.align_sequence(atoms=system_.atoms)
 
     print('-- Prepare triple helical structure with MODELLER --')
-    
-    modeller_=modeller.Modeller(system=system_,sequence=alignment_.sequence,file=file_,fasta=alignment_.fasta)
+    modeller_=modeller.Modeller(system=system_,sequence=muscle_.sequence,file=file_,fasta=muscle_.fasta,ensemble=ensemble)
     modeller_.prepare_alignment(muscle_file=file_+'.afa',register=register)
-    modeller_.write_alignment(alignment_file=file_+'_mod',system=system_)
-    modeller_.check_alignment(alignment_file=file_+'_mod')
+    modeller_.run_modeller(alignment_file=file_,system=system_)

@@ -1,4 +1,6 @@
 import modeller 
+from modeller.automodel import *
+from modeller.automodel import AutoModel
 
 class Modeller:
     """
@@ -6,11 +8,14 @@ class Modeller:
     class prepares the aligned sequence to generate the triple helical structure
     
     """
-    def __init__(self,system=None,sequence=None,file=None,fasta=None):
+    def __init__(self,system=None,sequence=None,file=None,fasta=None,ensemble=None):
         self.sequence={ k:[] for k in sequence.keys()}
         self.system=system
         self.fasta=fasta
         self.file=file
+        self.auto_model_start=1
+        self.auto_model_ensemble=int(ensemble)
+        modeller.log.minimal()
     
     def read_muscle(self,muscle_file=None):
         """
@@ -51,20 +56,57 @@ class Modeller:
 
         for k,v in self.sequence.items(): self.sequence[k]=[i.replace('\n','') for j in v for i in j if i !='']
 
-    def check_alignment(self,alignment_file=None):
+    def check_alignment(self,align=None,alignment_file=None):
         """
         
         check the alignment from with the modeller env
         
         """
+        align.append(file=alignment_file+'_modeller.ali',align_codes='all')
+        align.write(file=alignment_file+'.pap',alignment_format='PAP')
+        align.write(file=alignment_file+'.fasta',alignment_format='FASTA')
+        align.check_sequence_structure(gapdist=3.9)
+
+    def perform_alignment(self,align=None,alignment_file=None):
+        """
+        
+        perform the alignment step with the modeller env
+        
+        """
+        align.append(file=alignment_file+'_modeller.ali',align_codes='all')
+        align.salign() 
+
+        align.write(file=alignment_file+'_length.ali',alignment_format='PIR')
+        align.write(file=alignment_file+'_length.pap',alignment_format='PAP')
+
+
+    def run_modeller(self,system=None,alignment_file=None):
+        """
+        
+        run the modeller software to perform the alignment
+        
+        """
         env_=modeller.Environ()
         env_.io.hetatm=True
         align_=modeller.Alignment(env=env_)
-        align_.append(file=alignment_file+'.ali',align_codes='all')
-        align_.write(file=alignment_file+'.pap',alignment_format='PAP')
-        align_.write(file=alignment_file+'.fasta',alignment_format='FASTA')
-        align_.check_sequence_structure(gapdist=3.9)        
 
+        self.write_alignment(alignment_file=alignment_file+'_modeller',system=system)
+        self.check_alignment(align=align_,alignment_file=alignment_file)
+        self.perform_alignment(align=align_,alignment_file=alignment_file)
+
+        print('-- Alignment completed ---')
+
+        env_.libs.topology.read('${LIB}/top_heav.lib')
+        env_.libs.parameters.read('${LIB}/par.lib')
+
+        auto_model=AutoModel(env_,alnfile=alignment_file+'_length.ali',
+                        knowns='template',sequence='target',
+                        assess_methods=(assess.DOPE,assess.GA341))
+
+        auto_model.starting_model=self.auto_model_start
+        auto_model.ending_model=self.auto_model_ensemble
+
+        auto_model.make()  
 
     def write_alignment(self,system=None,alignment_file=None):
         """
@@ -88,7 +130,6 @@ class Modeller:
             f.write('\n>P1;target\n')
             f.write('sequence:tmp'+str(system.register)+': : : : : : : :\n')
             for k in self.sequence:
-                print(len(self.sequence[k]))
                 f.write("".join([v for v in self.sequence[k]]))
                 cnt+=1
                 if cnt<len(self.sequence): f.write('/')
