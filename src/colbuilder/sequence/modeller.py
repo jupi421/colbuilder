@@ -1,4 +1,4 @@
-import modeller 
+import modeller
 from modeller.automodel import *
 from modeller.automodel import AutoModel
 
@@ -13,8 +13,9 @@ class Modeller:
         self.system=system
         self.fasta=fasta
         self.file=file
-        self.auto_model_start=1
-        self.auto_model_ensemble=int(ensemble)
+        self.ensemble=int(ensemble)
+        self.score={}
+        self.modeller_pdb=''
         modeller.log.minimal()
     
     def read_muscle(self,muscle_file=None):
@@ -79,7 +80,6 @@ class Modeller:
         align.write(file=alignment_file+'_length.ali',alignment_format='PIR')
         align.write(file=alignment_file+'_length.pap',alignment_format='PAP')
 
-
     def run_modeller(self,system=None,alignment_file=None):
         """
         
@@ -94,8 +94,6 @@ class Modeller:
         self.check_alignment(align=align_,alignment_file=alignment_file)
         self.perform_alignment(align=align_,alignment_file=alignment_file)
 
-        print('-- Alignment completed ---')
-
         env_.libs.topology.read('${LIB}/top_heav.lib')
         env_.libs.parameters.read('${LIB}/par.lib')
 
@@ -103,10 +101,14 @@ class Modeller:
                         knowns='template',sequence='target',
                         assess_methods=(assess.DOPE,assess.GA341))
 
-        auto_model.starting_model=self.auto_model_start
-        auto_model.ending_model=self.auto_model_ensemble
+        auto_model.starting_model=1
+        auto_model.ending_model=self.ensemble
 
-        auto_model.make()  
+        auto_model.make()
+        self.score={i['name']:i['GA341 score'][0] for i in auto_model.outputs}
+
+        self.modeller_pdb=max(self.score,key=self.score.get)
+
 
     def write_alignment(self,system=None,alignment_file=None):
         """

@@ -33,4 +33,22 @@ chmod +x chimera*.bin
 ```
 The installer will ask you where to create the symlink for UCSF Chimera. Here, we recommend to chose a symlink that is already present in your $PATH. If you choose a different location, please do not forget to add the location of UCSF Chimera to your $PATH, such that colbuilder 2.0 finds the correct version.
 
-## First Tutorial
+
+# Tutorial: The Collagen Microfibril 
+
+## Introduction
+
+Colbuilder 2.0 allows the generation of fully crosslinked collagen microfibrils startng from a single collagen triple helix. In principle, any type of collagen triple helix can be used as a starting configuration, however, we recommend to download your collagen triple helix from the colbuilder webportal (https://colbuilder.h-its.org/). Moreover, on the colbuilder webportal, we can fine-tune our collagen triple helix, such as type of organisms, crosslink type and crosslink location. For more information about crosslinks, see https://colbuilder.h-its.org/about.html. After choosing our collagen triple helix of choice, we download the respective PDB-file, that contains the atomic positions of our collagen triple helix, and we this PDB-file ```your_triple_helix.pdb``` for now. 
+
+## Generate the microfibril from contact distance
+
+With your collagen triple helix at hand and the colbuilder 2.0 conda environment installed on your OS, we are ready to generate our first crosslinked collagen microfibril. To start with, we can first look at the help argument of colbuilder 2.0 to get a broad idea about the functionality of the tool
+```
+colbuilder -h 
+```
+Now, in order to generate our first collagen microfibril, we need to provide a PDB file of the collagen triple helix, the axial and radial size of the desired fibril. Specifically,we provide the PDB-input file ```your_triple_helix.pdb``` with ```-f```, the length of the microfibril with ```-length```, the radial size with ```-dc``` and we activate the geometry generation of the microfibril with ```-geometry```. Taken together, the following command is used to generate a 330nm long collagen microfibril with a crossection radius of approximately 20 nm:
+```
+colbuilder -f your_triple_helix.pdb -dc 60 -length 330 -geometry -o collagen_fibril.pdb 
+```
+As output, you will obtain the pdb file that contains the positions of each atom of the microfibrillar structure ```collagen_fibril.pdb``` together with a *.txt-file containing information about the crystal contacts of the optimised collagen fibril, i.e. the individual triple helices ```crystalcontacts_from_colbuilder_opt.txt``` and the links between them ```crystalcontacts_from_colbuilder_connect.txt```. 
+

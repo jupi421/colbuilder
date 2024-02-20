@@ -1,4 +1,5 @@
 from colbuilder.sequence import muscle,system,modeller
+import subprocess
 
 
 def build_sequence(path_wd=str,pdb_file=None,collagen_type=int,ensemble=int,
@@ -28,3 +29,8 @@ def build_sequence(path_wd=str,pdb_file=None,collagen_type=int,ensemble=int,
     modeller_=modeller.Modeller(system=system_,sequence=muscle_.sequence,file=file_,fasta=muscle_.fasta,ensemble=ensemble)
     modeller_.prepare_alignment(muscle_file=file_+'.afa',register=register)
     modeller_.run_modeller(alignment_file=file_,system=system_)
+
+    print('-- Save final PDB-file to '+str(pdb_file)+' --')
+    subprocess.run('cp '+str(modeller_.modeller_pdb)+' '+str(pdb_file)+'s',
+                       shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+
