@@ -16,7 +16,7 @@ class Caps:
 
 
     """
-    def __init__(self,system=None):
+    def __init__(self,system):
         self.system=system
         self.system_size=system.size
         self.chains=['A','B','C']
@@ -26,7 +26,7 @@ class Caps:
         self.model={ k:[] for k in self.chains}
         self.get_chain_length(system=system)
 
-    def read_residues(self,pdb_id=None):
+    def read_residues(self,pdb_id:int):
         """
         
         Reads pdb-file for each chain in the triple helix to obtain
@@ -46,7 +46,7 @@ class Caps:
                     elif l[13:15]=='CA' and l[21]=='C': self.model['C'].append(int(l[22:26]))
         f.close()
 
-    def get_line(self,cap=None,chain_id=None):
+    def get_line(self,cap:str,chain_id:str):
         """
         
         Writes command to be used in pymol to add a cap
@@ -56,7 +56,7 @@ class Caps:
         elif cap=='C': index=-1
         return 'resi '+str(self.model[chain_id][index])+' and chain '+str(chain_id)+' and name '+str(cap)
     
-    def get_chain_length(self,system=None):
+    def get_chain_length(self,system):
         """
         
         Gets the chain length for the initial model
@@ -66,7 +66,7 @@ class Caps:
         for chain in self.model:
             self.chain_length[chain]=len(self.model[chain])
 
-    def add_caps(self,pdb_id=None):
+    def add_caps(self,pdb_id:int,crosslink_type:str):
         """
         
         adds caps to both ends of each model
@@ -84,16 +84,16 @@ class Caps:
                     editor.attach_amino_acid('pk1','nme',ss=0)
         cmd.save('tmp.pdb')
         cmd.delete(name=str(pdb_id))
-        return self.write_caps(pdb='tmp.pdb',pdb_id=pdb_id)
+        return self.write_caps(pdb='tmp.pdb',pdb_id=pdb_id,crosslink_type=crosslink_type)
 
-    def write_caps(self,pdb=None,pdb_id=int):
+    def write_caps(self,pdb:str,pdb_id:int,crosslink_type:str):
         """
         
         write pdb file with caps
         
         """
         pdb_file=[l.strip() for l in open(str(pdb),'r') if l[0:6] in self.is_line and l[0:3]!='TER']
-        with open(str(pdb_id)+'.caps.pdb','w') as f:
+        with open(str(crosslink_type)+'/'+str(pdb_id)+'.caps.pdb','w') as f:
             for idx in pdb_file:
                 f.write(idx+'\n')
                 if idx[17:20]=='NME' and idx[12:16]=='3HH3': f.write('TER \n')

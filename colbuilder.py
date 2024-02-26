@@ -22,7 +22,7 @@ def colbuilder():
     parser.add_argument('-contacts','--crystalcontacts_file', required=False, 
                         help='read crystalcontacts from file ',default='crystalcontacts_from_colbuilder')
     parser.add_argument('-connect','--connect_file', required=False, 
-                        help='read external crystalcontacts-connect file',default='')
+                        help='read connect between contacts from file',default='connect_from_colbuilder')
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
                         help='optimize crystalcontacts ',default=False)
     parser.add_argument('-geometry','--geometry_generator', action='store_true', 
@@ -32,10 +32,15 @@ def colbuilder():
     parser.add_argument('-fibril', '--fibril', required=False, action='store_true', 
                         help='Bool argument to generate topology for colbuilder 1.0 67nm-long fibril ',default=False)
     
-    parser.add_argument('-mix','--setup_mix', required=False,nargs='+',
-                        help=("ratio for mix-crosslink setup, e.g. 0.7 T; 0.3 D -> -mix t:70 d:30. Please use -f_mix flag to input pdb-files in the exact same order"),default=None)
-    parser.add_argument('-fmix','--files_mix', required=False,nargs='+',
-                        help=("PDB-files with different crosslink-types, e.g. 0.7 T; 0.3 D -> fmix Rat-T.pdb Rat-D.pdb. Please make sure that -fmix has the exact same order as mix-setup -mix."),default=[])
+    parser.add_argument('-ratio_mix','--ratio_mix', required=False,nargs='+',
+                        help=("ratio for mix-crosslink setup, e.g. 0.7 T; 0.3 D -> -mix T:70 D:30. Please use -files_mix flag to input pdb-files in the exact same order"),default=None)
+    parser.add_argument('-files_mix','--files_mix', required=False,nargs='+',
+                        help=("PDB-files with different crosslink-types, e.g. 0.7 T; 0.3 D -> fmix Rat-T.pdb Rat-D.pdb."+ 
+                              "If the ratio_mix is provided, please make sure that files_mix has the exact same order as -ratio_mix flag OR"+
+                               "If connect_mix information is provided make sure to provide each triple helix crosslink type as input for -files_mix."),default=None)
+    parser.add_argument('-connect_mix','--connect_mix', required=False,
+                         help=("Provide connect file with mixture of triple helices within microfibril"),default=None)
+    
     parser.add_argument('-mutate','--setup_mutate', required=False,
                         help=("ratio of mutated crosslinks, e.g. -mutate 0.25 -> 0.25 mutated, values between 0 to 0.5"),default=None)
     
@@ -59,7 +64,7 @@ def colbuilder():
     parser.add_argument('-chain','--chain_id', required=False,
                         help=("specifiy the chain id: chain 1=A, chain 2=C, chain 3=B "),default='A,B,C')
     parser.add_argument('-ensemble','--ensemble', required=False,
-                        help=("Ensemble of Modeller runs "),default=3)
+                        help=("Ensemble of modeller runs "),default=3)
         
     args=parser.parse_args()
     if args.connect_file=='': args.connect_file=str(args.crystalcontacts_file).replace('.txt','_connect.txt')
@@ -93,14 +98,16 @@ def colbuilder():
     
     if args.fibril==True:
         system_=build_fibril(path_wd=str(args.working_directory),
-                            pdb_file=args.file)
+                            pdb_file=args.file,
+                            connect_file=str(args.connect_file).replace('.txt',''))
 
     # Mix-System
-    if args.setup_mix!=None: 
+    if args.files_mix!=None: 
         system_=mix_geometry(path_wd=str(args.working_directory),
                             fibril_length=float(args.fibril_length),
                             pdb_files=[str(file).replace('.pdb','') for file in args.files_mix],
-                            setup_mix=args.setup_mix,
+                            ratio_mix=args.ratio_mix,
+                            connect_file_mix=args.connect_mix.replace('.txt',''),
                             system=system_,
                             pdb_out=str(args.output).replace('.pdb','_mix'))
         

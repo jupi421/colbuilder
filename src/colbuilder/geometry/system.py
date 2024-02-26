@@ -5,7 +5,7 @@ class System:
     dict { model_id: model }
 
     """
-    def __init__(self,crystal=None,crystalcontacts=None,pdb_fibril=None):
+    def __init__(self,crystal=None,crystalcontacts=None,pdb_fibril=str):
         self.system={ }
         self.connect={ }
         self.models=[]
@@ -80,7 +80,7 @@ class System:
             self.connect[self.get_model(model_id=idx).id]=self.get_model(model_id=idx).connect
         return self.connect
 
-    def delete_model(self,model_id=None):
+    def delete_model(self,model_id=int):
         """
         
         delete model in system
@@ -89,7 +89,7 @@ class System:
         del self.system[model_id]
         return self.system
     
-    def count_states(self,state=None):
+    def count_states(self,state=str):
         """
         
         counts all models with certain state (no, mut, prot)
@@ -100,7 +100,7 @@ class System:
             cnt+=self.get_model(model_id=key).count_state(state=state)
         return cnt
 
-    def write_pdb(self,pdb_out=None,fibril_length=None):
+    def write_pdb(self,pdb_out=str,fibril_length=float):
         """
         
         writes system to a pdb-file 
@@ -110,7 +110,7 @@ class System:
             f.write(open(self.crystal.pdb_file+'.pdb').readline())
             for model in self.get_models():
                 if self.get_model(model_id=model).connect!=None:
-                    if len(self.get_model(model_id=model).connect)!=1 or fibril_length<=300:
+                    if len(self.get_model(model_id=model).connect)!=1 or fibril_length<=float(300):
                         for connect in self.get_model(model_id=model).connect:
                             pdb_model=open(str(self.get_model(model_id=model).type)+'/'+str(int(connect))+'.caps.pdb','r').readlines()
                             f.write("".join(i for i in pdb_model if i[0:6] in self.is_line and i[0:3]!='TER'))
