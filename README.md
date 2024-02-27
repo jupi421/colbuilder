@@ -52,3 +52,38 @@ colbuilder -f your_triple_helix.pdb -dc 60 -length 330 -geometry -o collagen_fib
 ```
 As output, you will obtain the pdb file that contains the positions of each atom of the microfibrillar structure ```collagen_fibril.pdb``` together with a *.txt-file containing information about the crystal contacts of the optimised collagen fibril, i.e. the individual triple helices ```crystalcontacts_from_colbuilder_opt.txt``` and the links between them ```crystalcontacts_from_colbuilder_connect.txt```. 
 
+## Generate the microfibril from crystal contacts 
+
+Imagine you want to generate a microfibrillar structure with an already given crytal contacts information file ```your_contacts.txt```, that contains information about the structural specification. More in detail, the ```your_contacts.txt``` lists each unit cell together with its rotation- and transformationmatrix, and thus providing enough information to generate the collagen microfibril from a single triple helix. For this please use
+```
+colbuilder -f your_triple_helix.pdb -contacts your_contacts.txt -length 330 -geometry -o collagen_fibril.pdb
+```
+
+## Generate the microfibril with mixed crosslink configurations 
+
+Next, we would like to adress the issue of altering the crosslink density of the collagen microfibril. Here fore, we have two opportunities: i) we can setup a collagen microfibril from scratch together with the crosslink configuration rate or ii) we have an already existing configuration, i.e., contacts together with crosslink types, and want to generate the respective microfibrillar structure.
+For both cases, we need to set the  ```-mix``` flag to tell colbuilder2.0 to generate a mixed crosslinked microfibril. Besides for the first case,we can generate a microfibril comprising 40% divalent and 60% trivalent crosslinked triple helices with ```-ratio_mix D:40 T:60```:
+```
+colbuilder -f your_triple_helix.pdb -mix -files_mix Rat-D.pdb Rat-T.pdb -ratio_mix D:40 T:60 -contacts your_contacts.txt -length 330 -geometry -o collagen_fibril_mix.pdb 
+```
+For the second case, when we already have figured out a certain crosslink configuration ```your_crosslink_connect_mix.txt``` and would like to generate the respective microfibril, we use:
+```
+colbuilder -f your_triple_helix.pdb -mix -connect_mix your_crosslink_connect_mix.txt -contacts your_contacts.txt  -length 330 -geometry -o collagen_fibril_mix.pdb
+```
+
+## Generate the microfibril with less crosslinks  
+
+Besides mixed divalent-trivalent crosslinked collagen microfibrils, there is the possibility of randomly deleting crosslinks and therefore decreasing the number of crosslinked collagen microfibrils. Here fore, we provided the  ```-mutate``` flag that allows the user to randomly delete max. 50% of the crosslinks within the microfibril. Please note, that we have to ensure at 50% crosslink connectivity to make sure no triple helix gets pulled out during simulations. For example, if you want to generate a trivalent crosslinked fibril with 70% crosslinked triple helices, use the following:
+```
+colbuilder -f your_triple_helix.pdb -mutate 0.30 -contacts your_contacts.txt -length 330 -geometry -o collagen_fibril.pdb 
+```
+
+
+## Generate the topology for an existing microfibril
+
+Next, we want to generate the topology for the Martini 3 force field from an already existing microfibrillar structure, that we generated with colbuilder2.
+Here, we provide the triple helix as well as the crystal contacts to generate the microfibrillar structure, as we performed above. In addition, we ommit the ```-geometry``` flag and instead use the ```-topology``` flag together with the force field flag ```-ff```. Moreover, we can generate an all-atom ```-ff amber99``` or a coarse-grained ```-ff martini3``` topology for our generated microfibrillar structure. This setup works for both all kind of collagen fibrils.
+```
+colbuilder -f your_triple_helix.pdb -contacts your_contacts.txt -length 330 -topology -ff martini3 
+```
+

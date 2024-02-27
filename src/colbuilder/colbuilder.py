@@ -20,9 +20,9 @@ def colbuilder():
     parser.add_argument('-length','--fibril_length', required=False, 
                         help='lengh of microfibril ',default=334)
     parser.add_argument('-contacts','--crystalcontacts_file', required=False, 
-                        help='read crystalcontacts from file ',default='crystalcontacts_from_colbuilder')
+                        help='read crystalcontacts from file ',default=None)
     parser.add_argument('-connect','--connect_file', required=False, 
-                        help='read connect between contacts from file',default='connect_from_colbuilder')
+                        help='read connect between contacts from file',default=None)
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
                         help='optimize crystalcontacts ',default=False)
     parser.add_argument('-geometry','--geometry_generator', action='store_true', 
@@ -88,9 +88,9 @@ def colbuilder():
         system_=build_geometry(path_wd=str(args.working_directory),
                         pdb_file=str(args.file).replace('.pdb',''),
                         contact_distance=args.contact_distance,
-                        crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''),
+                        crystalcontacts_file=args.crystalcontacts_file,
                         crystalcontacts_optimize=args.crystalcontacts_optimize,
-                        connect_file=str(args.connect_file).replace('.txt',''),
+                        connect_file=args.connect_file,
                         solution_space=args.solution_space,
                         fibril_length=float(args.fibril_length),
                         geometry=args.geometry_generator,
@@ -99,7 +99,7 @@ def colbuilder():
     if args.fibril==True:
         system_=build_fibril(path_wd=str(args.working_directory),
                             pdb_file=args.file,
-                            connect_file=str(args.connect_file).replace('.txt',''))
+                            connect_file=args.connect_file)
 
     # Mix-System
     if args.mix_bool==True: 
@@ -107,9 +107,8 @@ def colbuilder():
                             fibril_length=float(args.fibril_length),
                             pdb_files=[str(file).replace('.pdb','') for file in args.files_mix],
                             ratio_mix=args.ratio_mix,
-                            connect_file_mix=args.connect_file.replace('.txt',''),
+                            connect_file=args.connect_file,
                             system=system_,
-                            mix_bool=args.mix_bool,
                             pdb_out=str(args.output).replace('.pdb','_mix'))
 
     # Mutate-System

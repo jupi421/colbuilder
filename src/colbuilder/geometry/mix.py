@@ -30,7 +30,7 @@ class Mix:
         """
         return np.random.choice(list(self.ratio_mix.keys()),p=[int(i)/100 for i in ratio_mix])
 
-    def get_mix_from_connect(self,system=None,connect_file=None):
+    def get_mix_from_connect_file(self,system=None,connect_file=None):
         """
         
         Get mixed setup from connect file

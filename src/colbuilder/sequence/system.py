@@ -73,21 +73,32 @@ class System:
         write modified atoms of pdb file 
         
         """
-        if atoms==None: atoms=self.atoms
-        atom_id=atoms['atom_id']
-        atom_type=atoms['atom_type']
-        chain_id=atoms['chain_id']
-        resname=atoms['resname']
-        resid=atoms['resid']
-        x=atoms['x']
-        y=atoms['y']
-        z=atoms['z']
-        element=atoms['element']
+        if atoms==None: 
+            atoms=self.atoms
+            atom_id=atoms['atom_id']
+            atom_type=atoms['atom_type']
+            chain_id=atoms['chain_id']
+            resname=atoms['resname']
+            resid=atoms['resid']
+            x=atoms['x']
+            y=atoms['y']
+            z=atoms['z']
+            element=atoms['element']
 
-        if modified==True: resname=atoms['modified_resname']
-        with open(pdb_filename+'_mod.pdb','w') as f:
-            f.write(self.crystal)
-            for i in range(len(atom_id)):
-                f.write("%6s%5i %4s %3s %1s%4i    %8.3f%8.3f%8.3f%22s\n" % ('ATOM  ',int(atom_id[i]),atom_type[i],resname[i],chain_id[i],int(resid[i]),float(x[i]),float(y[i]),float(z[i]),element[i]))
-                if atom_type[i].strip()=='OXT': f.write('TER\n')
-            f.close()
+        if modified==True: 
+            resname=atoms['modified_resname']
+            with open(pdb_filename+'_mod.pdb','w') as f:
+                f.write(self.crystal)
+                for i in range(len(atom_id)):
+                    f.write("%6s%5i %4s %3s %1s%4i    %8.3f%8.3f%8.3f%22s\n" % ('ATOM  ',int(atom_id[i]),atom_type[i],resname[i],chain_id[i],int(resid[i]),float(x[i]),float(y[i]),float(z[i]),element[i]))
+                    if atom_type[i].strip()=='OXT': f.write('TER\n')
+                f.close()
+                
+        elif modified==False:
+            resname=atoms['resname']
+            with open(pdb_filename+'.pdb','w') as f:
+                f.write(self.crystal)
+                for i in range(len(atom_id)):
+                    f.write("%6s%5i %4s %3s %1s%4i    %8.3f%8.3f%8.3f%22s\n" % ('ATOM  ',int(atom_id[i]),atom_type[i],resname[i],chain_id[i],int(resid[i]),float(x[i]),float(y[i]),float(z[i]),element[i]))
+                    if atom_type[i].strip()=='OXT': f.write('TER\n')
+                f.close()

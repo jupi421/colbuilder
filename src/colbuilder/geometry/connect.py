@@ -53,7 +53,7 @@ class Connect:
             elif ref_key==pairs[key] or key==pairs[ref_key] or pairs[key]==pairs[ref_key]: self.connect[ref_key].append(key)
         return self.clean_contacts(contactpairs=self.connect)
 
-    def get_external_connect(self,system=None,connect_file=None):
+    def get_external_connect_file(self,system=None,connect_file=None):
         """
         
         read external connect file and update system accordingly

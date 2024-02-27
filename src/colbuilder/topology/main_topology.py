@@ -3,8 +3,7 @@ import os
 from colbuilder.geometry import system
 from colbuilder.topology import amber, martini, itp
 
-
-def build_martini3(system: system.System,force_field=None,topology_file=None,go_epsilon=float) -> martini.Martini:
+def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> martini.Martini:
     """
     
     build martini 3 force field topology
@@ -47,7 +46,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
                 subprocess.run(
                 'python create_goVirt.py -s '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
                 '-f map.out --moltype col_'+str(int(model_id))+'.'+str(int(connect_id))+' --go_eps '+str(go_epsilon),
-                shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)      
+                shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             
             martini_.merge_pdbs(model_id=model_id,cnt_model=cnt_model)
             
@@ -64,7 +63,7 @@ def build_martini3(system: system.System,force_field=None,topology_file=None,go_
 
     return martini_
                                  
-def build_amber99(system: system.System,force_field=None,topology_file=None) -> amber.Amber:
+def build_amber99(system: system.System,force_field=None) -> amber.Amber:
     """"
     
     builder amber99 force field topology
@@ -75,7 +74,8 @@ def build_amber99(system: system.System,force_field=None,topology_file=None) -> 
     tmp=subprocess.run('cp '+str(ff)+'.ff/residuetypes.dat .',shell=True)
     tmp=subprocess.run('cp '+str(ff)+'.ff/specbond.dat .',shell=True)
     if tmp.returncode!=0:
-        print('Error: No force field found. Please copy the '+str(ff)+'-force field from the colbuilder 1.0 webportal to your working directory.')
+        print('Error: Amber99-ff not found. \n'+
+              'Copy '+str(ff)+'-force field from colbuilder 1.0 to your wd.')
         exit()
 
     print('-- Run pdb2gmx with GROMACS using '+str(ff)+'.ff --')
@@ -103,22 +103,23 @@ def build_topology(system: system.System,force_field=None,top_file=None,gro_file
     """
     if force_field=='amber99':
         ff=force_field+'sb-star-ildnp'
-        print('-- Build topology based on '+str(ff)+'.ff --')
 
+        print('-- Build topology based on '+str(ff)+'.ff --')
         amber_=build_amber99(system=system,force_field=force_field)
         amber_.write_topology(system=system,topology_file=top_file)
         amber_.write_gro(system=system,gro_file=gro_file)
 
         print('-- '+str(ff)+' topology generated --')
-    
-    if force_field=='martini3':
+
+    elif force_field=='martini3':
         ff=force_field+'C'
+
         print('-- Build topology based on '+str(ff)+' --')
-        martini_=build_martini3(system=system,force_field=force_field,go_epsilon=go_epsilon)
+        build_martini3(system=system,force_field=force_field,go_epsilon=go_epsilon)
 
         print('-- '+str(ff)+' topology generated --')
     
-    if force_field==None:
-        print('Error: Please specifify force field to generate topology, e.g., martini3 or amber99')
+    else:
+        print('Error: Please specifify force field to generate topology, i.e., -ff martini3 OR -ff amber99')
 
     return system
