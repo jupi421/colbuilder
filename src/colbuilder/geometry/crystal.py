@@ -17,6 +17,7 @@ class Crystal:
     """
     def __init__(self,pdb=None):
         self.pdb_file=pdb
+        self.is_line=('ATOM  ', 'HETATM', 'ANISOU' )
         self.crystal={ k:None for k in ['a','b','c','alpha','beta','gamma'] }
 
     def read_crystal(self,pdb=None):
@@ -84,3 +85,17 @@ class Crystal:
         if s_matrix==[]:
             logging.Error('Error: No unit-cell shift-matrix given, hence no transform matrix is calculated.')
         return list(np.dot(cs_matrix,s_matrix).round(decimals=3).astype(float))
+    
+    def translate_crystal(self,pdb=None):
+        """
+        
+        translate cog of unit cell to position [0,0,400]
+        
+        """
+        atoms=open(pdb+'.pdb').readlines()
+        z_com=np.mean([(round(float(line[46:54]),3)) for line in atoms if line[0:6] in self.is_line])
+
+        delta_z=4000-z_com
+        atoms=[line[:46]+'{:.3f}'.format(round(float(line[46:54])+delta_z,3))+line[54:] if line[0:6] in self.is_line  else line for line in atoms]
+        with open(pdb+'.pdb','w') as f:
+            for atom in atoms: f.write(atom)

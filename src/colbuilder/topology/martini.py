@@ -43,6 +43,8 @@ class Martini:
         order,map=[],[]
         chain_store='A'
         for line in pdb:
+            if line[0:3]=='TER': continue
+            
             if line[21:22]!=chain_store:
                 order.append('TER\n')
                 if chain_store=='A': chain_store='B'
@@ -56,12 +58,12 @@ class Martini:
             if cnt<10: order.append(line[:22]+'   '+str(int(cnt))+line[26:])
             elif 10<=cnt<100: order.append(line[:22]+'  '+str(int(cnt))+line[26:])
             elif 100<=cnt<1000: order.append(line[:22]+' '+str(int(cnt))+line[26:])
-            elif 1000<=cnt<10000: order.append(line[:22]+''+str(int(cnt))+line[26:])
+            elif 1000<=cnt<10000: order.append(line[:22]+str(int(cnt))+line[26:])
 
             if cnt_map<10: map.append(line[:22]+'   '+str(int(cnt_map))+line[26:])
             elif 10<=cnt_map<100: map.append(line[:22]+'  '+str(int(cnt_map))+line[26:])
             elif 100<=cnt_map<1000: map.append(line[:22]+' '+str(int(cnt_map))+line[26:])
-            elif 1000<=cnt_map<10000: map.append(line[:22]+''+str(int(cnt_map))+line[26:])
+            elif 1000<=cnt_map<10000: map.append(line[:22]+str(int(cnt_map))+line[26:])
 
         return order,map
 
@@ -71,7 +73,7 @@ class Martini:
         translate pdbs for Martinize2
         
         """
-        return [line[:46]+'{:.3f}'.format(round(float(line[46:54])+4000,3))+line[54:] for line in pdb if line[0:6] in self.is_line]
+        return [line[:46]+'{:.3f}'.format(round(float(line[46:54]),3))+line[54:] for line in pdb if line[0:6] in self.is_line]
 
     def cap_pdb(self,pdb=None):
         """
@@ -109,7 +111,6 @@ class Martini:
             if pdb[line_it][21:22]=='C' and line_it==int(len(pdb)-1):
                 chain_length['C']=pdb[line_it][22:26]
         return chain_length
-
 
     def write_pdb(self,pdb=None,file=None):
         """

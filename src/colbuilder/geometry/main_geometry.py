@@ -1,9 +1,10 @@
-import subprocess, shutil
-from pathlib import Path
+import subprocess
+import numpy as np
 from colbuilder.geometry import (
     crystal, crystalcontacts, chimera, model, system, connect, caps, 
-    optimize, mix, mutate, fibril
+    optimize, mix, fibril, delete
 )
+
 
 def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalcontacts_file=str,connect_file=str,
                    crystalcontacts_optimize=bool,solution_space=[],fibril_length=float,geometry=str,pdb_out=str) -> system.System:
@@ -16,9 +17,11 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
 
     print('-- Read crystallographic symmetry from '+str(pdb_file)+'.pdb --')
     crystal_=crystal.Crystal(pdb_file)
+    crystal_.translate_crystal(pdb=pdb_file)
 
     path_pdb_file=path_wd+'/'+pdb_file
     chimera_=chimera.Chimera(path_pdb_file)
+    
 
     if pdb_file!=None and contact_distance!=None and crystalcontacts_file==None:
         system_,crystalcontacts_,connect_=build_from_contactdistance(path_wd=path_wd,pdb_file=pdb_file,
@@ -68,23 +71,23 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
 
     return system_
 
-def mutate_geometry(path_wd=str,setup_mutate=None,system=system.System,
+def delete_geometry(path_wd=str,ratio_delete=None,system=system.System,
                     fibril_length=float,pdb_out=str) -> system.System:
     """
     
-    built system is mutated according to user-input parameters.
-    mutation is random, however constrained to ensure at least one connection
+    built system is adjusted according to user-input parameters.
+    deletion is random, however constrained to ensure at least one connection is ensured
 
     """
-    print('-- Mutate system --')
-    mutate_=mutate.Mutate(mutate_ratio=setup_mutate,system=system,fibril_length=fibril_length)
-    system_=mutate_.run_mutate(system=system)
+    print('-- Delete '+str(ratio_delete)+' crosslinks from microfibril --')
+    delete_=delete.Delete(ratio_delete=ratio_delete,system=system,fibril_length=fibril_length)
+    system_=delete_.run_delete(system=system)
 
-    mutate_.write_mutate(system=system_,mutation_file='mutation')  
+    delete_.write_delete(system=system_,mutation_file='delete')  
 
     print('-- Please wait, this may take some time ... --')
     chimera_=chimera.Chimera(path_wd+'/'+system_.crystal.pdb_file)
-    chimera_.swapaa(mutation='mutation',system_type=system_.get_model(model_id=0.0).type)
+    chimera_.swapaa(delete='delete',system_type=system_.get_model(model_id=0.0).type)
 
     system_.write_pdb(pdb_out=pdb_out,fibril_length=fibril_length)
 
@@ -99,16 +102,18 @@ def mix_geometry(path_wd=str,fibril_length=float,connect_file=None,
     """
     print('-- Prepare mix setup --')   
     if ratio_mix!=None and connect_file==None:
-
-        chimera_=chimera.Chimera(path_wd+'/'+pdb_files[0])   
-        connect_file='connect_from_colbuilder'
-
+        
         mix_setup={ idx.split(':')[0]:idx.split(':')[1] for idx in ratio_mix }
         mix_pdb=dict(zip(mix_setup.keys(),pdb_files))
 
+        
         system_size=system.get_size(system=system)
+        connect_file='connect_from_colbuilder'
 
         for key in list(mix_pdb.keys())[1:]:
+            
+            crystal.Crystal(pdb=mix_pdb[key]).translate_crystal(pdb=mix_pdb[key])
+            chimera_=chimera.Chimera(path_wd+'/'+mix_pdb[key])
 
             print('-- Generate '+str(key)+' system from '+str(mix_pdb[key])+' --')
             print('-- Please wait, this may take some time ... --')
@@ -129,14 +134,20 @@ def mix_geometry(path_wd=str,fibril_length=float,connect_file=None,
 
     elif ratio_mix==None and connect_file!=None:
 
+        for pdb in pdb_files[1:]:
+            crystal.Crystal(pdb=pdb).translate_crystal(pdb=pdb)
         connect_file=connect_file.replace('.txt','')
 
+        print('-- Mix system --')
+        print('-- NOTE: Make sure each crosslink-type in '+str(connect_file)+' (D,T,DT,TD) is provided --')
         mix_=mix.Mix(system=system,connect_mix=connect_file)
         system_=mix_.get_mix_from_connect_file(connect_file=connect_file)
 
     else:
         print('Error: Either provide a connect-file with the crosslink-type (e.g. 1.caps.pdb 2.caps.pdb ; D) OR \n'+
-              'provide the -ratio_mix and -files_mix to generate a differently crosslinked microfibril')
+              'provide the -ratio_mix and -files_mix to generate a differently crosslinked microfibril \n'+
+              'in both cases -files_mix flag has to contain the pdb-file with the respective crosslink types '+
+              'NOTE: Make sure that each crosslink type (D,T,DT,TD) from connect-file is provided!')
         
     connect.Connect(system=system_).write_connect(system=system_,connect_file=connect_file)
     

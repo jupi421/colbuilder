@@ -64,20 +64,19 @@ colbuilder -f your_triple_helix.pdb -contacts your_contacts.txt -length 330 -geo
 Next, we would like to adress the issue of altering the crosslink density of the collagen microfibril. Here fore, we have two opportunities: i) we can setup a collagen microfibril from scratch together with the crosslink configuration rate or ii) we have an already existing configuration, i.e., contacts together with crosslink types, and want to generate the respective microfibrillar structure.
 For both cases, we need to set the  ```-mix``` flag to tell colbuilder2.0 to generate a mixed crosslinked microfibril. Besides for the first case,we can generate a microfibril comprising 40% divalent and 60% trivalent crosslinked triple helices with ```-ratio_mix D:40 T:60```:
 ```
-colbuilder -f your_triple_helix.pdb -mix -files_mix Rat-D.pdb Rat-T.pdb -ratio_mix D:40 T:60 -contacts your_contacts.txt -length 330 -geometry -o collagen_fibril_mix.pdb 
+colbuilder -f your_triple_helix.pdb -mix -files_mix Rat-D.pdb Rat-T.pdb -ratio_mix D:40 T:60 -contacts your_contacts.txt -geometry -o collagen_fibril.pdb 
 ```
-For the second case, when we already have figured out a certain crosslink configuration ```your_crosslink_connect_mix.txt``` and would like to generate the respective microfibril, we use:
+For the second case, when we already have figured out a certain crosslink configuration ```your_crosslink_connect_mix.txt``` and would like to generate the respective microfibril with divalent crosslinked triple helices (here: Rat-D.pdb) and mixed divalent-trivalent crosslinked triple helices (here: Rat-DT.pdb). Here, we have to make sure than each type of crosslinked triple helix (D,T,DT or TD) than is mentioned in the connect file ```your_crosslink_connect.txt``` is also provided in the ```-files_mix``` section. We propose to use the following:
 ```
-colbuilder -f your_triple_helix.pdb -mix -connect_mix your_crosslink_connect_mix.txt -contacts your_contacts.txt  -length 330 -geometry -o collagen_fibril_mix.pdb
+colbuilder -f your_triple_helix.pdb -mix -files_mix Rat-D.pdb Rat-DT.pdb -connect your_crosslink_connect.txt -contacts your_contacts.txt -geometry -o collagen_fibril.pdb
 ```
 
 ## Generate the microfibril with less crosslinks  
 
 Besides mixed divalent-trivalent crosslinked collagen microfibrils, there is the possibility of randomly deleting crosslinks and therefore decreasing the number of crosslinked collagen microfibrils. Here fore, we provided the  ```-mutate``` flag that allows the user to randomly delete max. 50% of the crosslinks within the microfibril. Please note, that we have to ensure at 50% crosslink connectivity to make sure no triple helix gets pulled out during simulations. For example, if you want to generate a trivalent crosslinked fibril with 70% crosslinked triple helices, use the following:
 ```
-colbuilder -f your_triple_helix.pdb -mutate 0.30 -contacts your_contacts.txt -length 330 -geometry -o collagen_fibril.pdb 
+colbuilder -f your_triple_helix.pdb -mutate 30 -contacts your_contacts.txt -length 330 -geometry -o collagen_fibril.pdb 
 ```
-
 
 ## Generate the topology for an existing microfibril
 

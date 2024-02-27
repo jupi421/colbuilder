@@ -1,8 +1,5 @@
-import os
 import sys
-import math
 from chimera import runCommand as rc 
-from chimera import openModels
 
 pdb_file=str(sys.argv[1])
 d_contact=str(int(str(sys.argv[2])))

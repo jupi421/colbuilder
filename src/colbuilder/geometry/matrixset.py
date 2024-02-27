@@ -9,6 +9,7 @@ crystalcontacts_file=str(sys.argv[2])
 system_size=int(sys.argv[3])
 fibril_length=float(sys.argv[4]) * 10 # from nm to Angstrom
 
+# TODO: Would be nice to make an automatic re-scale from same location in space to 0 0 300.
 for i in range(0,system_size): 
     rc("open "+pdb_file)
 

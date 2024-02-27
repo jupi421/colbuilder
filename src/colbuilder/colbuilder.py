@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, mutate_geometry, build_fibril
+from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, delete_geometry, build_fibril
 from colbuilder.topology.main_topology import build_topology
 from colbuilder.sequence.main_sequence import build_sequence
     
@@ -35,14 +35,15 @@ def colbuilder():
     parser.add_argument('-mix','--mix_bool', required=False,action='store_true',
                          help=("Set -mix flag to generate a mixed crosslinked microfibril"),default=False)
     parser.add_argument('-ratio_mix','--ratio_mix', required=False,nargs='+',
-                        help=("ratio for mix-crosslink setup, e.g. 0.7 T; 0.3 D -> -mix T:70 D:30. Please use -files_mix flag to input pdb-files in the exact same order"),default=None)
+                        help=("Ratio for mix-crosslink setup: -ratio_mix T:70 D:30\n"+
+                               "Provide files at -files_mix flag in same order as for ratio_mix"),default=None)
     parser.add_argument('-files_mix','--files_mix', required=False,nargs='+',
-                        help=("PDB-files with different crosslink-types, e.g. 0.7 T; 0.3 D -> fmix Rat-T.pdb Rat-D.pdb."+ 
-                              "If the ratio_mix is provided, please make sure that files_mix has the exact same order as -ratio_mix flag OR"+
-                               "If connect information is provided make sure to provide each triple helix crosslink type as input for -files_mix."),default=[])
+                        help=("PDB-files with different crosslink-types: -files_mix Rat-T.pdb Rat-D.pdb\n"+ 
+                              "If the ratio_mix is provided, make sure that -files_mix has the same order as -ratio_mix OR\n"+
+                              "If connect information is provided, provide each type of crosslinked triple helix as input for -files_mix."),default=[])
     
-    parser.add_argument('-mutate','--setup_mutate', required=False,
-                        help=("ratio of mutated crosslinks, e.g. -mutate 0.25 -> 0.25 mutated, values between 0 to 0.5"),default=None)
+    parser.add_argument('-ratio_delete','--ratio_delete', required=False,
+                        help=("Ratio for delete-crosslink setup: -ratio_delete 25 -> 25/100 crosslinks are deleted (0 to 50)"),default=None)
     
     parser.add_argument('-topology','--topology_generator', action='store_true', 
                         help='generate topology files ',default=False)
@@ -109,15 +110,15 @@ def colbuilder():
                             ratio_mix=args.ratio_mix,
                             connect_file=args.connect_file,
                             system=system_,
-                            pdb_out=str(args.output).replace('.pdb','_mix'))
+                            pdb_out=str(args.output).replace('.pdb',''))
 
-    # Mutate-System
-    if args.setup_mutate!=None:
-        system_=mutate_geometry(path_wd=str(args.working_directory),
-                                setup_mutate=args.setup_mutate,
+    # Delete-System
+    if args.ratio_delete!=None:
+        system_=delete_geometry(path_wd=str(args.working_directory),
+                                ratio_delete=args.ratio_delete,
                                 system=system_,
                                 fibril_length=float(args.fibril_length),
-                                pdb_out=str(args.output).replace('.pdb','_mut'))
+                                pdb_out=str(args.output).replace('.pdb',''))
 
     # Build Topology for System
     if args.topology_generator==True:
