@@ -104,11 +104,11 @@ class Martini:
         """
         chain_length={ key:'' for key in ['A','B','C']}
         for line_it in range(len(pdb)):
-            if pdb[line_it][21:22]=='A' and pdb[line_it+1][21:22]=='B':
+            if pdb[line_it][21:22]=='A' and pdb[line_it+2][21:22]=='B':
                 chain_length['A']=pdb[line_it][22:26]
-            if pdb[line_it][21:22]=='B' and pdb[line_it+1][21:22]=='C':
+            if pdb[line_it][21:22]=='B' and pdb[line_it+2][21:22]=='C':
                 chain_length['B']=pdb[line_it][22:26]
-            if pdb[line_it][21:22]=='C' and line_it==int(len(pdb)-1):
+            if pdb[line_it][21:22]=='C' and line_it==int(len(pdb)-3):
                 chain_length['C']=pdb[line_it][22:26]
         return chain_length
 
