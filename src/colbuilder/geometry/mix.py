@@ -11,7 +11,7 @@ class Mix:
         self.system=system
         self.connect_mix={}
     
-    def add_mix(self,setup=None,system=None):
+    def add_mix(self,ratio_mix=None,system=None):
         """
         
         Set mixture of crystalcontacts according to user specific ratio
@@ -37,10 +37,10 @@ class Mix:
         
         """
         self.connect_mix=self.get_connect_mix(connect_file=connect_file)
-        for idx in self.system.get_models():
-            if self.system.get_model(model_id=idx).connect!=None:
-                if len(self.system.get_model(model_id=idx).connect)>1:
-                    self.system.get_model(model_id=idx).type=self.connect_mix[idx]
+        for model_id in self.system.get_models():
+            if self.system.get_model(model_id=model_id).connect!=None:
+                if len(self.system.get_model(model_id=model_id).connect)>1:
+                    self.system.get_model(model_id=model_id).type=self.connect_mix[model_id]
         return self.system
     
     def get_connect_mix(self,connect_file=None):

@@ -53,6 +53,19 @@ class Connect:
             elif ref_key==pairs[key] or key==pairs[ref_key] or pairs[key]==pairs[ref_key]: self.connect[ref_key].append(key)
         return self.clean_contacts(contactpairs=self.connect)
 
+    def get_external_connect(self,system=None,connect_file=None):
+        """
+        
+        read external connect file and update system accordingly
+        
+        """
+        if connect_file!=None: self.external_connect=[float(l.split(' ')[0].replace('.caps.pdb','')) for l in open(connect_file+'.txt','r').readlines() ]
+        if np.min(self.external_connect)>0: self.external_connect=[i-1 for i in self.external_connect]
+        for model_id in system.get_connect().keys():
+            if model_id not in self.external_connect:
+                system.get_model(model_id=model_id).connect=None
+        return system
+
     def clean_contacts(self,contactpairs=None):
         """
     

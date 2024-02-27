@@ -123,7 +123,6 @@ class Martini:
             f.write('END')
         f.close()
     
-
     def get_system_pdb(self,size=None):
         """
         

@@ -1,4 +1,3 @@
-
 import argparse
 from pathlib import Path
 
@@ -23,20 +22,25 @@ def colbuilder():
     parser.add_argument('-contacts','--crystalcontacts_file', required=False, 
                         help='read crystalcontacts from file ',default='crystalcontacts_from_colbuilder')
     parser.add_argument('-connect','--connect_file', required=False, 
-                        help='read external crystalcontacts-connect file',default='')
+                        help='read connect between contacts from file',default='connect_from_colbuilder')
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
-                        help='optimize crystalcontacts (default: False)',default=False)
+                        help='optimize crystalcontacts ',default=False)
     parser.add_argument('-geometry','--geometry_generator', action='store_true', 
-                        help='generate geometry files (default: False)',default=False)
+                        help='generate geometry files ',default=False)
     parser.add_argument('-space','--solution_space', nargs='+', required=False,
-                        help='solution space of optimisation problem [ d_x d_y d_z ] (default: [1 1 1] )',default=[1,1,1])
+                        help='solution space of optimisation problem [ d_x d_y d_z ] ',default=[1,1,1])
     parser.add_argument('-fibril', '--fibril', required=False, action='store_true', 
-                        help='Bool argument to generate topology for colbuilder 1.0 67nm-long fibril (default: false) ',default=False)
+                        help='Bool argument to generate topology for colbuilder 1.0 67nm-long fibril ',default=False)
     
-    parser.add_argument('-mix','--setup_mix', required=False,nargs='+',
-                        help=("ratio for mix-crosslink setup, e.g. 0.7 T; 0.3 D -> -mix t:70 d:30. Please use -f_mix flag to input pdb-files in the exact same order"),default=None)
-    parser.add_argument('-fmix','--files_mix', required=False,nargs='+',
-                        help=("PDB-files with different crosslink-types, e.g. 0.7 T; 0.3 D -> fmix Rat-T.pdb Rat-D.pdb. Please make sure that -fmix has the exact same order as mix-setup -mix."),default=[])
+    parser.add_argument('-mix','--mix_bool', required=False,action='store_true',
+                         help=("Set -mix flag to generate a mixed crosslinked microfibril"),default=False)
+    parser.add_argument('-ratio_mix','--ratio_mix', required=False,nargs='+',
+                        help=("ratio for mix-crosslink setup, e.g. 0.7 T; 0.3 D -> -mix T:70 D:30. Please use -files_mix flag to input pdb-files in the exact same order"),default=None)
+    parser.add_argument('-files_mix','--files_mix', required=False,nargs='+',
+                        help=("PDB-files with different crosslink-types, e.g. 0.7 T; 0.3 D -> fmix Rat-T.pdb Rat-D.pdb."+ 
+                              "If the ratio_mix is provided, please make sure that files_mix has the exact same order as -ratio_mix flag OR"+
+                               "If connect information is provided make sure to provide each triple helix crosslink type as input for -files_mix."),default=[])
+    
     parser.add_argument('-mutate','--setup_mutate', required=False,
                         help=("ratio of mutated crosslinks, e.g. -mutate 0.25 -> 0.25 mutated, values between 0 to 0.5"),default=None)
     
@@ -59,13 +63,15 @@ def colbuilder():
                         help=("specifiy register of chains, e.g., A,A,C "),default='A,B,C')
     parser.add_argument('-chain','--chain_id', required=False,
                         help=("specifiy the chain id: chain 1=A, chain 2=C, chain 3=B "),default='A,B,C')
+    parser.add_argument('-ensemble','--ensemble', required=False,
+                        help=("Ensemble of modeller runs "),default=3)
         
     args=parser.parse_args()
-    if args.connect_file=='': args.connect_file=str(args.crystalcontacts_file).replace('.txt','')+'_connect.txt'
+    if args.connect_file=='': args.connect_file=str(args.crystalcontacts_file).replace('.txt','_connect.txt')
 
     print('-- Colbuilder 2.0 --')
 
-    if args.file==None and args.files_mix!=[]: args.file=args.files_mix[0]
+    if args.mix_bool==True and args.files_mix==[]: args.files_mix=[args.file]
 
     # Build Triple Helix from sequence
     if args.sequence_generator==True:
@@ -74,7 +80,8 @@ def colbuilder():
                         collagen_type=args.collagen_type,
                         dict_chain={ i: args.chain_id[i] for i in range(len(args.chain_id.split(',')))},
                         register=[str(i) for i in args.register_topology.split(',')],
-                        crosslink=args.crosslink_topology)
+                        crosslink=args.crosslink_topology,
+                        ensemble=args.ensemble)
 
     # Build Geometry of Microfibril
     if args.fibril==False:
@@ -87,35 +94,38 @@ def colbuilder():
                         solution_space=args.solution_space,
                         fibril_length=float(args.fibril_length),
                         geometry=args.geometry_generator,
-                        pdb_out=args.output)
+                        pdb_out=str(args.output).replace('.pdb',''))
     
     if args.fibril==True:
         system_=build_fibril(path_wd=str(args.working_directory),
-                            pdb_file=args.file)
+                            pdb_file=args.file,
+                            connect_file=str(args.connect_file).replace('.txt',''))
 
     # Mix-System
-    if args.setup_mix!=None: 
+    if args.mix_bool==True: 
         system_=mix_geometry(path_wd=str(args.working_directory),
                             fibril_length=float(args.fibril_length),
                             pdb_files=[str(file).replace('.pdb','') for file in args.files_mix],
-                            setup_mix=args.setup_mix,
+                            ratio_mix=args.ratio_mix,
+                            connect_file_mix=args.connect_file.replace('.txt',''),
                             system=system_,
-                            pdb_out=args.output+'_mix')
-        
+                            mix_bool=args.mix_bool,
+                            pdb_out=str(args.output).replace('.pdb','_mix'))
+
     # Mutate-System
     if args.setup_mutate!=None:
         system_=mutate_geometry(path_wd=str(args.working_directory),
                                 setup_mutate=args.setup_mutate,
                                 system=system_,
                                 fibril_length=float(args.fibril_length),
-                                pdb_out=args.output+'_mut')
+                                pdb_out=str(args.output).replace('.pdb','_mut'))
 
     # Build Topology for System
     if args.topology_generator==True:
         system_=build_topology(system=system_,
                            force_field=args.force_field,
                            top_file=args.output+'.top',
-                           gro_file=args.output+'.gro',
+                           gro_file=str(args.output).replace('.pdb','.gro'),
                            go_epsilon=args.go_eps)
 
 if __name__ == '__main__':
