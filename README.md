@@ -73,9 +73,9 @@ colbuilder -f your_triple_helix.pdb -mix -files_mix Rat-D.pdb Rat-DT.pdb -connec
 
 ## Generate the microfibril with less crosslinks  
 
-Besides mixed divalent-trivalent crosslinked collagen microfibrils, there is the possibility of randomly deleting crosslinks and therefore decreasing the number of crosslinked collagen microfibrils. Here fore, we provided the  ```-mutate``` flag that allows the user to randomly delete max. 50% of the crosslinks within the microfibril. Please note, that we have to ensure at 50% crosslink connectivity to make sure no triple helix gets pulled out during simulations. For example, if you want to generate a trivalent crosslinked fibril with 70% crosslinked triple helices, use the following:
+Besides mixing divalent and trivalent crosslinked triple helices within a collagen microfibril, there is also the possibility to randomly replace certain crosslinks with Lysine residues. As a result of this operation, the number of crosslinks within the microfibril are reduced, and thus the crosslink density altered. For this, we provide the  ```-raio_replace``` flag that allows the user to randomly delete a certain amount of crosslinks (value range from 0% to 50%). This rande is selected to ensure that at least 50% of crosslinks are connected, such thatno triple helix is pulled out during simulations under force. For example, if you want to generate a trivalent crosslinked fibril with 70% crosslinked triple helices, use the following:
 ```
-colbuilder -f your_triple_helix.pdb -mutate 30 -contacts your_contacts.txt -length 330 -geometry -o collagen_fibril.pdb 
+colbuilder -f your_triple_helix.pdb -replace -ratio_replace 30 -contacts your_contacts.txt -length 330 -geometry -o collagen_fibril.pdb 
 ```
 
 ## Generate the topology for an existing microfibril
@@ -85,4 +85,8 @@ Here, we provide the triple helix as well as the crystal contacts to generate th
 ```
 colbuilder -f your_triple_helix.pdb -contacts your_contacts.txt -length 330 -topology -ff martini3 
 ```
-
+Finally, it is obvious that we can also combine the topology generation with the geometry generation. This allows us to generate both an atomistic structure together with the respective topology at once. 
+For example, for a 320nm-long mixed crosslinked microfibril with a contact distance 50, 25% divalent-trivalent (Rat-DT.pdb), 35 % trivalent (Rat-T.pdb) and 40% divalent (Rat-D.pdb) crosslinked triple helices and a coarse-grained Martini 3 topology, we would exectue the following command:
+```
+colbuilder -f your_triple_helix.pdb -length 320 -dc 50 -mix -files_mix Rat-DT.pdb Rat-T.pdb -Rat-D.pdb -ratio_mix DT:25 T:35 D:40 -geometry -topology -ff martini3
+```
