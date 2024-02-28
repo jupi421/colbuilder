@@ -90,3 +90,4 @@ For example, for a 320nm-long mixed crosslinked microfibril with a contact dista
 ```
 colbuilder -f your_triple_helix.pdb -length 320 -dc 50 -mix -files_mix Rat-DT.pdb Rat-T.pdb -Rat-D.pdb -ratio_mix DT:25 T:35 D:40 -geometry -topology -ff martini3
 ```
+Note that the Rat-*.pdb are the collagen triple helices files downloaded from colbuilder1 webportal. We recommend to use this naming convention, i.e., Organism-N-terCter.pdb to make sure colbuilder2.0 is properly functioning.
