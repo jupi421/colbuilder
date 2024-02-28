@@ -103,8 +103,11 @@ class Optimizer:
         z_grid=np.max(list(s_matrix.values()),axis=0)[2]
         for plane in range(z_grid-d_z,z_grid+1,1):
             for node in self.set_grid(z_grid=plane,s_matrix=s_matrix):
+
                 if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=node)==True:
+                    
                     pr_node=[i*(-1) for i in node] 
+
                     if self.check_node_connect(connect=connect,system=system,z_grid=plane,node=pr_node)==True:
 
                         system.add_model(model.Model(id=float(system.get_size(system=system)),unit_cell=node, 

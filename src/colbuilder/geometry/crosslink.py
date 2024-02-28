@@ -3,7 +3,7 @@ import numpy as np
 def read_crosslink(pdb_file=None):
     """
     
-    reads the crosslink from initial pdb
+    reads the crosslink from pdb
     
     """
     crosslink=[]
@@ -21,7 +21,7 @@ def read_crosslink(pdb_file=None):
 class Crosslink:
     """
     
-    class : crosslink is a container storing information about each model's crosslink
+    crosslink is a container class storing information about each model's crosslink
     
     """
     def __init__(self,model_id=None,resid=None,resname=None,chain=None,position=[],type=None):
@@ -31,7 +31,7 @@ class Crosslink:
         self.chain=chain
         self.position=np.array(position)
         self.type=type
-        self.state='no'
+        self.state='none'
 
     def set_transform(self,transform=[],model_id=None):
         """

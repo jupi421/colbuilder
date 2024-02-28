@@ -24,9 +24,12 @@ class Connect:
         """ 
         transformation=system.crystal.get_t_matrix(s_matrix=unit_cell)
         add_=model.Model(id='add',transformation=transformation,pdb_file=system.crystal.pdb_file)
+
         for ref_model in self.system.get_models():
+
             if self.get_connect(ref_model=system.get_model(model_id=ref_model),model=add_)==True: 
-                del add_ ; return True
+                del add_ 
+                return True
         del add_
 
     def get_contact_connect(self,system=None):
@@ -36,8 +39,11 @@ class Connect:
 
         """
         for ref_model,model in product(self.system.get_models(),repeat=2):
-            if ref_model!=model and self.get_connect(ref_model=system.get_model(model_id=ref_model),
-                                                    model=system.get_model(model_id=model))==True:
+            if ( 
+                ref_model!=model and 
+                self.get_connect(ref_model=system.get_model(model_id=ref_model),
+                            model=system.get_model(model_id=model))==True
+                ):
                 self.pairs[ref_model]=model
         return self.merge_contacts(pairs=self.pairs)   
 
@@ -48,9 +54,15 @@ class Connect:
 
         """
         self.connect={ key: [key] for key in pairs }
+
         for ref_key,key in product(pairs,repeat=2):
-            if key==ref_key or pairs[key]==None or pairs[ref_key]==None: continue
-            elif ref_key==pairs[key] or key==pairs[ref_key] or pairs[key]==pairs[ref_key]: self.connect[ref_key].append(key)
+
+            if key==ref_key or pairs[key]==None or pairs[ref_key]==None: 
+                continue
+
+            elif ref_key==pairs[key] or key==pairs[ref_key] or pairs[key]==pairs[ref_key]: 
+                self.connect[ref_key].append(key)
+
         return self.clean_contacts(contactpairs=self.connect)
 
     def get_external_connect_file(self,system=None,connect_file=None):
@@ -59,11 +71,17 @@ class Connect:
         read external connect file and update system accordingly
         
         """
-        if connect_file!=None: self.external_connect=[float(l.split(' ')[0].replace('.caps.pdb','')) for l in open(connect_file+'.txt','r').readlines() ]
+        if connect_file!=None: 
+            self.external_connect=[float(l.split(' ')[0].replace('.caps.pdb','')) for l in open(connect_file+'.txt','r').readlines() ]
+
         if np.min(self.external_connect)>0: self.external_connect=[i-1 for i in self.external_connect]
+
         for model_id in system.get_connect().keys():
+
             if model_id not in self.external_connect:
+
                 system.get_model(model_id=model_id).connect=None
+
         return system
 
     def clean_contacts(self,contactpairs=None):
@@ -73,8 +91,11 @@ class Connect:
     
         """
         remove_model=set([key for key in contactpairs for model in contactpairs[key] if key>model])
+
         for key in remove_model: contactpairs[key]=False
+
         self.connect={ k:v for k,v in contactpairs.items() if v!=None and v!=False }
+
         return self.connect
 
     def get_connect(self,ref_model=None,model=None,cut_off=2.0):
@@ -94,10 +115,14 @@ class Connect:
         """
         with open(connect_file+'.txt','w') as f:
             for model in system.get_models():
+
                 if system.get_model(model_id=model).connect!=None:
+
                     if len(system.get_model(model_id=model).connect)!=1:
+
                         for connect in system.get_model(model_id=model).connect:
                             f.write(str(int(connect))+'.caps.pdb ')
+
                         f.write(' ; '+str(system.get_model(model_id=model).type))
                         f.write('\n')
         f.close()

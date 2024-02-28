@@ -38,6 +38,7 @@ class Caps:
         
         """
         self.model={ k:[] for k in self.chains}
+        
         with open(str(pdb_id)+'.pdb','r') as f:
             for l in f:
                 if l[0:6] in self.is_line:
@@ -73,17 +74,22 @@ class Caps:
         
         """
         cmd.load(str(pdb_id)+'.pdb')
+
         for cap in self.caps:
             for chain in self.chains:
                 line_cap=self.get_line(cap=cap,chain_id=chain)
+
                 if cap=='N' and int(line_cap.split(' ')[1])!=1:
                     cmd.edit(line_cap)
                     editor.attach_amino_acid('pk1','ace',ss=0)
+
                 if cap=='C' and int(line_cap.split(' ')[1])!=int(self.chain_length[chain]): 
                     cmd.edit(line_cap)
                     editor.attach_amino_acid('pk1','nme',ss=0)
+
         cmd.save('tmp.pdb')
         cmd.delete(name=str(pdb_id))
+
         return self.write_caps(pdb='tmp.pdb',pdb_id=pdb_id,crosslink_type=crosslink_type)
 
     def write_caps(self,pdb:str,pdb_id:int,crosslink_type:str):
@@ -93,10 +99,12 @@ class Caps:
         
         """
         pdb_file=[l.strip() for l in open(str(pdb),'r') if l[0:6] in self.is_line and l[0:3]!='TER']
+
         with open(str(crosslink_type)+'/'+str(pdb_id)+'.caps.pdb','w') as f:
             for idx in pdb_file:
                 f.write(idx+'\n')
                 if idx[17:20]=='NME' and idx[12:16]=='3HH3': f.write('TER \n')
                 if idx[17:20]=='ALA' and idx[13:16]=='OXT': f.write('TER \n')
         f.close()
+
         subprocess.run('rm '+str(pdb_id)+'.pdb',shell=True)

@@ -1,10 +1,8 @@
 import subprocess
-import numpy as np
 from colbuilder.geometry import (
     crystal, crystalcontacts, chimera, model, system, connect, caps, 
-    optimize, mix, fibril, delete
+    optimize, mix, fibril, replace
 )
-
 
 def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalcontacts_file=str,connect_file=str,
                    crystalcontacts_optimize=bool,solution_space=[],fibril_length=float,geometry=str,pdb_out=str) -> system.System:
@@ -71,23 +69,22 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
 
     return system_
 
-def delete_geometry(path_wd=str,ratio_delete=None,system=system.System,
+def replace_geometry(path_wd=str,ratio_replace=None,system=system.System,
                     fibril_length=float,pdb_out=str) -> system.System:
     """
     
-    built system is adjusted according to user-input parameters.
-    deletion is random, however constrained to ensure at least one connection is ensured
+    replace crosslinks within microfibril to reduce the overall number of crosslinks
 
     """
-    print('-- Delete '+str(ratio_delete)+' crosslinks from microfibril --')
-    delete_=delete.Delete(ratio_delete=ratio_delete,system=system,fibril_length=fibril_length)
-    system_=delete_.run_delete(system=system)
+    print('-- Replace '+str(ratio_replace)+'%'+' of crosslinks from microfibril --')
+    replace_=replace.Replace(ratio_replace=ratio_replace,system=system,fibril_length=fibril_length)
+    system_=replace_.run_replace(system=system,ratio_replace=ratio_replace)
 
-    delete_.write_delete(system=system_,mutation_file='delete')  
+    replace_.write_replace(system=system_,file='replace')  
 
     print('-- Please wait, this may take some time ... --')
     chimera_=chimera.Chimera(path_wd+'/'+system_.crystal.pdb_file)
-    chimera_.swapaa(delete='delete',system_type=system_.get_model(model_id=0.0).type)
+    chimera_.swapaa(replace='replace',system_type=system_.get_model(model_id=0.0).type)
 
     system_.write_pdb(pdb_out=pdb_out,fibril_length=fibril_length)
 
@@ -97,7 +94,12 @@ def mix_geometry(path_wd=str,fibril_length=float,connect_file=None,
                  pdb_files=[],ratio_mix=None,system=system.System,pdb_out=str) -> system.System:
     """
     
-    mix system according to user-input parameters.
+    mix differnetly crosslinked models/ triple helices within the system
+    according to user-input parameters:
+    1) Provide a connect-file with certain crosslink specifications
+    (e.g., 1.caps 3.caps ; T) together with the triple helices files (e.g., Rat-T.pdb Rat-D.pdb)
+    2) Provide ratio of mixtures between crosslinked triple helices (e.g., T:70 D:30) and 
+    the respective files (see 1))
     
     """
     print('-- Prepare mix setup --')   
@@ -159,7 +161,7 @@ def build_system(crystal: crystal.Crystal,
                  crystalcontacts: crystalcontacts.CrystalContacts) -> system.System:
     """
     
-    build a system of models
+    build a system of models, i.e., a microfibril of triple helices
     
     """
     system_=system.System(crystal=crystal,crystalcontacts=crystalcontacts)
@@ -175,7 +177,7 @@ def build_system(crystal: crystal.Crystal,
 def connect_system(system: system.System,connect_file=str) -> tuple[system.System, connect.Connect]:
     """
     
-    identify connections within a build system 
+    identify crosslink connections between models within the system 
     
     """
     connect_=connect.Connect(system=system,connect_file=connect_file)
@@ -199,7 +201,8 @@ def cap_system(system: system.System, crosslink_type: str) -> caps.Caps:
 def matrixset_system(system: system.System,crystalcontacts_file=str) -> system.System:
     """
     
-    set system after the matrixset command in chimera
+    set system after cutting the fibril to its desired length.
+    NOTE: Some models are deleted, since they are outside of the fibril length
     
     """
     contacts=[float(i.split(' ')[1]) for i in open(crystalcontacts_file.replace('_opt','')+'_id.txt','r').readlines()]
@@ -220,8 +223,8 @@ def build_from_contactdistance(path_wd=str,pdb_file=None,contact_distance=float,
     """
     path_pdb_file=path_wd+'/'+pdb_file
 
-    crystalcontacts_file='crystalcontacts_from_colbuilder'
-    connect_file='connect_from_colbuilder'
+    crystalcontacts_file='crystalcontacts_from_colbuilder' # default name for crystalcontacts file
+    connect_file='connect_from_colbuilder' # default name for connect file
 
     print('-- Get CrystalContacts for contact distance '+str(contact_distance)+' A --')
     print('-- Please wait, this may take some time ... --')
@@ -254,10 +257,10 @@ def build_from_crystalcontacts(crystalcontacts_file=str,crystal=crystal.Crystal,
     """
     crystalcontacts_file=crystalcontacts_file.replace('.txt','')
     if connect_file==None: 
-        bool_connect=False 
-        connect_file='connect_from_colbuilder'
+        bool_external_connect=False 
+        connect_file='connect_from_colbuilder' # default name for connect file
     else:
-        bool_connect=True
+        bool_external_connect=True
         connect_file=connect_file.replace('.txt','')
 
     crystalcontacts_=crystalcontacts.CrystalContacts(crystalcontacts_file)
@@ -275,7 +278,7 @@ def build_from_crystalcontacts(crystalcontacts_file=str,crystal=crystal.Crystal,
 
         crystalcontacts_.crystalcontacts_file=crystalcontacts_.crystalcontacts_file+'_opt'
 
-    if bool_connect:
+    if bool_external_connect:
         system_=connect_.get_external_connect_file(system=system_,connect_file=connect_file)
 
     return system_,crystalcontacts_,connect_
@@ -314,7 +317,7 @@ def build_from_pdb(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     """
     path_pdb_file=path_wd+'/'+pdb_file
 
-    crystalcontacts_file='crystalcontacts_from_colbuilder'
+    crystalcontacts_file='crystalcontacts_from_colbuilder' # default name for crystalcontacts file
 
     print('-- Prepare topology for single PDB-file --')
     chimera.matrixget(pdb=path_pdb_file,contact_distance=contact_distance,

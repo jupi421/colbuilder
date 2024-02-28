@@ -69,7 +69,7 @@ class Model:
     def count_state(self,state=None):
         """
         
-        count crosslinks with certain state (no, mut, prot) in model
+        count crosslinks with certain state (no, replace, protect) in model
         
         """
         return len([cross for cross in self.crosslink if cross.state==state])     

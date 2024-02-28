@@ -74,8 +74,10 @@ class Fibril:
                        stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)
         
         with open(connect_file+'.txt','w') as f:
+
             for model in system.get_models():
                 if system.get_model(model_id=model).connect==None: continue
+                
                 elif len(system.get_model(model_id=model).connect)==1:
                     if not os.path.exists(os.getcwd()+'/N'): subprocess.run("mkdir N",shell=True)
                     system.get_model(model_id=model).type='N'

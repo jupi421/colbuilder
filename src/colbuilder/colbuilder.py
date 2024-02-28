@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, delete_geometry, build_fibril
+from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, replace_geometry, build_fibril
 from colbuilder.topology.main_topology import build_topology
 from colbuilder.sequence.main_sequence import build_sequence
     
@@ -42,8 +42,11 @@ def colbuilder():
                               "If the ratio_mix is provided, make sure that -files_mix has the same order as -ratio_mix OR\n"+
                               "If connect information is provided, provide each type of crosslinked triple helix as input for -files_mix."),default=[])
     
-    parser.add_argument('-ratio_delete','--ratio_delete', required=False,
-                        help=("Ratio for delete-crosslink setup: -ratio_delete 25 -> 25/100 crosslinks are deleted (0 to 50)"),default=None)
+    parser.add_argument('-replace','--replace_bool', required=False,action='store_true',
+                         help=("Set -replace flag to generate a microfibril with less crosslinks"),default=False)
+    parser.add_argument('-ratio_replace','--ratio_replace', required=False,
+                        help=("Ratio of crosslinks to be replaced with Lysines: -ratio_replace 25 means that 25"+
+                              "%"+" crosslinks are replaced with Lysines (range: 0 to 50"+"%"+")"),default=None)
     
     parser.add_argument('-topology','--topology_generator', action='store_true', 
                         help='generate topology files ',default=False)
@@ -74,7 +77,7 @@ def colbuilder():
 
     if args.mix_bool==True and args.files_mix==[]: args.files_mix=[args.file]
 
-    # Build Triple Helix from sequence
+    # Build a triple helix from amino acid sequence
     if args.sequence_generator==True:
         system_=build_sequence(path_wd=str(args.working_directory),
                         pdb_file=str(args.file).replace('.pdb',''),
@@ -84,7 +87,7 @@ def colbuilder():
                         crosslink=args.crosslink_topology,
                         ensemble=args.ensemble)
 
-    # Build Geometry of Microfibril
+    # Build a system of models, i.e., the geometry, for a long microfibril
     if args.fibril==False:
         system_=build_geometry(path_wd=str(args.working_directory),
                         pdb_file=str(args.file).replace('.pdb',''),
@@ -97,13 +100,14 @@ def colbuilder():
                         geometry=args.geometry_generator,
                         pdb_out=str(args.output).replace('.pdb',''))
     
+    # Build a system of models for the 67-nm long collagen D-Band from colbuilder1
     if args.fibril==True:
         system_=build_fibril(path_wd=str(args.working_directory),
                             pdb_file=args.file,
                             connect_file=args.connect_file)
 
-    # Mix-System
-    if args.mix_bool==True: 
+    # Mix divalent and trivalent crosslinks within system to alter crosslink density
+    if args.mix_bool==True and args.replace_bool==False: 
         system_=mix_geometry(path_wd=str(args.working_directory),
                             fibril_length=float(args.fibril_length),
                             pdb_files=[str(file).replace('.pdb','') for file in args.files_mix],
@@ -112,13 +116,16 @@ def colbuilder():
                             system=system_,
                             pdb_out=str(args.output).replace('.pdb',''))
 
-    # Delete-System
-    if args.ratio_delete!=None:
-        system_=delete_geometry(path_wd=str(args.working_directory),
-                                ratio_delete=args.ratio_delete,
+    # Replace crosslinks within system to reduce crosslink density
+    elif args.replace_bool==True and args.mix_bool==False:
+        system_=replace_geometry(path_wd=str(args.working_directory),
+                                ratio_replace=args.ratio_replace,
                                 system=system_,
                                 fibril_length=float(args.fibril_length),
                                 pdb_out=str(args.output).replace('.pdb',''))
+    
+    elif args.replace_bool==True and args.mix_bool==True:
+        print('Error: -mix and -replace can not be used together, either mix crosslinks or replace them')
 
     # Build Topology for System
     if args.topology_generator==True:
