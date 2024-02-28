@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, mutate_geometry, build_fibril
+from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, replace_geometry, build_fibril
 from colbuilder.topology.main_topology import build_topology
 from colbuilder.sequence.main_sequence import build_sequence
     
@@ -20,9 +20,9 @@ def colbuilder():
     parser.add_argument('-length','--fibril_length', required=False, 
                         help='lengh of microfibril ',default=334)
     parser.add_argument('-contacts','--crystalcontacts_file', required=False, 
-                        help='read crystalcontacts from file ',default='crystalcontacts_from_colbuilder')
+                        help='read crystalcontacts from file ',default=None)
     parser.add_argument('-connect','--connect_file', required=False, 
-                        help='read connect between contacts from file',default='connect_from_colbuilder')
+                        help='read connect between contacts from file',default=None)
     parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
                         help='optimize crystalcontacts ',default=False)
     parser.add_argument('-geometry','--geometry_generator', action='store_true', 
@@ -32,17 +32,21 @@ def colbuilder():
     parser.add_argument('-fibril', '--fibril', required=False, action='store_true', 
                         help='Bool argument to generate topology for colbuilder 1.0 67nm-long fibril ',default=False)
     
+    parser.add_argument('-mix','--mix_bool', required=False,action='store_true',
+                         help=("Set -mix flag to generate a mixed crosslinked microfibril"),default=False)
     parser.add_argument('-ratio_mix','--ratio_mix', required=False,nargs='+',
-                        help=("ratio for mix-crosslink setup, e.g. 0.7 T; 0.3 D -> -mix T:70 D:30. Please use -files_mix flag to input pdb-files in the exact same order"),default=None)
+                        help=("Ratio for mix-crosslink setup: -ratio_mix T:70 D:30\n"+
+                               "Provide files at -files_mix flag in same order as for ratio_mix"),default=None)
     parser.add_argument('-files_mix','--files_mix', required=False,nargs='+',
-                        help=("PDB-files with different crosslink-types, e.g. 0.7 T; 0.3 D -> fmix Rat-T.pdb Rat-D.pdb."+ 
-                              "If the ratio_mix is provided, please make sure that files_mix has the exact same order as -ratio_mix flag OR"+
-                               "If connect_mix information is provided make sure to provide each triple helix crosslink type as input for -files_mix."),default=None)
-    parser.add_argument('-connect_mix','--connect_mix', required=False,
-                         help=("Provide connect file with mixture of triple helices within microfibril"),default=None)
+                        help=("PDB-files with different crosslink-types: -files_mix Rat-T.pdb Rat-D.pdb\n"+ 
+                              "If the ratio_mix is provided, make sure that -files_mix has the same order as -ratio_mix OR\n"+
+                              "If connect information is provided, provide each type of crosslinked triple helix as input for -files_mix."),default=[])
     
-    parser.add_argument('-mutate','--setup_mutate', required=False,
-                        help=("ratio of mutated crosslinks, e.g. -mutate 0.25 -> 0.25 mutated, values between 0 to 0.5"),default=None)
+    parser.add_argument('-replace','--replace_bool', required=False,action='store_true',
+                         help=("Set -replace flag to generate a microfibril with less crosslinks"),default=False)
+    parser.add_argument('-ratio_replace','--ratio_replace', required=False,
+                        help=("Ratio of crosslinks to be replaced with Lysines: -ratio_replace 25 means that 25"+
+                              " crosslinks are replaced with Lysines (range: 0 to 50"+")"),default=None)
     
     parser.add_argument('-topology','--topology_generator', action='store_true', 
                         help='generate topology files ',default=False)
@@ -71,9 +75,9 @@ def colbuilder():
 
     print('-- Colbuilder 2.0 --')
 
-    if args.file==None and args.files_mix!=[]: args.file=args.files_mix[0]
+    if args.mix_bool==True and args.files_mix==[]: args.files_mix=[args.file]
 
-    # Build Triple Helix from sequence
+    # Build a triple helix from amino acid sequence
     if args.sequence_generator==True:
         system_=build_sequence(path_wd=str(args.working_directory),
                         pdb_file=str(args.file).replace('.pdb',''),
@@ -83,41 +87,45 @@ def colbuilder():
                         crosslink=args.crosslink_topology,
                         ensemble=args.ensemble)
 
-    # Build Geometry of Microfibril
+    # Build a system of models, i.e., the geometry, for a long microfibril
     if args.fibril==False:
         system_=build_geometry(path_wd=str(args.working_directory),
                         pdb_file=str(args.file).replace('.pdb',''),
                         contact_distance=args.contact_distance,
-                        crystalcontacts_file=str(args.crystalcontacts_file).replace('.txt',''),
+                        crystalcontacts_file=args.crystalcontacts_file,
                         crystalcontacts_optimize=args.crystalcontacts_optimize,
-                        connect_file=str(args.connect_file).replace('.txt',''),
+                        connect_file=args.connect_file,
                         solution_space=args.solution_space,
                         fibril_length=float(args.fibril_length),
                         geometry=args.geometry_generator,
                         pdb_out=str(args.output).replace('.pdb',''))
     
+    # Build a system of models for the 67-nm long collagen D-Band from colbuilder1
     if args.fibril==True:
         system_=build_fibril(path_wd=str(args.working_directory),
                             pdb_file=args.file,
-                            connect_file=str(args.connect_file).replace('.txt',''))
+                            connect_file=args.connect_file)
 
-    # Mix-System
-    if args.files_mix!=None: 
+    # Mix divalent and trivalent crosslinks within system to alter crosslink density
+    if args.mix_bool==True and args.replace_bool==False: 
         system_=mix_geometry(path_wd=str(args.working_directory),
                             fibril_length=float(args.fibril_length),
                             pdb_files=[str(file).replace('.pdb','') for file in args.files_mix],
                             ratio_mix=args.ratio_mix,
-                            connect_file_mix=args.connect_mix.replace('.txt',''),
+                            connect_file=args.connect_file,
                             system=system_,
-                            pdb_out=str(args.output).replace('.pdb','_mix'))
-        
-    # Mutate-System
-    if args.setup_mutate!=None:
-        system_=mutate_geometry(path_wd=str(args.working_directory),
-                                setup_mutate=args.setup_mutate,
+                            pdb_out=str(args.output).replace('.pdb',''))
+
+    # Replace crosslinks within system to reduce crosslink density
+    elif args.replace_bool==True and args.mix_bool==False:
+        system_=replace_geometry(path_wd=str(args.working_directory),
+                                ratio_replace=args.ratio_replace,
                                 system=system_,
                                 fibril_length=float(args.fibril_length),
-                                pdb_out=str(args.output).replace('.pdb','_mut'))
+                                pdb_out=str(args.output).replace('.pdb',''))
+    
+    elif args.replace_bool==True and args.mix_bool==True:
+        print('Error: -mix and -replace can not be used together, either mix crosslinks or replace them')
 
     # Build Topology for System
     if args.topology_generator==True:

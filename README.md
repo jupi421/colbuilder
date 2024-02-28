@@ -3,7 +3,7 @@ Colbuilder 2.0 generates a collagen microfibril from a single collagen molecule.
 
 ## Installation Guide
 
-For the installation of colbuilder 2.0, which can be performed directly through github, additional non-python packages, in particular UCSF Chimera and PyMol have to be installed on the OS. For colbuilder 2.0, we recommend to install the git-repository in an own conda environment according to
+For the installation of colbuilder 2.0, which can be performed directly through github, additional non-python packages, in particular UCSF Chimera, PyMol, Modeller and Muscle, have to be installed on the OS. For colbuilder 2.0, we recommend to install the git-repository in an own conda environment according to
 ```
 conda create -n colbuilder python=3.9
 ```
@@ -32,6 +32,17 @@ chmod +x chimera*.bin
 ./chimera*.bin
 ```
 The installer will ask you where to create the symlink for UCSF Chimera. Here, we recommend to chose a symlink that is already present in your $PATH. If you choose a different location, please do not forget to add the location of UCSF Chimera to your $PATH, such that colbuilder 2.0 finds the correct version.
+
+For the installtion of Modeller, download version 10.5 from https://salilab.org/modeller/download_installation.html for your OS. Note that, we recommend to download the Generic Unix Tarball version for Ubuntu users. After downloading the .tar.gz file and take a look at the INSTALLATION instructions. During the installation you will be asked where to install modeller (e.g. /home/user/...). Please make sure that you add the location of modeller to your bashrc to make sure that colbuilder2 can call modeller from the command line:
+```
+export PYTHONPATH="/home/user/bin/modeller10.4/lib/x86_64-intel8/python3.3:$PYTHONPATH"
+export PYTHONPATH="/home/user/bin/modeller10.4/modlib:$PYTHONPATH"
+export LD_LIBRARY_PATH="/home/user/bin/modeller10.4/lib/x86_64-intel8:$LD_LIBRARY_PATH"
+```
+Muscle can be directly installed through conda. Here, we recommend to activate your colbuilder2 environment and prompt conda install to install muscle.
+```
+conda install muscle
+```
 
 
 # Tutorial: The Collagen Microfibril 
