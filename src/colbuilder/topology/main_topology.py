@@ -22,7 +22,8 @@ def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> m
             itp_=itp.Itp(system=system,model_id=model_id)
 
             for connect_id in system.get_model(model_id=model_id).connect:
-
+                
+                print(connect_id)
                 pdb=martini_.read_pdb(pdb_id=connect_id)
                 cap_pdb,cter,nter=martini_.cap_pdb(pdb=pdb)
                 order,map=martini_.set_pdb(pdb=cap_pdb)

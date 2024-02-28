@@ -46,7 +46,7 @@ def colbuilder():
                          help=("Set -replace flag to generate a microfibril with less crosslinks"),default=False)
     parser.add_argument('-ratio_replace','--ratio_replace', required=False,
                         help=("Ratio of crosslinks to be replaced with Lysines: -ratio_replace 25 means that 25"+
-                              "%"+" crosslinks are replaced with Lysines (range: 0 to 50"+"%"+")"),default=None)
+                              " crosslinks are replaced with Lysines (range: 0 to 50)"),default=None)
     
     parser.add_argument('-topology','--topology_generator', action='store_true', 
                         help='generate topology files ',default=False)
