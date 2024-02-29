@@ -17,7 +17,12 @@ Enter the cloned directory and use pip to install colbuilder 2.0 and its require
 cd colbuilder/
 pip install .
 ```
+Note, sometimes it might happend that you encounter some error due to a missing library called libnetcdf.so. If so, just install the respective lib through conda install as given below. This should in principle fix the issue.
+```
+conda install -c conda-forge libnetcdf==4.7.3
+```
 If everything went well, colbuilder 2.0 should be installed properly in your conda environment. In order to run colbuilder 2.0, additional non-python software has to be installed on the OS. In detail, PyMol should be installed by using the Schrodinger anaconda channel from https://pymol.org/conda/. Make sure you have your conda environment colbuilder still activated.
+
 ```
 conda install -c conda-forge -c schrodinger pymol-bundle
 ```
