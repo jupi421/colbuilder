@@ -3,7 +3,7 @@ from pathlib import Path
 
 from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, replace_geometry, build_fibril
 from colbuilder.topology.main_topology import build_topology
-from colbuilder.sequence.main_sequence import build_sequence
+#from colbuilder.sequence.main_sequence import build_sequence
     
 def colbuilder():
     
@@ -76,6 +76,7 @@ def colbuilder():
     print('-- Colbuilder 2.0 --')
 
     if args.mix_bool==True and args.files_mix==[]: args.files_mix=[args.file]
+    if args.mix_bool==False and args.files_mix!=[]: print("Error: Please set -mix flag to obtain a mixed structure or topology."); exit()
 
     # Build a triple helix from amino acid sequence
     if args.sequence_generator==True:
