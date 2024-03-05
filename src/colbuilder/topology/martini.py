@@ -30,7 +30,6 @@ class Martini:
         read pdb for Martinize2
         
         """
-        print(self.system.get_model(model_id=pdb_id).type)
         return open(self.system.get_model(model_id=pdb_id).type+'/'+str(int(pdb_id))+'.caps.pdb','r').readlines()
 
     def set_pdb(self,pdb=None):
