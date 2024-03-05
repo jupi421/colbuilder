@@ -7,7 +7,7 @@ class Martini:
     def __init__(self,system=None,force_field=None):
         self.system=system
         self.ff=force_field
-        self.is_line=('ATOM  ', 'HETATM', 'ANISOU' )
+        self.is_line=('ATOM  ', 'HETATM', 'ANISOU')
         self.is_chain=('A','B','C')
 
     def merge_pdbs(self,model_id=None,cnt_model=None):
@@ -30,6 +30,7 @@ class Martini:
         read pdb for Martinize2
         
         """
+        print(self.system.get_model(model_id=pdb_id).type)
         return open(self.system.get_model(model_id=pdb_id).type+'/'+str(int(pdb_id))+'.caps.pdb','r').readlines()
 
     def set_pdb(self,pdb=None):

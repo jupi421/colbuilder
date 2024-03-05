@@ -40,7 +40,8 @@ class Mix:
         for model_id in self.system.get_models():
             if self.system.get_model(model_id=model_id).connect!=None:
                 if len(self.system.get_model(model_id=model_id).connect)>1:
-                    self.system.get_model(model_id=model_id).type=self.connect_mix[model_id]
+                    for connect_id in self.system.get_model(model_id=model_id).connect:
+                        self.system.get_model(model_id=connect_id).type=self.connect_mix[model_id]
         return self.system
     
     def get_connect_mix(self,connect_file=None):

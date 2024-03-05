@@ -144,6 +144,7 @@ def mix_geometry(path_wd=str,fibril_length=float,connect_file=None,
         print('-- NOTE: Make sure each crosslink-type in '+str(connect_file)+' (D,T,DT,TD) is provided --')
         mix_=mix.Mix(system=system,connect_mix=connect_file)
         system_=mix_.get_mix_from_connect_file(connect_file=connect_file)
+        
 
     else:
         print('Error: Either provide a connect-file with the crosslink-type (e.g. 1.caps.pdb 2.caps.pdb ; D) OR \n'+
