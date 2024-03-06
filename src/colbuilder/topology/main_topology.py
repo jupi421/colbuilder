@@ -35,8 +35,8 @@ def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> m
                 '-collagen -from amber99 -o topol.top -bonds-fudge 1.4 -p backbone '+
                 '-ff '+str(force_field)+'00C -x '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
                 '-nter '+str(nter)+' -cter '+str(cter)+' -govs-include -govs-moltype '+
-                'col_'+str(int(model_id))+'.'+str(int(connect_id)),shell=True)#,
-                #stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                'col_'+str(int(model_id))+'.'+str(int(connect_id)),shell=True,
+                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 
                 subprocess.run(
                 './contact_map ../map.pdb > ../map.out',cwd=os.getcwd()+'/contactmap/',shell=True,

@@ -89,6 +89,21 @@ class System:
         del self.system[model_id]
         return self.system
     
+    def translate_system(self,crystal=None,translate_vector=[]):
+        """
+    
+        translate the whole system to a certain position (0,0,400)
+    
+        """
+        translate_vector=[0,0,400]
+        x,y,z=translate_vector
+
+        for model_id in self.get_models():    
+            if self.get_model(model_id=model_id).connect!=None:
+                if len(self.get_model(model_id=model_id).connect)>1:
+                    for connect_id in self.get_model(model_id=model_id).connect:
+                        crystal.translate_crystal(pdb=self.get_model(model_id=connect_id).type+"/"+str(int(connect_id))+".caps")
+    
     def count_states(self,state=str):
         """
         

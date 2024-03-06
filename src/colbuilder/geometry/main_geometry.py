@@ -42,6 +42,8 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     
     if geometry==False: 
         print('-- Set -geometry flag to generate microfibrillar structure pdb file --')
+        print('-- Translate microfibril to  [0,0,400] to circumvent negative coords --')
+        system_.translate_system(crystal=crystal_,translate_vector=[0,0,400])
         return system_
 
     print('-- Write '+str(crystalcontacts_.crystalcontacts_file)+' --')       

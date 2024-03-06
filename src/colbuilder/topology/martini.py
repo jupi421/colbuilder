@@ -114,7 +114,6 @@ class Martini:
                 chain_length['B']=pdb[line_it][22:26]
             if pdb[line_it][21:22]=='C' and line_it==int(len(pdb)-1):
                 chain_length['C']=pdb[line_it][22:26]
-        print(chain_length)
         return chain_length
 
     def write_pdb(self,pdb=None,file=None):
