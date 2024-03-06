@@ -30,8 +30,13 @@ class Martini:
         read pdb for Martinize2
         
         """
-        return open(self.system.get_model(model_id=pdb_id).type+'/'+str(int(pdb_id))+'.caps.pdb','r').readlines()
-
+        pdb=[]
+        with open(self.system.get_model(model_id=pdb_id).type+'/'+str(int(pdb_id))+'.caps.pdb','r') as file:
+            for line in file:
+                if line[0:6] in self.is_line:
+                    pdb.append(line)
+        return pdb
+    
     def set_pdb(self,pdb=None):
         """
         
@@ -42,10 +47,8 @@ class Martini:
         cnt,cnt_map=0,0
         order,map=[],[]
         chain_store='A'
-        for line in pdb[1:]:
-            if line[0:3]=='TER' or line[0:3]=='END': 
-                continue
-            
+        for line in pdb:
+
             if line[21:22]!=chain_store:
                 order.append('TER\n')
                 if chain_store=='A': chain_store='B'
@@ -105,12 +108,13 @@ class Martini:
         """
         chain_length={ key:'' for key in ['A','B','C']}
         for line_it in range(len(pdb)):
-            if pdb[line_it][21:22]=='A' and pdb[line_it+2][21:22]=='B':
+            if pdb[line_it][21:22]=='A' and pdb[line_it+1][21:22]=='B':
                 chain_length['A']=pdb[line_it][22:26]
-            if pdb[line_it][21:22]=='B' and pdb[line_it+2][21:22]=='C':
+            if pdb[line_it][21:22]=='B' and pdb[line_it+1][21:22]=='C':
                 chain_length['B']=pdb[line_it][22:26]
-            if pdb[line_it][21:22]=='C' and line_it==int(len(pdb)-3):
+            if pdb[line_it][21:22]=='C' and line_it==int(len(pdb)-1):
                 chain_length['C']=pdb[line_it][22:26]
+        print(chain_length)
         return chain_length
 
     def write_pdb(self,pdb=None,file=None):
