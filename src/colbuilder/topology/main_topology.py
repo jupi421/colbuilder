@@ -1,6 +1,6 @@
 import subprocess
 import os
-from colbuilder.geometry import system
+from colbuilder.geometry import system, crystal
 from colbuilder.topology import amber, martini, itp
 
 def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> martini.Martini:
@@ -14,6 +14,9 @@ def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> m
     connect_size=system.get_connect_size()
     martini_=martini.Martini(system=system,force_field=force_field)
     env_=os.environ['CONDA_DEFAULT_ENV']
+
+    print('-- Translate system to non-negative coordinates --')
+    system.translate_system(crystal=system.crystal)
 
     for model_id in system.get_models():
         

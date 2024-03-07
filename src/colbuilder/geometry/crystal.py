@@ -93,9 +93,9 @@ class Crystal:
         
         """
         atoms=open(pdb+'.pdb').readlines()
-        z_com=np.mean([(round(float(line[46:54]),3)) for line in atoms if line[0:6] in self.is_line])
+        z_com=np.nanmean([(round(float(line[46:54]),3)) for line in atoms if line[0:6] in self.is_line])
 
         delta_z=4000-z_com
-        atoms=[line[:46]+'{:.3f}'.format(round(float(line[46:54])+delta_z,3))+line[54:] if line[0:6] in self.is_line  else line for line in atoms]
+        atoms=[line[:46]+'{:.3f}'.format(round(float(line[46:54])+delta_z,3))+line[54:] if line[0:6] in self.is_line else line for line in atoms]
         with open(pdb+'.pdb','w') as f:
             for atom in atoms: f.write(atom)

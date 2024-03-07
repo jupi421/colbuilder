@@ -42,8 +42,6 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     
     if geometry==False: 
         print('-- Set -geometry flag to generate microfibrillar structure pdb file --')
-        print('-- Translate microfibril to  [0,0,400] to circumvent negative coords --')
-        system_.translate_system(crystal=crystal_,translate_vector=[0,0,400])
         return system_
 
     print('-- Write '+str(crystalcontacts_.crystalcontacts_file)+' --')       
@@ -155,7 +153,7 @@ def mix_geometry(path_wd=str,fibril_length=float,connect_file=None,
               'NOTE: Make sure that each crosslink type (D,T,DT,TD) from connect-file is provided!')
         
     connect.Connect(system=system_).write_connect(system=system_,connect_file=connect_file)
-    
+
     system_.write_pdb(pdb_out=pdb_out,fibril_length=fibril_length)
 
     return system_
