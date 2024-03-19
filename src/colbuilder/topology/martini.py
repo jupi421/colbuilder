@@ -48,6 +48,8 @@ class Martini:
         order,map=[],[]
         chain_store='A'
         for line in pdb:
+            if line[0:3]=='TER': 
+                continue
 
             if line[21:22]!=chain_store:
                 order.append('TER\n')

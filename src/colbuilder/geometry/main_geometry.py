@@ -15,7 +15,7 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
 
     print('-- Read crystallographic symmetry from '+str(pdb_file)+'.pdb --')
     crystal_=crystal.Crystal(pdb_file)
-    crystal_.translate_crystal(pdb=pdb_file)
+    crystal_.translate_crystal(pdb=pdb_file,translate=[0,0,4000])
 
     path_pdb_file=path_wd+'/'+pdb_file
     chimera_=chimera.Chimera(path_pdb_file)
@@ -114,7 +114,7 @@ def mix_geometry(path_wd=str,fibril_length=float,connect_file=None,
 
         for key in list(mix_pdb.keys())[1:]:
             
-            crystal.Crystal(pdb=mix_pdb[key]).translate_crystal(pdb=mix_pdb[key])
+            crystal.Crystal(pdb=mix_pdb[key]).translate_crystal(pdb=mix_pdb[key],translate=[0,0,4000])
             chimera_=chimera.Chimera(path_wd+'/'+mix_pdb[key])
 
             print('-- Generate '+str(key)+' system from '+str(mix_pdb[key])+' --')
@@ -137,7 +137,7 @@ def mix_geometry(path_wd=str,fibril_length=float,connect_file=None,
     elif ratio_mix==None and connect_file!=None:
 
         for pdb in pdb_files[1:]:
-            crystal.Crystal(pdb=pdb).translate_crystal(pdb=pdb)
+            crystal.Crystal(pdb=pdb).translate_crystal(pdb=pdb,translate=[0,0,4000])
         connect_file=connect_file.replace('.txt','')
 
         print('-- Mix system --')

@@ -86,16 +86,23 @@ class Crystal:
             logging.Error('Error: No unit-cell shift-matrix given, hence no transform matrix is calculated.')
         return list(np.dot(cs_matrix,s_matrix).round(decimals=3).astype(float))
     
-    def translate_crystal(self,pdb=None):
+    def translate_crystal(self,pdb=None,translate=None,bool_system=False):
         """
         
         translate cog of unit cell to position [0,0,400]
         
         """
-        atoms=open(pdb+'.pdb').readlines()
-        z_com=np.nanmean([(round(float(line[46:54]),3)) for line in atoms if line[0:6] in self.is_line])
+        if bool_system==False:
+            translate=[0,0,translate[2]-self.get_cog(pdb=pdb)]
 
-        delta_z=4000-z_com
-        atoms=[line[:46]+'{:.3f}'.format(round(float(line[46:54])+delta_z,3))+line[54:] if line[0:6] in self.is_line else line for line in atoms]
-        with open(pdb+'.pdb','w') as f:
+        atoms=[line[:46]+'{:.3f}'.format(round(float(line[46:54])+translate[2],3))+line[54:] if line[0:6] in self.is_line else line for line in open(pdb+'.pdb').readlines()]
+        with open(pdb+'.pdb','w') as f: 
             for atom in atoms: f.write(atom)
+    
+    def get_cog(self,pdb=None):
+        """
+        
+        get cog of pdb file
+        
+        """
+        return np.nanmean([(round(float(line[46:54]),3)) for line in open(pdb+'.pdb').readlines() if line[0:6] in self.is_line])

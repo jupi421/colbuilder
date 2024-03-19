@@ -16,7 +16,7 @@ def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> m
     env_=os.environ['CONDA_DEFAULT_ENV']
 
     print('-- Translate system to non-negative coordinates --')
-    system.translate_system(crystal=system.crystal)
+    system.translate_system(crystal=system.crystal,center=[0,0,4000])
 
     for model_id in system.get_models():
         

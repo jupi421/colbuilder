@@ -1,3 +1,5 @@
+import numpy as np
+
 class System:
     """
 
@@ -89,15 +91,24 @@ class System:
         del self.system[model_id]
         return self.system
     
-    def translate_system(self,crystal=None):
+    def translate_system(self,crystal=None,center=None):
         """
     
         translate the whole system to a certain position (0,0,400)
     
         """
+        translate=[0,0,center[2]-self.center_system(crystal=crystal)]
         for model_id in self.get_models():
-            crystal.translate_crystal(pdb=self.get_model(model_id=model_id).type+"/"+str(int(model_id))+".caps")
+            crystal.translate_crystal(pdb=self.get_model(model_id=model_id).type+"/"+str(int(model_id))+".caps",translate=translate,bool_system=True)
     
+    def center_system(self,crystal=None):
+        """
+        
+        center system at a certain position, we use (x,y,z)=(0,0,400)
+        
+        """
+        return np.mean([crystal.get_cog(pdb=self.get_model(model_id=model_id).type+"/"+str(int(model_id))+".caps") for model_id in self.get_models()])           
+
     def count_states(self,state=str):
         """
         
