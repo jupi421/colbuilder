@@ -86,7 +86,7 @@ class Modeller:
         run the modeller software to perform the alignment
         
         """
-        env_=modeller.Environ()
+        env_=modeller.Environ(rand_seed=-8123,restyp_lib_file='${LIB}/restyp_mod.lib',copy=None)
         env_.io.hetatm=True
         align_=modeller.Alignment(env=env_)
 
@@ -94,8 +94,8 @@ class Modeller:
         self.check_alignment(align=align_,alignment_file=alignment_file)
         self.perform_alignment(align=align_,alignment_file=alignment_file)
 
-        env_.libs.topology.read('${LIB}/top_heav.lib')
-        env_.libs.parameters.read('${LIB}/par.lib')
+        env_.libs.topology.read('${LIB}/top_heav_mod.lib')
+        env_.libs.parameters.read('${LIB}/par_mod.lib')
 
         auto_model=AutoModel(env_,alnfile=alignment_file+'_length.ali',
                         knowns='template',sequence='target',
@@ -119,7 +119,7 @@ class Modeller:
         cnt=0
         with open(alignment_file+'.ali','w') as f:
             f.write('>P1;template\n')
-            f.write('structure:'+str(system.pdb_filename)+'_mod: '+str(system.collagen_type)+
+            f.write('structure:'+str(system.pdb_filename)+': '+str(system.collagen_type)+
                     ' :A:+'+str(int(system.atoms['atom_cnt'][-1])+3)+':C: : : :\n')
             for k in self.fasta:
                 f.write("".join([v for v in self.fasta[k]]))

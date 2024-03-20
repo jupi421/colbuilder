@@ -1,5 +1,4 @@
 import re
-import numpy as np
 
 class System:
     """
@@ -18,7 +17,7 @@ class System:
             'ILE':'I', 'LEU':'L', 'ASP':'D', 'GLU':'E', 'LYS':'K',
             'ARG':'R', 'SER':'S', 'THR':'T', 'TYR':'Y', 'HIS':'H',
             'CYS':'C', 'ASN':'N', 'GLN':'Q', 'TRP':'W', 'GLY':'G',
-            'MSE':'M'
+            'MSE':'M', 'HYP':'O', 'L4Y':'l', 'L5Y':'j'
             }
         self.pattern=re.compile("^ATOM\s{2,6}\d{1,5}\s{2}CA\s[\sA]([A-Z]{3})\s([\s\w])|^HETATM\s{0,4}\d{1,5}\s{2}CA\s[\sA](MSE)\s([\s\w])")
         self.crystal=''
@@ -39,7 +38,6 @@ class System:
                     self.atoms['atom_type'].append(line_list[2])
                     self.atoms['atom_cnt'].append(str(cnt))
                     self.atoms['resname'].append(line_list[3])
-                    self.atoms['modified_resname'].append(line_list[3])
                     self.atoms['chain_id'].append(line_list[4])
                     self.atoms['resid'].append(line_list[5])
                     self.atoms['x'].append(line_list[6])
@@ -50,14 +48,6 @@ class System:
                 elif l[0:5]=='CRYST':
                     self.crystal=l
     
-    def prepare_pdb(self,atoms=None):
-        """
-        
-        prepare pdb-file for input in modeller
-        
-        """ 
-        self.atoms['modified_resname']=[ 'PRO' if resname=='HYP' else resname for resname in self.atoms['resname'] ]
-
     def pdb_to_fasta(self,atoms=None):
         """
         
@@ -65,40 +55,4 @@ class System:
         
         """
         if atoms==None: atoms=self.atoms
-        self.atoms['fasta']=[self.aminoacids[resname] for resname in atoms['modified_resname']]
-
-    def write_pdb(self,pdb_filename=None,atoms=None,modified=False):
-        """
-        
-        write modified atoms of pdb file 
-        
-        """
-        if atoms==None: 
-            atoms=self.atoms
-            atom_id=atoms['atom_id']
-            atom_type=atoms['atom_type']
-            chain_id=atoms['chain_id']
-            resname=atoms['resname']
-            resid=atoms['resid']
-            x=atoms['x']
-            y=atoms['y']
-            z=atoms['z']
-            element=atoms['element']
-
-        if modified==True: 
-            resname=atoms['modified_resname']
-            with open(pdb_filename+'_mod.pdb','w') as f:
-                f.write(self.crystal)
-                for i in range(len(atom_id)):
-                    f.write("%6s%5i %4s %3s %1s%4i    %8.3f%8.3f%8.3f%22s\n" % ('ATOM  ',int(atom_id[i]),atom_type[i],resname[i],chain_id[i],int(resid[i]),float(x[i]),float(y[i]),float(z[i]),element[i]))
-                    if atom_type[i].strip()=='OXT': f.write('TER\n')
-                f.close()
-                
-        elif modified==False:
-            resname=atoms['resname']
-            with open(pdb_filename+'.pdb','w') as f:
-                f.write(self.crystal)
-                for i in range(len(atom_id)):
-                    f.write("%6s%5i %4s %3s %1s%4i    %8.3f%8.3f%8.3f%22s\n" % ('ATOM  ',int(atom_id[i]),atom_type[i],resname[i],chain_id[i],int(resid[i]),float(x[i]),float(y[i]),float(z[i]),element[i]))
-                    if atom_type[i].strip()=='OXT': f.write('TER\n')
-                f.close()
+        self.atoms['fasta']=[self.aminoacids[resname] for resname in atoms['resname']]
