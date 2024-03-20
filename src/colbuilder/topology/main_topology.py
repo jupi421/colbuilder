@@ -1,6 +1,6 @@
 import subprocess
 import os
-from colbuilder.geometry import system, crystal
+from colbuilder.geometry import system
 from colbuilder.topology import amber, martini, itp
 
 def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> martini.Martini:
@@ -15,13 +15,12 @@ def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> m
     martini_=martini.Martini(system=system,force_field=force_field)
     env_=os.environ['CONDA_DEFAULT_ENV']
 
-    print('-- Translate system to non-negative coordinates --')
     system.translate_system(crystal=system.crystal,center=[0,0,4000])
 
     for model_id in system.get_models():
         
         if system.get_model(model_id=model_id).connect!=None:
-            print('-- Build coarse-grained topology: '+str(int(100 * cnt_model / connect_size))+' %' )
+            print('-- Build coarse-grained topology: '+str(int(100 * cnt_model / connect_size))+'%' )
             itp_=itp.Itp(system=system,model_id=model_id)
 
             for connect_id in system.get_model(model_id=model_id).connect:
@@ -44,12 +43,12 @@ def build_martini3(system: system.System,force_field=None,go_epsilon=float) -> m
                 subprocess.run(
                 './contact_map ../map.pdb > ../map.out',cwd=os.getcwd()+'/contactmap/',shell=True,
                 stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-
+                
                 subprocess.run(
                 'python create_goVirt.py -s '+str(int(model_id))+'.'+str(int(connect_id))+'.CG.pdb '+
                 '-f map.out --moltype col_'+str(int(model_id))+'.'+str(int(connect_id))+' --go_eps '+str(go_epsilon),
                 shell=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-            
+                
             martini_.merge_pdbs(model_id=model_id,cnt_model=cnt_model)
             
             itp_.read_model(model_id=model_id)

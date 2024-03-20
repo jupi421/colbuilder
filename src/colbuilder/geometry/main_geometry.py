@@ -19,7 +19,6 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
 
     path_pdb_file=path_wd+'/'+pdb_file
     chimera_=chimera.Chimera(path_pdb_file)
-    
 
     if pdb_file!=None and contact_distance!=None and crystalcontacts_file==None:
         system_,crystalcontacts_,connect_=build_from_contactdistance(path_wd=path_wd,pdb_file=pdb_file,
@@ -34,10 +33,12 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     elif pdb_file!=None and contact_distance==0 and crystalcontacts_file==None:
         system_,crystalcontacts_,connect_=build_from_pdb(path_wd=path_wd,pdb_file=pdb_file,contact_distance=contact_distance,
                                crystalcontacts_file=crystalcontacts_file,chimera=chimera_,crystal=crystal_)    
+    
     elif geometry==True:
         print('Error: Please provide Contact Distance or CrystalContacts to generate the microfibril OR \n'+
               'contact distance = 0 to generate the triple helix topology. NOTE: Your contacts file should not be named \n'+
               'crystalcontacts_from_colbuilder.txt, since this is the default one. Please rename, such that message omits.')
+        
         return exit()
     
     if geometry==False: 
@@ -70,21 +71,26 @@ def build_geometry(path_wd=str,pdb_file=None,contact_distance=float,crystalconta
     return system_
 
 def replace_geometry(path_wd=str,ratio_replace=None,system=system.System,
-                    fibril_length=float,pdb_out=str) -> system.System:
+                    fibril_length=float,pdb_out=str,replace_file=False) -> system.System:
     """
     
     replace crosslinks within microfibril to reduce the overall number of crosslinks
 
     """
-    print('-- Replace '+str(ratio_replace)+'%'+' of crosslinks from microfibril --')
-    replace_=replace.Replace(ratio_replace=ratio_replace,system=system,fibril_length=fibril_length)
-    system_=replace_.run_replace(system=system,ratio_replace=ratio_replace)
+    if replace_file==False:
+        print('-- Replace '+str(ratio_replace)+'%'+' of crosslinks from microfibril --')
+        replace_=replace.Replace(ratio_replace=ratio_replace,system=system,fibril_length=fibril_length)
+        system_=replace_.run_replace(system=system,ratio_replace=ratio_replace)
 
-    replace_.write_replace(system=system_,file='replace')  
+        replace_.write_replace(system=system_,file='replace')  
+        replace_file='replace'
+
+    else:
+        system_=system
 
     print('-- Please wait, this may take some time ... --')
     chimera_=chimera.Chimera(path_wd+'/'+system_.crystal.pdb_file)
-    chimera_.swapaa(replace='replace',system_type=system_.get_model(model_id=0.0).type)
+    chimera_.swapaa(replace=replace_file,system_type=system_.get_model(model_id=0.0).type)
 
     system_.write_pdb(pdb_out=pdb_out,fibril_length=fibril_length)
 
@@ -144,8 +150,6 @@ def mix_geometry(path_wd=str,fibril_length=float,connect_file=None,
         print('-- NOTE: Make sure each crosslink-type in '+str(connect_file)+' (D,T,DT,TD) is provided --')
         mix_=mix.Mix(system=system,connect_mix=connect_file)
         system_=mix_.get_mix_from_connect_file(connect_file=connect_file)
-        
-
     else:
         print('Error: Either provide a connect-file with the crosslink-type (e.g. 1.caps.pdb 2.caps.pdb ; D) OR \n'+
               'provide the -ratio_mix and -files_mix to generate a differently crosslinked microfibril \n'+

@@ -1,7 +1,6 @@
 import numpy as np
 from sklearn.metrics import pairwise_distances as pdist
 
-
 class Crosslink:
     """
 
@@ -14,7 +13,7 @@ class Crosslink:
         self.crosslink_pdb=[]
         self.crosslink_neighbors=[]
         self.crosslink_connect=[]
-        self.crosslink_bonded={'bonds':[],'angles':[], 'dihedrals':[]} 
+        self.crosslink_bonded={'bonds':[],'angles':[],'dihedrals':[]} 
         
         """ These are the parameters for the divalent HLKNL-crosslink"""
         self.dly45='0.415'

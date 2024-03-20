@@ -99,7 +99,10 @@ class System:
         """
         translate=[0,0,center[2]-self.center_system(crystal=crystal)]
         for model_id in self.get_models():
-            crystal.translate_crystal(pdb=self.get_model(model_id=model_id).type+"/"+str(int(model_id))+".caps",translate=translate,bool_system=True)
+            if self.get_model(model_id=model_id).connect!=None:
+                for connect_id in self.get_model(model_id=model_id).connect:
+                    crystal.translate_crystal(pdb=self.get_model(model_id=model_id).type+"/"+str(int(connect_id))+".caps",
+                                              translate=translate,bool_system=True)
     
     def center_system(self,crystal=None):
         """
@@ -107,7 +110,12 @@ class System:
         center system at a certain position, we use (x,y,z)=(0,0,400)
         
         """
-        return np.mean([crystal.get_cog(pdb=self.get_model(model_id=model_id).type+"/"+str(int(model_id))+".caps") for model_id in self.get_models()])           
+        cog=[]
+        for model_id in self.get_models():
+            if self.get_model(model_id=model_id).connect!=None:
+                for connect_id in self.get_model(model_id=model_id).connect:
+                    cog.append(crystal.get_cog(pdb=self.get_model(model_id=model_id).type+"/"+str(int(connect_id))+".caps"))
+        return np.mean(cog)
 
     def count_states(self,state=str):
         """

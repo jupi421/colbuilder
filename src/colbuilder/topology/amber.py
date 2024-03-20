@@ -30,10 +30,8 @@ class Amber:
 
         elif len(self.system.get_model(model_id=connect_id).connect)==1:
             if os.path.exists("N/"+str(int(connect_id))+".caps.pdb"):
-                subprocess.run("mv N/"+str(int(connect_id))+".caps.pdb N/"+str(int(connect_id))+".merge.pdb",
-                           shell=True)
+                subprocess.run("mv N/"+str(int(connect_id))+".caps.pdb N/"+str(int(connect_id))+".merge.pdb",shell=True)
             return "N"
-
 
     def write_itp(self,itp_file=None):
         """

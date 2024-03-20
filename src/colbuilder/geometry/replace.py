@@ -10,6 +10,7 @@ class Replace:
         self.ratio=ratio_replace
         self.system=system
         self.is_line=('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
+        self.external={}
         self.z_min=self.system.get_model(model_id=0.0).get_cog() - fibril_length/2
         self.z_max=self.system.get_model(model_id=0.0).get_cog() + fibril_length/2
 
