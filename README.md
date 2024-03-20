@@ -10,7 +10,7 @@ conda create -n colbuilder python=3.9
 Other options, such as using a virtual environment should also be possible, however have not been tested yet. Next activate the conda environment and clone the repository from github to your machine.
 ```
 conda activate colbuilder
-git clone git@github.com:mbrosz/colbuilder.git
+git clone git@github.com:hits-mbm-dev/colbuilder.git
 ```
 Enter the cloned directory and use pip to install colbuilder 2.0 and its requirements.
 ```
