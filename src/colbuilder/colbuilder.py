@@ -82,14 +82,13 @@ def colbuilder():
     if args.mix_bool==False and args.files_mix!=[]: print("Error: Please set -mix flag to obtain a mixed structure or topology."); exit()
 
     # Build a triple helix from amino acid sequence
-    if args.sequence_generator==True:
-        system_=build_sequence(path_wd=str(args.working_directory),
-                        pdb_file=str(args.file).replace('.pdb',''),
-                        collagen_type=args.collagen_type,
-                        dict_chain={ i: args.chain_id[i] for i in range(len(args.chain_id.split(',')))},
-                        register=[str(i) for i in args.register_topology.split(',')],
-                        crosslink=args.crosslink_topology,
-                        ensemble=args.ensemble)
+    if args.sequence_generator:
+    final_pdb = build_sequence(path_wd=args.working_directory,
+                               fasta_file=args.fasta_file,
+                               dict_chain={ i: args.chain_id[i] for i in range(len(args.chain_id.split(',')))},
+                               crosslink=args.crosslink_topology)
+    
+    print(f"Final PDB file created: {final_pdb}")
 
     # Build a system of models, i.e., the geometry, for a long microfibril
     if args.fibril==False and args.sequence_generator==False:
