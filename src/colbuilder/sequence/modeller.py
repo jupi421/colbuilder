@@ -1,139 +1,116 @@
-import modeller
+import os
+import sys
+from modeller import *
 from modeller.automodel import *
-from modeller.automodel import AutoModel
+from modeller import Selection
 
 class Modeller:
-    """
-    
-    class prepares the aligned sequence to generate the triple helical structure
-    
-    """
-    def __init__(self,system=None,sequence=None,file=None,fasta=None,ensemble=None):
-        self.sequence={ k:[] for k in sequence.keys()}
-        self.system=system
-        self.fasta=fasta
-        self.file=file
-        self.ensemble=int(ensemble)
-        self.score={}
-        self.modeller_pdb=''
+    def __init__(self, fasta_file, aligned_sequences, file_prefix, original_dir):
+        self.fasta_file = fasta_file
+        self.aligned_sequences = aligned_sequences
+        self.file_prefix = file_prefix
+        self.original_dir = original_dir
+        self.modeller_pdb = ''
         modeller.log.minimal()
-    
-    def read_muscle(self,muscle_file=None):
-        """
 
-        read multiple-sequence-alignment-file from Muscle
+    def read_sequences_from_fasta(self, filename):
+        """Read sequences from a FASTA file and return as a dictionary."""
+        sequences = {}
+        with open(filename) as f:
+            for record in SeqIO.parse(f, "fasta"):
+                sequences[record.id] = str(record.seq)
+        if not sequences:
+            raise ValueError(f"FASTA file '{filename}' is empty or incorrectly formatted.")
+        return sequences
+
+    def get_template_pdb_file(self):
+        """Fetch the template.pdb file."""
+        template_pdb = os.path.join(os.path.dirname(self.file_prefix), "template.pdb")
+        if not os.path.exists(template_pdb):
+            raise FileNotFoundError(f"template.pdb not found in the directory: {os.path.dirname(self.file_prefix)}")
+        return template_pdb
+
+    def extract_last_atom_serial_number(self, pdb_file):
+        """Extracts the serial number from the last ATOM line in a PDB file, before the final TER line."""
+        last_atom_serial_number = None
+        with open(pdb_file, "r") as file:
+            for line in reversed(file.readlines()):
+                if line.startswith("ATOM"):
+                    last_atom_serial_number = line[6:11].strip()
+                    break
+        return last_atom_serial_number
         
-        """
-        with open(muscle_file,'r') as f:
-            for line in f:
-                if line[0]=='>': 
-                    chain_key=line.split(':')[1].replace('\n','')
-                    continue
-                self.sequence[chain_key].append(line)
-        f.close()
-        return self.sequence
-    
-    def reorder(self,register=None):
-        """
-    
-        reorders the alignment
-    
-        """
-        with open(self.file+'.msa','w') as f:
-            for reg_id in register:
-                f.write('>tmp:'+str(reg_id)+'\n')
-                for fasta_id in self.sequence[reg_id]: f.write(fasta_id.replace('\n',''))
-                f.write('\n')
-        f.close()
-
-    def prepare_alignment(self,muscle_file=None,register=None):
-        """
+    def write_modeller_formatted_output(self, fasta_sequences, msa_sequences, output_file, template_pdb, end_atom):
+        """Write output in the format required by Modeller."""
+        pdb_file_name_without_ext = os.path.splitext(os.path.basename(template_pdb))[0]
         
-        prepare the alignment from faste as input for modeller
-        
+        with open(output_file, "w") as out_file:
+            # Writing the template sequence
+            out_file.write(">P1;template\n")
+            out_file.write(f"structure:{pdb_file_name_without_ext}:1:A:+{end_atom}:C:::-1.00:-1.00\n")
+            out_file.write("/".join(fasta_sequences.values()) + "*\n")
+
+            # Writing the target sequence
+            out_file.write("\n>P1;target\n")
+            out_file.write(f"sequence:{self.collagen_type}-{self.register}:: :: :::-1.00:-1.00\n")
+            out_file.write("/".join(msa_sequences.values()) + "*\n")
+            
+    def prepare_alignment(self):
         """
-        self.sequence=self.read_muscle(muscle_file=muscle_file)
-        self.reorder(register=register)
-
-        for k,v in self.sequence.items(): self.sequence[k]=[i.replace('\n','') for j in v for i in j if i !='']
-
-    def check_alignment(self,align=None,alignment_file=None):
+        Prepare the alignment from aligned sequences as input for modeller
         """
+        fasta_sequences = self.read_sequences_from_fasta(self.fasta_file)
+        msa_sequences = self.read_sequences_from_fasta(self.aligned_sequences)
         
-        check the alignment from with the modeller env
+        template_pdb = self.get_template_pdb_file()
+        end_atom = self.extract_last_atom_serial_number(template_pdb)
         
-        """
-        align.append(file=alignment_file+'_modeller.ali',align_codes='all')
-        align.write(file=alignment_file+'.pap',alignment_format='PAP')
-        align.write(file=alignment_file+'.fasta',alignment_format='FASTA')
-        align.check_sequence_structure(gapdist=3.9)
+        output_file = f"{self.file_prefix}_modeller.ali"
+        self.write_modeller_formatted_output(fasta_sequences, msa_sequences, output_file, template_pdb, end_atom)
 
-    def perform_alignment(self,align=None,alignment_file=None):
-        """
+    def run_modeller(self, alnfile, knowns, sequence, model_dir, out_model_file):
+        log.verbose()
+        env = Environ(
+            rand_seed=-8123,
+            restyp_lib_file=f"{self.original_dir}/parameters/restyp_mod.lib",
+            copy=None,
+        )
         
-        perform the alignment step with the modeller env
-        
-        """
-        align.append(file=alignment_file+'_modeller.ali',align_codes='all')
-        align.salign() 
+        env.io.atom_files_directory = ["."]
+        env.io.hetatm = True
 
-        align.write(file=alignment_file+'_length.ali',alignment_format='PIR')
-        align.write(file=alignment_file+'_length.pap',alignment_format='PAP')
+        env.libs.topology.read(f"{self.original_dir}/parameters/top_heav_mod.lib")
+        env.libs.parameters.read(f"{self.original_dir}/parameters/par_mod.lib")
 
-    def run_modeller(self,system=None,alignment_file=None):
-        """
-        
-        run the modeller software to perform the alignment
-        
-        """
-        env_=modeller.Environ(rand_seed=-8123,restyp_lib_file='${LIB}/restyp_mod.lib',copy=None)
-        env_.io.hetatm=True
-        align_=modeller.Alignment(env=env_)
+        a = MyModel(
+            env,
+            alnfile=alnfile,
+            knowns=knowns,
+            sequence=sequence
+        )
 
-        self.write_alignment(alignment_file=alignment_file+'_modeller',system=system)
-        self.check_alignment(align=align_,alignment_file=alignment_file)
-        self.perform_alignment(align=align_,alignment_file=alignment_file)
+        a.very_fast()
+        a.starting_model = 1
+        a.ending_model = 1
 
-        env_.libs.topology.read('${LIB}/top_heav_mod.lib')
-        env_.libs.parameters.read('${LIB}/par_mod.lib')
+        os.chdir(model_dir)
 
-        auto_model=AutoModel(env_,alnfile=alignment_file+'_length.ali',
-                        knowns='template',sequence='target',
-                        assess_methods=(assess.DOPE,assess.GA341))
+        a.make()
+        a.write(file=out_model_file)
 
-        auto_model.starting_model=1
-        auto_model.ending_model=self.ensemble
+        self.modeller_pdb = out_model_file
 
-        auto_model.make()
-        self.score={i['name']:i['GA341 score'][0] for i in auto_model.outputs}
+    def execute_modeller(self):
+        alnfile = f"{self.file_prefix}_modeller.ali"
+        knowns = "template"
+        sequence = "target"
+        model_dir = os.path.dirname(self.file_prefix)
+        out_model_file = f"{self.file_prefix}_final_model.pdb"
 
-        self.modeller_pdb=max(self.score,key=self.score.get)
-
-
-    def write_alignment(self,system=None,alignment_file=None):
-        """
-        
-        write input file for modeller software
-        
-        """
-        cnt=0
-        with open(alignment_file+'.ali','w') as f:
-            f.write('>P1;template\n')
-            f.write('structure:'+str(system.pdb_filename)+': '+str(system.collagen_type)+
-                    ' :A:+'+str(int(system.atoms['atom_cnt'][-1])+3)+':C: : : :\n')
-            for k in self.fasta:
-                f.write("".join([v for v in self.fasta[k]]))
-                cnt+=1
-                if cnt<len(self.fasta): f.write('/')
-                else: f.write('*')
-
-            cnt=0
-            f.write('\n')
-            f.write('\n>P1;target\n')
-            f.write('sequence:tmp'+str(system.register)+': : : : : : : :\n')
-            for k in self.sequence:
-                f.write("".join([v for v in self.sequence[k]]))
-                cnt+=1
-                if cnt<len(self.sequence): f.write('/')
-                else: f.write('*')
-        f.close()
+        self.run_modeller(
+            alnfile,
+            knowns,
+            sequence,
+            model_dir,
+            out_model_file
+        )
