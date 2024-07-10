@@ -1,65 +1,61 @@
 # src/colbuilder/sequence/main_sequence.py
-
 import os
-import subprocess
-from Bio import SeqIO
-from io import StringIO
-from colbuilder.sequence import align_sequences, modeller
+import logging
+from colbuilder.sequence.alignment import align_sequences
+from colbuilder.sequence.modeller import run_modeller
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Get the project root directory
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-
 # Define the path to the directory containing reference files and libraries
 HOMOLOGY_LIB_DIR = os.path.join(PROJECT_ROOT, 'data', 'homology')
-
-# Define the path to the template PDB file
+# Define the path to the templates
 TEMPLATE_PDB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "template.pdb")
-
+TEMPLATE_FASTA_PATH = os.path.join(HOMOLOGY_LIB_DIR, "template.fasta")
 # Paths to custom modeller library files
 RESTYP_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "restyp_mod.lib")
 TOP_HEAV_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "top_heav_mod.lib")
 PAR_MOD_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "par_mod.lib")
 
-def build_sequence(fasta_file=None, collagen_type=int, ensemble=int,
-                   dict_chain={}, register=[], crosslink={}):
+def build_sequence(fasta_file=None, dict_chain={}, crosslink={}):
     """
-    build fibril from an uncrossed collagen triple helix, starting from a FASTA file
+    Build fibril from an uncrossed collagen triple helix, starting from a FASTA file
     """
-    print('-- Building the sequence of the Collagen Triple Helix --')
-    print('-- Read FASTA file --')
-    with open(fasta_file, 'r') as f:
-        fasta_content = f.read()
+    logger.info('-- Building the sequence of the Collagen Triple Helix --')
+    logger.info('-- Prepare for Sequence Alignment --')
     
     file_prefix = os.path.splitext(os.path.basename(fasta_file))[0]
-    file_ = f'tmp_{file_prefix}_{"".join(register)}'
     
-    print(f'-- Sequence Alignment with Muscle: {file_} --')
-    aligned_sequences = align_sequences(fasta_content, file_)
+    logger.info(f'-- Sequence Alignment with Muscle: {file_prefix} --')
+    staggered_restored_sequences, msa_output, modeller_output = align_sequences(
+        fasta_file, 
+        TEMPLATE_FASTA_PATH, 
+        file_prefix, 
+        TEMPLATE_PDB_PATH
+    )
     
-    # Write aligned sequences to a file for MODELLER
-    aligned_file = f"{file_}.afa"
-    SeqIO.write(aligned_sequences, aligned_file, "fasta")
-    
-    print('-- Prepare triple helical structure with MODELLER --')
-    modeller_ = modeller.Modeller(
-        sequence=aligned_sequences,
-        file=file_,
-        fasta=aligned_file,
-        ensemble=ensemble,
-        template_pdb=TEMPLATE_PDB_PATH,
+    logger.info('-- Prepare triple helical structure with MODELLER --')
+    output_pdb = run_modeller(
+        aligned_file=modeller_output,
+        output_prefix=file_prefix,
         restyp_lib=RESTYP_LIB_PATH,
         top_heav_lib=TOP_HEAV_LIB_PATH,
         par_mod_lib=PAR_MOD_LIB_PATH
     )
-    modeller_.prepare_alignment(muscle_file=aligned_file, register=register)
-    modeller_.run_modeller(alignment_file=file_)
     
-    print(f'-- Save final PDB-file to {fasta_file.replace(".fasta", ".pdb")} --')
-    output_pdb = fasta_file.replace('.fasta', '.pdb')
-    subprocess.run(f'cp {modeller_.modeller_pdb} {output_pdb}',
-                   shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    # Clean up temporary files
-    os.remove(aligned_file)
+    logger.info(f'-- Model building completed. Output PDB: {output_pdb} --')
     
     return output_pdb
+
+# if __name__ == "__main__":
+#     import sys
+#     if len(sys.argv) != 2:
+#         print("Usage: python main_sequence.py <input_fasta_file>")
+#         sys.exit(1)
+    
+#     input_fasta = sys.argv[1]
+#     output_pdb = build_sequence(input_fasta)
+#     print(f"Final PDB file: {output_pdb}")
