@@ -1,10 +1,26 @@
-from colbuilder.sequence import align_sequences, modeller
-import subprocess
+# src/colbuilder/sequence/main_sequence.py
+
 import os
+import subprocess
 from Bio import SeqIO
 from io import StringIO
+from colbuilder.sequence import align_sequences, modeller
 
-def build_sequence(path_wd=str, fasta_file=None, collagen_type=int, ensemble=int,
+# Get the project root directory
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
+# Define the path to the directory containing reference files and libraries
+HOMOLOGY_LIB_DIR = os.path.join(PROJECT_ROOT, 'data', 'homology')
+
+# Define the path to the template PDB file
+TEMPLATE_PDB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "template.pdb")
+
+# Paths to custom modeller library files
+RESTYP_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "restyp_mod.lib")
+TOP_HEAV_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "top_heav_mod.lib")
+PAR_MOD_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "par_mod.lib")
+
+def build_sequence(fasta_file=None, collagen_type=int, ensemble=int,
                    dict_chain={}, register=[], crosslink={}):
     """
     build fibril from an uncrossed collagen triple helix, starting from a FASTA file
@@ -25,7 +41,16 @@ def build_sequence(path_wd=str, fasta_file=None, collagen_type=int, ensemble=int
     SeqIO.write(aligned_sequences, aligned_file, "fasta")
     
     print('-- Prepare triple helical structure with MODELLER --')
-    modeller_ = modeller.Modeller(sequence=aligned_sequences, file=file_, fasta=aligned_file, ensemble=ensemble)
+    modeller_ = modeller.Modeller(
+        sequence=aligned_sequences,
+        file=file_,
+        fasta=aligned_file,
+        ensemble=ensemble,
+        template_pdb=TEMPLATE_PDB_PATH,
+        restyp_lib=RESTYP_LIB_PATH,
+        top_heav_lib=TOP_HEAV_LIB_PATH,
+        par_mod_lib=PAR_MOD_LIB_PATH
+    )
     modeller_.prepare_alignment(muscle_file=aligned_file, register=register)
     modeller_.run_modeller(alignment_file=file_)
     
