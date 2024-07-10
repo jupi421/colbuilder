@@ -1,5 +1,4 @@
 {
-    "sequence_generator": true,
     "fasta_file": "input.fasta",
     "species": "Ailuropoda_melanoleuca",
     "crosslink_topology": ["yes", "yes"],
