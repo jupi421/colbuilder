@@ -5,13 +5,21 @@ import subprocess
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio import AlignIO
+from Bio.Align import MultipleSeqAlignment
 from io import StringIO
 
+def align_sequences(input_fasta_path, template_fasta_path, output_prefix):
+    alignment = Alignment(input_fasta_path, template_fasta_path, output_prefix)
+    return alignment.align_sequences()
+
 class Alignment:
-    def __init__(self, fasta_content, file_prefix):
-        self.fasta_content = fasta_content
-        self.file_prefix = file_prefix
-        self.sequences = list(SeqIO.parse(StringIO(fasta_content), "fasta"))
+    def __init__(self, input_fasta_path, template_fasta_path, output_prefix):
+        self.input_fasta_path = input_fasta_path
+        self.template_fasta_path = template_fasta_path
+        self.output_prefix = output_prefix
+        self.input_sequences = list(SeqIO.parse(input_fasta_path, "fasta"))
+        self.template_sequences = list(SeqIO.parse(template_fasta_path, "fasta"))
 
     def add_stagger_to_sequences(self, sequences):
         for i, seq in enumerate(sequences):
@@ -31,17 +39,19 @@ class Alignment:
         map_original_to_aligned = {}
         aligned_index = 0
         for original_index in range(len(original_seq)):
-            while aligned_seq[aligned_index] == "-":
+            while aligned_index < len(aligned_seq) and aligned_seq[aligned_index] == "-":
                 aligned_index += 1
-            map_original_to_aligned[original_index] = aligned_index
-            aligned_index += 1
+            if aligned_index < len(aligned_seq):
+                map_original_to_aligned[original_index] = aligned_index
+                aligned_index += 1
         return map_original_to_aligned
 
     def restore_hydroxyproline_with_mapping(self, aligned_seq, original_positions, position_mapping):
         aligned_seq_list = list(aligned_seq)
         for original_pos in original_positions:
-            new_pos = position_mapping[original_pos]
-            aligned_seq_list[new_pos] = 'O'
+            if original_pos in position_mapping:
+                new_pos = position_mapping[original_pos]
+                aligned_seq_list[new_pos] = 'O'
         return "".join(aligned_seq_list)
 
     def get_muscle_version(self):
@@ -60,49 +70,51 @@ class Alignment:
         subprocess.run(muscle_command, check=True)
         print("Alignment completed.")
 
-    def reorder_sequences_to_original(self, aligned_sequences, original_sequences):
-        ordered_sequences = []
-        for orig_seq in original_sequences:
-            for aligned_seq in aligned_sequences:
-                if orig_seq.id == aligned_seq.id:
-                    ordered_sequences.append(aligned_seq)
-                    break
-        return ordered_sequences
-
     def align_sequences(self):
-        modified_sequences = []
-        for seq in self.sequences:
+        # Step 1: Align input sequences
+        input_modified_sequences = []
+        hydroxyproline_positions = {}
+        
+        for seq in self.input_sequences:
             positions = self.record_hydroxyproline_positions(seq.seq)
+            hydroxyproline_positions[seq.id] = positions
             substituted_seq = self.substitute_hydroxyproline(seq.seq, positions)
             modified_seq = SeqRecord(Seq(substituted_seq), id=seq.id, description=seq.description)
-            modified_sequences.append(modified_seq)
+            input_modified_sequences.append(modified_seq)
 
-        temp_input_path = f"{self.file_prefix}_temp_input.fasta"
-        temp_output_path = f"{self.file_prefix}_temp_aligned.afa"
+        temp_input_path = f"{self.output_prefix}_temp_input.fasta"
+        temp_input_aligned_path = f"{self.output_prefix}_temp_input_aligned.afa"
 
-        SeqIO.write(modified_sequences, temp_input_path, "fasta")
-        self.align_sequences_with_muscle(temp_input_path, temp_output_path)
+        SeqIO.write(input_modified_sequences, temp_input_path, "fasta")
+        self.align_sequences_with_muscle(temp_input_path, temp_input_aligned_path)
         
-        aligned_sequences = list(SeqIO.parse(temp_output_path, "fasta"))
-        ordered_aligned_sequences = self.reorder_sequences_to_original(aligned_sequences, self.sequences)
+        input_aligned_sequences = list(SeqIO.parse(temp_input_aligned_path, "fasta"))
 
+        # Step 2: Align the MSA from step 1 with the template
+        combined_sequences = self.template_sequences + input_aligned_sequences
+        temp_combined_path = f"{self.output_prefix}_temp_combined.fasta"
+        temp_final_aligned_path = f"{self.output_prefix}_temp_final_aligned.afa"
+
+        SeqIO.write(combined_sequences, temp_combined_path, "fasta")
+        self.align_sequences_with_muscle(temp_combined_path, temp_final_aligned_path)
+
+        final_aligned_sequences = list(SeqIO.parse(temp_final_aligned_path, "fasta"))
+
+        # Step 3: Restore hydroxyprolines and add stagger
         restored_sequences = []
-        for seq in ordered_aligned_sequences:
-            original_seq = [s for s in self.sequences if s.id == seq.id][0]
-            positions = self.record_hydroxyproline_positions(original_seq.seq)
-            position_mapping = self.create_position_mapping(str(original_seq.seq), str(seq.seq))
-            restored_seq = self.restore_hydroxyproline_with_mapping(str(seq.seq), positions, position_mapping)
-            restored_sequences.append(SeqRecord(Seq(restored_seq), id=seq.id, description=seq.description))
+        for seq in final_aligned_sequences:
+            if seq.id in hydroxyproline_positions:
+                original_seq = [s for s in self.input_sequences if s.id == seq.id][0]
+                position_mapping = self.create_position_mapping(str(original_seq.seq), str(seq.seq))
+                restored_seq = self.restore_hydroxyproline_with_mapping(str(seq.seq), hydroxyproline_positions[seq.id], position_mapping)
+                restored_sequences.append(SeqRecord(Seq(restored_seq), id=seq.id, description=seq.description))
+            else:
+                restored_sequences.append(seq)
 
         staggered_restored_sequences = self.add_stagger_to_sequences(restored_sequences)
 
         # Clean up temporary files
-        os.remove(temp_input_path)
-        os.remove(temp_output_path)
+        for temp_file in [temp_input_path, temp_input_aligned_path, temp_combined_path, temp_final_aligned_path]:
+            os.remove(temp_file)
 
         return staggered_restored_sequences
-
-def align_sequences(fasta_content, file_prefix):
-    alignment = Alignment(fasta_content, file_prefix)
-    return alignment.align_sequences()
-    
