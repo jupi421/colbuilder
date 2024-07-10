@@ -29,6 +29,27 @@ def load_config(config_file):
     with open(config_file, 'r') as f:
         return json.load(f)
 
+def format_pdb(input_file_path, output_file_path):
+    new_first_line = "CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2\n"
+    
+    try:
+        with open(input_file_path, "r") as input_file:
+            lines = input_file.readlines()
+        
+        # Replace the first line
+        lines[0] = new_first_line
+        
+        # Remove lines starting with "REMARK"
+        lines = [line for line in lines if not line.startswith("REMARK")]
+        
+        with open(output_file_path, "w") as output_file:
+            output_file.writelines(lines)
+        
+        logger.info(f"Formatted PDB file saved as: {output_file_path}")
+    except Exception as e:
+        logger.error(f"An error occurred while formatting PDB file: {str(e)}")
+        raise
+
 def build_sequence(config):
     """
     Build fibril from an uncrossed collagen triple helix, starting from a FASTA file
@@ -99,9 +120,12 @@ def build_sequence(config):
                              c_crosslink.iloc[0] if not c_crosslink.empty else None)
             output_pdb = output_pdb_crosslinked
     
-    logger.info(f'-- Model building completed. Output PDB: {output_pdb} --')
+    formatted_output_pdb = f"{os.path.splitext(output_pdb)[0]}_formatted.pdb"
+    format_pdb(output_pdb, formatted_output_pdb)
     
-    return output_pdb
+    logger.info(f'-- Model building and formatting completed. Final Output PDB: {formatted_output_pdb} --')
+    
+    return formatted_output_pdb
 
 # if __name__ == "__main__":
 #     import sys
