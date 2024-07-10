@@ -1,7 +1,6 @@
 # src/colbuilder/sequence/main_sequence.py
 import os
 import logging
-import json
 import pandas as pd
 from colbuilder.sequence.alignment import align_sequences
 from colbuilder.sequence.modeller import run_modeller
@@ -24,10 +23,6 @@ TOP_HEAV_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "top_heav_mod.lib
 PAR_MOD_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "par_mod.lib")
 # Path to crosslink information
 CROSSLINKS_FILE = os.path.join(HOMOLOGY_LIB_DIR, "crosslinks.csv")
-
-def load_config(config_file):
-    with open(config_file, 'r') as f:
-        return json.load(f)
 
 def format_pdb(input_file_path, output_file_path):
     new_first_line = "CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2\n"
@@ -126,14 +121,3 @@ def build_sequence(config):
     logger.info(f'-- Model building and formatting completed. Final Output PDB: {formatted_output_pdb} --')
     
     return formatted_output_pdb
-
-# if __name__ == "__main__":
-#     import sys
-#     if len(sys.argv) != 2:
-#         print("Usage: python main_sequence.py <config_file>")
-#         sys.exit(1)
-    
-#     config_file = sys.argv[1]
-#     config = load_config(config_file)
-#     output_pdb = build_sequence(config)
-#     print(f"Final PDB file: {output_pdb}")
