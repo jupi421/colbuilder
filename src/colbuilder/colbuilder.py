@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 
 from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, replace_geometry, build_fibril
@@ -59,19 +60,14 @@ def colbuilder():
                         help=("specifiy name of topology file "),default='system.top')
     parser.add_argument('-ff','--force_field', required=False,
                         help=("specifiy force field to be used, e.g. -ff amber99 OR -ff martini3"),default=None)
+
+    parser.add_argument('-sequence', '--sequence_generator', required=False, 
+                        help='JSON configuration file for sequence generation', default=None)
     
-    parser.add_argument('-sequence','--sequence_generator', action='store_true', 
-                        help='generate triple helix from sequence ',default=False)
-    parser.add_argument('-type','--collagen_type', required=False,
-                        help=("specifiy type of collagen molecule "),default=1)
-    parser.add_argument('-crosslink','--crosslink_topology', required=False,
-                        help=("specifiy crosslink types of the triple helix "),default=['no','no'])
-    parser.add_argument('-register','--register_topology', required=False,
-                        help=("specifiy register of chains, e.g., A,A,C "),default='A,B,C')
-    parser.add_argument('-chain','--chain_id', required=False,
-                        help=("specifiy the chain id: chain 1=A, chain 2=C, chain 3=B "),default='A,B,C')
-    parser.add_argument('-ensemble','--ensemble', required=False,
-                        help=("Ensemble of modeller runs "),default=3)
+    parser.add_argument('-sequence','--sequence_generator', action='store_true',
+                        help='generate triple helix from sequence',default=False)
+    parser.add_argument('-seqconfig','--sequence_config', required=False,
+                        help='specify the configuration file with the homology modeling parameters',default='seqconfig.json')
         
     args=parser.parse_args()
     if args.connect_file=='': args.connect_file=str(args.crystalcontacts_file).replace('.txt','_connect.txt')
@@ -83,12 +79,16 @@ def colbuilder():
 
     # Build a triple helix from amino acid sequence
     if args.sequence_generator:
-    final_pdb = build_sequence(path_wd=args.working_directory,
-                               fasta_file=args.fasta_file,
-                               dict_chain={ i: args.chain_id[i] for i in range(len(args.chain_id.split(',')))},
-                               crosslink=args.crosslink_topology)
-    
-    print(f"Final PDB file created: {final_pdb}")
+        if args.sequence_config:
+            with open(args.sequence_config, 'r') as f:
+                config = json.load(f)
+        else:
+            print("Error: Sequence configuration file is required when using -sequence flag.")
+            exit()
+        
+        final_pdb = build_sequence(config=config)
+        print(f"Final PDB file created: {final_pdb}")
+        return 
 
     # Build a system of models, i.e., the geometry, for a long microfibril
     if args.fibril==False and args.sequence_generator==False:
