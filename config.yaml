@@ -1,0 +1,31 @@
+# Sequence Generation Configuration
+sequence_generator: true
+fasta_file: "homosapiens.fasta"
+output_prefix: "my_collagen_sequence"
+species: "Homo_sapiens"
+crosslink: true
+n_term_type: "HLKNL"
+c_term_type: "HLKNL"
+n_term_combination: "9.C - 947.A"
+c_term_combination: "1047.C - 104.C"
+
+# Geometry Generation Configuration
+geometry_generator: true
+# file: "homosapiens_N_HLKNL_C_HLKNL.pdb"  # Commented out to use sequence output
+output: "collagen_fibril"
+working_directory: "./"
+contact_distance: 40.0
+fibril_length: 70.0
+crystalcontacts_file: null
+connect_file: null
+crystalcontacts_optimize: false
+solution_space: [1, 1, 1]
+
+# Optional parameters
+ratio_mix: {}
+files_mix: []
+ratio_replace: null
+replace_file: null
+
+# Debug mode
+debug: false

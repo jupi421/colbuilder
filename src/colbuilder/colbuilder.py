@@ -1,143 +1,250 @@
-import argparse
-import json
+# Copyright (c) 2024, Colbuilder Development Team
+# Distributed under the terms of the Apache License 2.0
+
+import click
+import sys
 from pathlib import Path
+from typing import Dict, Any, Tuple, Optional
+import asyncio
+from tqdm import tqdm
+import time
+from colorama import init, Fore, Style
 
-from colbuilder.geometry.main_geometry import build_geometry, mix_geometry, replace_geometry, build_fibril
-from colbuilder.topology.main_topology import build_topology
-from colbuilder.sequence.main_sequence import build_sequence
-    
-def colbuilder():
-    
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    
-    parser.add_argument('-f', '--file', required=False, 
-                        help='PDB-input file for single triple helix or colbuilder 1.0 fibril',default=None)
-    parser.add_argument('-o', '--output', required=False, 
-                        help='Name for PDB-file of microfibril ',default='collagen_fibril')
-    parser.add_argument('-wd','--working_directory', required=False, 
-                        help='set working directory ',default=Path.cwd())
-    parser.add_argument('-dc','--contact_distance', required=False, 
-                        help='contact distance as input for radial size of microfibril, e.g. 10 to 60 ',default=None)
-    parser.add_argument('-length','--fibril_length', required=False, 
-                        help='lengh of microfibril ',default=334)
-    parser.add_argument('-contacts','--crystalcontacts_file', required=False, 
-                        help='read crystalcontacts from file ',default=None)
-    parser.add_argument('-connect','--connect_file', required=False, 
-                        help='read connect between contacts from file',default=None)
-    parser.add_argument('-optimize','--crystalcontacts_optimize', action='store_true', 
-                        help='optimize crystalcontacts ',default=False)
-    parser.add_argument('-geometry','--geometry_generator', action='store_true', 
-                        help='generate geometry files ',default=False)
-    parser.add_argument('-space','--solution_space', nargs='+', required=False,
-                        help='solution space of optimisation problem [ d_x d_y d_z ] ',default=[1,1,1])
-    parser.add_argument('-fibril', '--fibril', required=False, action='store_true', 
-                        help='Bool argument to generate topology for colbuilder 1.0 67nm-long fibril ',default=False)
-    
-    parser.add_argument('-mix','--mix_bool', required=False,action='store_true',
-                         help=("Set -mix flag to generate a mixed crosslinked microfibril"),default=False)
-    parser.add_argument('-ratio_mix','--ratio_mix', required=False,nargs='+',
-                        help=("Ratio for mix-crosslink setup: -ratio_mix T:70 D:30\n"+
-                               "Provide files at -files_mix flag in same order as for ratio_mix"),default=None)
-    parser.add_argument('-files_mix','--files_mix', required=False,nargs='+',
-                        help=("PDB-files with different crosslink-types: -files_mix Rat-T.pdb Rat-D.pdb\n"+ 
-                              "If the ratio_mix is provided, make sure that -files_mix has the same order as -ratio_mix OR\n"+
-                              "If connect information is provided, provide each type of crosslinked triple helix as input for -files_mix."),default=[])
-    
-    parser.add_argument('-replace','--replace_bool', required=False,action='store_true',
-                         help=("Set -replace flag to generate a microfibril with less crosslinks"),default=False)
-    parser.add_argument('-ratio_replace','--ratio_replace', required=False,
-                        help=("Ratio of crosslinks to be replaced with Lysines: -ratio_replace 25 means that 25"+
-                              " crosslinks are replaced with Lysines (range: 0 to 50"+")"),default=None)
-    parser.add_argument('-replace_file','--replace_file', required=False,
-                        help=("File with information about crosslinks to be replaced with Lysine. Each crosslink to be replaces should be noted according to this syntax: "+
-                              " molecule_id, residue_name, residue_id, chain_id (e.g. 1.caps.pdb LY2 1046 A)"),default=None)
-    
-    parser.add_argument('-topology','--topology_generator', action='store_true', 
-                        help='generate topology files ',default=False)
-    parser.add_argument('-go','--go_eps', required=False,
-                        help=("specifiy potential well of go-like potential "),default='9.414')
-    parser.add_argument('-p','--topology_file', required=False,
-                        help=("specifiy name of topology file "),default='system.top')
-    parser.add_argument('-ff','--force_field', required=False,
-                        help=("specifiy force field to be used, e.g. -ff amber99 OR -ff martini3"),default=None)
+from colbuilder.core.utils.logger import setup_logger
+from colbuilder.core.utils.dec import timeit
+from colbuilder.core.utils.config import ColbuilderConfig, get_config, validate_config, OperationMode, load_yaml_config
+from colbuilder.core.utils.exceptions import ColbuilderError
+from colbuilder.geometry.system import System
 
-    parser.add_argument('-sequence', '--sequence_generator', required=False, 
-                        help='JSON configuration file for sequence generation', default=None)
+init(autoreset=True)
+LOG = setup_logger(__name__)
+
+async def import_module(module_path: str) -> Any:
+    return __import__(module_path, fromlist=[''])
+
+@timeit
+async def run_sequence_generation(config: ColbuilderConfig) -> Tuple[Path, Path]:
+    """Generate coordinates for collagen molecule from sequence information."""
+    try:
+        sequence_module = await import_module('colbuilder.sequence.main_sequence')
+        msa, final_pdb = await sequence_module.build_sequence(config)
+        return Path(msa), Path(final_pdb)
+    except Exception as e:
+        raise ColbuilderError(f"Sequence generation failed: {str(e)}")
+
+@timeit
+async def run_geometry_generation(config: ColbuilderConfig) -> System:
+    """Generate fibril geometry."""
+    try:
+        geometry_module = await import_module('colbuilder.geometry.main_geometry')
+        return await geometry_module.build_geometry(config)
+    except Exception as e:
+        raise ColbuilderError(f"Geometry generation failed: {str(e)}")
+
+@timeit
+async def run_topology_generation(config: ColbuilderConfig, system: System) -> System:
+    """Generate topology."""
+    try:
+        topology_module = await import_module('colbuilder.topology.main_topology')
+        return await topology_module.build_topology(system, config)
+    except Exception as e:
+        raise ColbuilderError(f"Topology generation failed: {str(e)}")
+
+@timeit
+async def run_fibril_generation(config: ColbuilderConfig) -> System:
+    """Generate fibril."""
+    try:
+        geometry_module = await import_module('colbuilder.geometry.main_geometry')
+        return await geometry_module.build_fibril(config)
+    except Exception as e:
+        raise ColbuilderError(f"Fibril generation failed: {str(e)}")
+
+@timeit
+async def run_mix_geometry(config: ColbuilderConfig) -> System:
+    """Mix geometry."""
+    try:
+        geometry_module = await import_module('colbuilder.geometry.main_geometry')
+        return await geometry_module.mix_geometry(config)
+    except Exception as e:
+        raise ColbuilderError(f"Mixing geometry failed: {str(e)}")
+
+@timeit
+async def run_replace_geometry(config: ColbuilderConfig) -> System:
+    """Replace geometry."""
+    try:
+        geometry_module = await import_module('colbuilder.geometry.main_geometry')
+        return await geometry_module.replace_geometry(config)
+    except Exception as e:
+        raise ColbuilderError(f"Replacing geometry failed: {str(e)}")
+
+@timeit
+async def run_operation(config: ColbuilderConfig) -> None:
+    """Run the specified operation based on the configuration."""
+    system = None
+    if config.mode in [OperationMode.SEQUENCE, OperationMode.BOTH]:
+        msa, final_pdb = await run_sequence_generation(config)
+        LOG.info(f"Sequence generation completed. MSA: {msa}, Final PDB: {final_pdb}")
+        config.file = final_pdb
+
+    if config.mode in [OperationMode.GEOMETRY, OperationMode.BOTH]:
+        if config.file is None:
+            raise ColbuilderError("Input file is required for geometry generation.")
+        system = await run_geometry_generation(config)
+
+    if config.mode == OperationMode.FIBRIL:
+        if config.file is None:
+            raise ColbuilderError("Input file is required for fibril generation.")
+        system = await run_fibril_generation(config)
+
+    if config.mode == OperationMode.MIX:
+        system = await run_mix_geometry(config)
+    elif config.mode == OperationMode.REPLACE:
+        system = await run_replace_geometry(config)
+
+    if config.topology_generator and config.mode != OperationMode.SEQUENCE:
+        if system is None:
+            raise ColbuilderError("System is not initialized. Run geometry generation first.")
+        system = await run_topology_generation(config, system)
+
+@click.command()
+@click.option('--config_file', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='YAML configuration file')
+@click.option('--sequence_generator', is_flag=True, help='Run sequence generation')
+@click.option('--geometry_generator', is_flag=True, help='Run geometry generation')
+@click.option('-f', '--file', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='PDB-input file for single triple helix or template fibril')
+@click.option('-o', '--output', type=click.Path(path_type=Path), default='collagen_fibril', help='Name for PDB-file of microfibril')
+@click.option('-wd', '--working_directory', type=click.Path(exists=True, file_okay=False, path_type=Path), default=Path.cwd(), help='Set working directory')
+@click.option('-dc', '--contact_distance', type=float, help='Contact distance as input for radial size of microfibril, e.g. 10 to 60')
+@click.option('-length', '--fibril_length', type=float, default=334, help='Length of microfibril')
+@click.option('-contacts', '--crystalcontacts_file', type=click.Path(path_type=Path), help='Read crystalcontacts from file')
+@click.option('-connect', '--connect_file', type=click.Path(path_type=Path), help='Read connect between contacts from file')
+@click.option('-optimize', '--crystalcontacts_optimize', is_flag=True, help='Optimize crystalcontacts')
+@click.option('-space', '--solution_space', nargs=3, type=float, default=[1,1,1], help='Solution space of optimisation problem [ d_x d_y d_z ]')
+@click.option('-fibril', '--fibril', is_flag=True, help='Generate topology for colbuilder 1.0 67nm-long fibril')
+@click.option('-mix', '--mix_bool', is_flag=True, help='Generate a mixed crosslinked microfibril')
+@click.option('-ratio_mix', '--ratio_mix', nargs=2, type=(str, int), multiple=True, help='Ratio for mix-crosslink setup: -ratio_mix T 70 -ratio_mix D 30')
+@click.option('-files_mix', '--files_mix', type=click.Path(exists=True, dir_okay=False, path_type=Path), multiple=True, help='PDB-files with different crosslink-types')
+@click.option('-replace', '--replace_bool', is_flag=True, help='Generate a microfibril with less crosslinks')
+@click.option('-ratio_replace', '--ratio_replace', type=float, help='Ratio of crosslinks to be replaced with Lysines')
+@click.option('-replace_file', '--replace_file', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='File with information about crosslinks to be replaced with Lysine')
+@click.option('-topology', '--topology_generator', is_flag=True, help='Generate topology files')
+@click.option('-go', '--go_eps', type=float, default=9.414, help='Specify potential well of go-like potential')
+@click.option('-p', '--topology_file', type=click.Path(path_type=Path), default='system.top', help='Specify name of topology file')
+@click.option('-ff', '--force_field', help='Specify force field to be used, e.g. -ff amber99 OR -ff martini3')
+@click.option('--debug', is_flag=True, help='Enable debug logging')
+@timeit
+def main(**kwargs):
+    """Colbuilder 2.0: A tool for building collagen microfibrils."""
+    start_time = time.time()
     
-    parser.add_argument('-sequence','--sequence_generator', action='store_true',
-                        help='generate triple helix from sequence',default=False)
-    parser.add_argument('-seqconfig','--sequence_config', required=False,
-                        help='specify the configuration file with the homology modeling parameters',default='seqconfig.json')
-        
-    args=parser.parse_args()
-    if args.connect_file=='': args.connect_file=str(args.crystalcontacts_file).replace('.txt','_connect.txt')
+    LOG.title("Colbuilder 2.0")
+    LOG.info(f"{Fore.BLUE}{Style.BRIGHT}Starting Colbuilder process...")
+    LOG.debug(f"Current working directory: {Path.cwd()}")
+    LOG.debug(f"Python version: {sys.version}")
+    LOG.debug(f"Arguments: {kwargs}")
 
-    print('-- Colbuilder 2.0 --')
+    try:
+        LOG.section("Configuration Setup")
+        config_start_time = time.time()
+        cfg = setup_configuration(kwargs)
+        config_end_time = time.time()
+        log_configuration_summary(cfg)
 
-    if args.mix_bool==True and args.files_mix==[]: args.files_mix=[args.file]
-    if args.mix_bool==False and args.files_mix!=[]: print("Error: Please set -mix flag to obtain a mixed structure or topology."); exit()
+        LOG.section("Generating collagen fibril...")
+        operation_start_time = time.time()
+        asyncio.run(run_operation(cfg))
+        operation_end_time = time.time()
 
-    # Build a triple helix from amino acid sequence
-    if args.sequence_generator:
-        if args.sequence_config:
-            with open(args.sequence_config, 'r') as f:
-                config = json.load(f)
-        else:
-            print("Error: Sequence configuration file is required when using -sequence flag.")
-            exit()
-        
-        final_pdb = build_sequence(config=config)
-        print(f"Final PDB file created: {final_pdb}")
-        return 
+        end_time = time.time()
+        LOG.section("Process Complete")
+        LOG.info(f"{Fore.BLUE}Colbuilder process completed successfully in {end_time - start_time:.2f} seconds.{Style.RESET_ALL}")
 
-    # Build a system of models, i.e., the geometry, for a long microfibril
-    if args.fibril==False and args.sequence_generator==False:
-        system_=build_geometry(path_wd=str(args.working_directory),
-                        pdb_file=str(args.file).replace('.pdb',''),
-                        contact_distance=args.contact_distance,
-                        crystalcontacts_file=args.crystalcontacts_file,
-                        crystalcontacts_optimize=args.crystalcontacts_optimize,
-                        connect_file=args.connect_file,
-                        solution_space=args.solution_space,
-                        fibril_length=float(args.fibril_length),
-                        geometry=args.geometry_generator,
-                        pdb_out=str(args.output).replace('.pdb',''))
+    except ColbuilderError as e:
+        LOG.error(f"Colbuilder Error: {str(e)}")
+        sys.exit(1)
+    except Exception as e:
+        LOG.error(f"Unexpected error: {str(e)}", exc_info=True)
+        sys.exit(1)
+
+def setup_configuration(kwargs):
+    """Set up the configuration based on input arguments."""
+    if 'ratio_mix' in kwargs:
+        kwargs['ratio_mix'] = {key: value for key, value in kwargs['ratio_mix']}
     
-    # Build a system of models for the 67-nm long collagen D-Band from colbuilder1
-    if args.fibril==True and args.sequence_generator==False:
-        system_=build_fibril(path_wd=str(args.working_directory),
-                            pdb_file=args.file,
-                            connect_file=args.connect_file)
-
-    # Mix divalent and trivalent crosslinks within system to alter crosslink density
-    if args.mix_bool==True and args.replace_bool==False: 
-        system_=mix_geometry(path_wd=str(args.working_directory),
-                            fibril_length=float(args.fibril_length),
-                            pdb_files=[str(file).replace('.pdb','') for file in args.files_mix],
-                            ratio_mix=args.ratio_mix,
-                            connect_file=args.connect_file,
-                            system=system_,
-                            pdb_out=str(args.output).replace('.pdb',''))
-
-    # Replace crosslinks within system to reduce crosslink density
-    elif args.replace_bool==True and args.mix_bool==False:
-        system_=replace_geometry(path_wd=str(args.working_directory),
-                                ratio_replace=args.ratio_replace,
-                                system=system_,
-                                fibril_length=float(args.fibril_length),
-                                pdb_out=str(args.output).replace('.pdb',''),
-                                replace_file=str(args.replace_file).replace('.txt',''))
+    cfg = get_config(**kwargs)
+    LOG.debug(f"Initial config: {cfg}")
     
-    elif args.replace_bool==True and args.mix_bool==True:
-        print('Error: -mix and -replace can not be used together, either mix crosslinks or replace them')
+    if cfg.config_file:
+        user_config = load_yaml_config(cfg.config_file)
+        cfg.update(user_config)
+    
+    LOG.debug(f"Final configuration: {cfg}")
+    return cfg
 
-    # Build Topology for System
-    if args.topology_generator==True and args.sequence_generator==False:
-        system_=build_topology(system=system_,
-                           force_field=args.force_field,
-                           top_file=args.output+'.top',
-                           gro_file=str(args.output).replace('.pdb','.gro'),
-                           go_epsilon=args.go_eps)
+def log_configuration_summary(cfg):
+    """Log a summary of the configuration."""
+    LOG.subsection("Configuration Summary")
+    LOG.info(f"- Operation Mode: a) Homology: {cfg.sequence_generator}; b) Geometry: {cfg.geometry_generator}")
+    LOG.info(f"- Input File: {cfg.file}")
+    LOG.info(f"- Output: {cfg.output}")
+    LOG.info(f"- Working Directory: {cfg.working_directory}")
+    LOG.subsection("Fibril Parameters")
+    LOG.info(f"- Contact Distance: {cfg.contact_distance}")
+    LOG.info(f"- Fibril Length: {cfg.fibril_length}")
+    LOG.info(f"- Crystal Contacts File: {cfg.crystalcontacts_file}")
+    LOG.info(f"- Connect File: {cfg.connect_file}")
+    LOG.info(f"- Optimize Crystal Contacts: {cfg.crystalcontacts_optimize}")
+    LOG.info(f"- Fibril: {cfg.fibril}")
+    LOG.info(f"- Mix: {cfg.mix_bool}")
+    if cfg.mix_bool:
+        LOG.info(f"  - Mix Ratio: {cfg.ratio_mix}")
+        LOG.info(f"  - Mix Files: {cfg.files_mix}")
+    LOG.info(f"- Replace: {cfg.replace_bool}")
+    if cfg.replace_bool:
+        LOG.info(f"  - Replace Ratio: {cfg.ratio_replace}")
+        LOG.info(f"  - Replace File: {cfg.replace_file}")
+    LOG.info(f"- Topology Generator: {cfg.topology_generator}")
+    if cfg.topology_generator:
+        LOG.info(f"  - GO Epsilon: {cfg.go_eps}")
+        LOG.info(f"  - Topology File: {cfg.topology_file}")
+        LOG.info(f"  - Force Field: {cfg.force_field}")
+    LOG.info(f"- Debug Mode: {cfg.debug}")
+
+@timeit
+async def run_operation(cfg):
+    """Run the specified operation based on the configuration."""
+    system = None
+
+    if cfg.mode in [OperationMode.SEQUENCE, OperationMode.BOTH]:
+        LOG.subsection("Homology Modelling")
+        msa, final_pdb = await run_sequence_generation(cfg)
+        LOG.info(f"{Fore.BLUE}Homology modelling completed.{Style.RESET_ALL} {Fore.GREEN}MSA: {msa}; Final PDB (triple helix): {final_pdb}{Style.RESET_ALL}")
+        cfg.file = final_pdb
+
+    if cfg.mode in [OperationMode.GEOMETRY, OperationMode.BOTH]:
+        LOG.subsection("Geometry Generation")
+        if cfg.file is None:
+            raise ColbuilderError("Input file is required for geometry generation.")
+        system = await run_geometry_generation(cfg)
+        LOG.info(f"{Fore.BLUE}Geometry generation completed.{Style.RESET_ALL} {Fore.GREEN}Final PDB (fibril): {cfg.output}.pdb.{Style.RESET_ALL}")
+
+    if cfg.mode == OperationMode.FIBRIL:
+        LOG.subsection("Fibril Generation")
+        if cfg.file is None:
+            raise ColbuilderError("Input file is required for fibril generation.")
+        system = await run_fibril_generation(cfg)
+
+    if cfg.mode == OperationMode.MIX:
+        LOG.subsection("Mixing Geometry")
+        system = await run_mix_geometry(cfg)
+    elif cfg.mode == OperationMode.REPLACE:
+        LOG.subsection("Replacing Geometry")
+        system = await run_replace_geometry(cfg)
+
+    if cfg.topology_generator and cfg.mode != OperationMode.SEQUENCE:
+        LOG.subsection("Topology Generation")
+        if system is None:
+            raise ColbuilderError("System is not initialized. Run geometry generation first.")
+        system = await run_topology_generation(cfg, system)
 
 if __name__ == '__main__':
-    colbuilder()
+    main()

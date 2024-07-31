@@ -1,96 +1,102 @@
+# Copyright (c) 2024, Colbuilder Development Team
+# Distributed under the terms of the Apache License 2.0
+
 import subprocess
 import os
 import shutil
+from typing import List, Dict, Optional
 from colbuilder.geometry import model
 
 class Fibril:
     """
-    
-    class to setup system from fibril
-    
+    Class to setup system from fibril
     """
-    def __init__(self,pdb_file=None,system=None):
-        self.pdb_file=pdb_file
-        self.system=system
-        self.fibril=open(pdb_file,'r').readlines()
-        self.count=self.count_models(pdb_file=self.pdb_file)
-        self.models={ k : {} for k in range(self.count) }
+    def __init__(self, pdb_file: Optional[str] = None, system: Optional[object] = None):
+        self.pdb_file = pdb_file
+        self.system = system
+        self.fibril: List[str] = []
+        if pdb_file:
+            with open(pdb_file, 'r') as f:
+                self.fibril = f.readlines()
+        self.count = self.count_models()
+        self.models: Dict[int, Dict] = {k: {} for k in range(self.count)}
 
-    def seperate_system(self,pdb_file=None):
+    def seperate_system(self, pdb_file: Optional[str] = None) -> None:
         """
-        
-        separate system in models and write pdbs
-        
+        Separate system in models and write pdbs
         """
-        if pdb_file==None: self.pdb_file=pdb_file ; self.fibril=open(pdb_file,'r').readlines()
-
-        model=[] ; model_cnt=0
+        if pdb_file:
+            self.pdb_file = pdb_file
+            with open(pdb_file, 'r') as f:
+                self.fibril = f.readlines()
+        model_lines: List[str] = []
+        model_cnt = 0
+        last_line = ""
         for line in self.fibril:
-            if line[0:3]=='TER' and last_line[21:22]=='C':
-                self.write_model(model_cnt=model_cnt,lines=model) ; model=[] ; model_cnt+=1; continue
-            model.append(line) ; last_line=line
+            if line[0:3] == 'TER' and last_line[21:22] == 'C':
+                self.write_model(model_cnt=model_cnt, lines=model_lines)
+                model_lines = []
+                model_cnt += 1
+                continue
+            model_lines.append(line)
+            last_line = line
 
-    def write_model(self,model_cnt=None,lines=None):
+    def write_model(self, model_cnt: int, lines: List[str]) -> None:
         """
-        
-        writes model to pdb-file
-        
+        Writes model to pdb-file
         """
-        with open(str(model_cnt)+'.caps.pdb','w') as f:
-            for line in lines: f.write(line)
+        with open(f"{model_cnt}.caps.pdb", 'w') as f:
+            for line in lines:
+                f.write(line)
             f.write('END')
-        f.close()
 
-    def count_models(self,pdb_file=None):
+    def count_models(self) -> int:
         """
-        
-        counts number of models in fibril
-        
+        Counts number of models in fibril
         """
-        cnt=0
-        for line in self.fibril: 
-            if 'TER' in line: cnt+=1
-        return int(cnt/3)
+        return sum(1 for line in self.fibril if 'TER' in line) // 3
 
-    def build_system(self,system=None):
+    def build_system(self, system: Optional[object] = None) -> object:
         """
-        
-        get a models from a pdb file and checks connection
-        
+        Get models from a pdb file and checks connection
         """
-        if system==None: system=self.system
+        if system is None:
+            system = self.system
         for model_id in range(self.count):
-            model_=model.Model(id=model_id,pdb_file=str(int(model_id))+'.caps')
+            model_ = model.Model(id=model_id, pdb_file=f"{model_id}.caps")
             system.add_model(model=model_)
         return system
 
-    def write_connect(self,system=None,connect_file=None):
+    def write_connect(self, system: Optional[object] = None, connect_file: Optional[str] = None) -> None:
         """
-        
-        writes system of model connections to file 
-        
+        Writes system of model connections to file 
         """
-        subprocess.run("rm -r N/ T/ D/ TD/ DT/ ",shell=True,
-                       stdout=subprocess.DEVNULL,stderr=subprocess. DEVNULL)
+        subprocess.run("rm -r N/ T/ D/ TD/ DT/", shell=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
-        with open(connect_file+'.txt','w') as f:
+        if system is None:
+            system = self.system
 
+        with open(f"{connect_file}.txt", 'w') as f:
             for model in system.get_models():
-                if system.get_model(model_id=model).connect==None: continue
-                
-                elif len(system.get_model(model_id=model).connect)==1:
-                    if not os.path.exists(os.getcwd()+'/N'): subprocess.run("mkdir N",shell=True)
-                    system.get_model(model_id=model).type='N'
-                    f.write(str(int(model))+'.caps.pdb')
-                    f.write(' ; N \n')
-                    shutil.move(os.getcwd()+"/"+str(int(model))+".caps.pdb", os.getcwd()+"/N")
+                model_obj = system.get_model(model_id=model)
+                if model_obj.connect is None:
+                    continue
+                elif len(model_obj.connect) == 1:
+                    if not os.path.exists(os.path.join(os.getcwd(), 'N')):
+                        subprocess.run("mkdir N", shell=True)
+                    model_obj.type = 'N'
+                    f.write(f"{model}.caps.pdb ; N\n")
+                    shutil.move(os.path.join(os.getcwd(), f"{model}.caps.pdb"), os.path.join(os.getcwd(), "N"))
                 else:
-                    if not os.path.exists(os.getcwd()+'/'+str( system.get_model(model_id=model).type)): 
-                        subprocess.run("mkdir "+str( system.get_model(model_id=model).type),shell=True)
+                    if not os.path.exists(os.path.join(os.getcwd(), model_obj.type)):
+                        subprocess.run(f"mkdir {model_obj.type}", shell=True)
+                    for connect in model_obj.connect:
+                        f.write(f"{connect}.caps.pdb ")
+                        shutil.move(os.path.join(os.getcwd(), f"{connect}.caps.pdb"), 
+                                    os.path.join(os.getcwd(), model_obj.type))
+                    f.write(f"; {model_obj.type}\n")
 
-                    for connect in system.get_model(model_id=model).connect:
-                        f.write(str(int(connect))+'.caps.pdb ')
-                        shutil.move(os.getcwd()+"/"+str(int(connect))+".caps.pdb", os.getcwd()+"/"+str(system.get_model(model_id=model).type)+"/")
-                    f.write(' ; '+str(system.get_model(model_id=model).type)+'\n')
-
-        f.close()
+if __name__ == "__main__":
+    # Add any test code or main execution here if needed
+    pass

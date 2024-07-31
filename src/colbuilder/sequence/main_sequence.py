@@ -1,123 +1,254 @@
-# src/colbuilder/sequence/main_sequence.py
+# Copyright (c) 2024, Colbuilder Development Team
+# Distributed under the terms of the Apache License 2.0
+
 import os
-import logging
+import asyncio
+import tempfile
+import shutil
+import io
+import pathlib
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
+from pathlib import Path
+import typing as t
+
 import pandas as pd
+
 from colbuilder.sequence.alignment import align_sequences
 from colbuilder.sequence.modeller import run_modeller
-from colbuilder.sequence.mutations_crosslinks import apply_crosslinks
+from colbuilder.sequence.mutate_crosslinks import apply_crosslinks
+from colbuilder.core.utils.logger import setup_logger
+from colbuilder.core.utils.config import ColbuilderConfig
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+LOG = setup_logger(__name__)
 
-# Get the project root directory
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-# Define the path to the directory containing reference files and libraries
-HOMOLOGY_LIB_DIR = os.path.join(PROJECT_ROOT, 'data', 'homology')
-# Define the path to the templates
-TEMPLATE_PDB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "template.pdb")
-TEMPLATE_FASTA_PATH = os.path.join(HOMOLOGY_LIB_DIR, "template.fasta")
-# Paths to custom modeller library files
-RESTYP_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "restyp_mod.lib")
-TOP_HEAV_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "top_heav_mod.lib")
-PAR_MOD_LIB_PATH = os.path.join(HOMOLOGY_LIB_DIR, "modeller", "par_mod.lib")
-# Path to crosslink information
-CROSSLINKS_FILE = os.path.join(HOMOLOGY_LIB_DIR, "crosslinks.csv")
+@contextmanager
+def suppress_output() -> t.Generator[None, None, None]:
+    """
+    Context manager to suppress stdout and stderr.
 
-def format_pdb(input_file_path, output_file_path):
-    new_first_line = "CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2\n"
+    Yields:
+        None
+    """
+    with io.StringIO() as stdout_buf, io.StringIO() as stderr_buf:
+        with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
+            yield
+
+@contextmanager
+def change_dir(path: Path) -> t.Generator[None, None, None]:
+    """
+    Context manager for changing the current working directory.
+
+    Args:
+        path (Path): The path to change the current working directory to.
+
+    Yields:
+        None
+    """
+    origin = Path.cwd()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(origin)
+
+def format_pdb(config: ColbuilderConfig, input_file_path: Path, output_file_path: Path) -> None:
+    """
+    Format a PDB file by modifying its first line and removing 'REMARK' lines from MODELLER output.
+
+    Args:
+        config (ColbuilderConfig): The configuration object.
+        input_file_path (Path): The path to the input PDB file.
+        output_file_path (Path): The path to save the formatted PDB file.
+
+    Raises:
+        IOError: If there's an error reading or writing the PDB file.
+    """
+    pdb_first_line = str(config.pdb_first_line)
     
     try:
         with open(input_file_path, "r") as input_file:
             lines = input_file.readlines()
         
-        # Replace the first line
-        lines[0] = new_first_line
-        
-        # Remove lines starting with "REMARK"
+        lines[0] = pdb_first_line + '\n'
         lines = [line for line in lines if not line.startswith("REMARK")]
         
         with open(output_file_path, "w") as output_file:
             output_file.writelines(lines)
         
-        logger.info(f"Formatted PDB file saved as: {output_file_path}")
-    except Exception as e:
-        logger.error(f"An error occurred while formatting PDB file: {str(e)}")
+    except IOError as e:
+        LOG.error(f"An error occurred while formatting PDB file: {str(e)}")
         raise
 
-def build_sequence(config):
+async def run_alignment(config: ColbuilderConfig, file_prefix: str, steps: int) -> t.Tuple[Path, Path]:
     """
-    Build fibril from an uncrossed collagen triple helix, starting from a FASTA file
-    """
-    fasta_file = config['fasta_file']
-    species = config['species']
-    crosslink = config.get('crosslink', False)
-    n_term_type = config.get('n_term_type')
-    c_term_type = config.get('c_term_type')
-    n_term_combination = config.get('n_term_combination')
-    c_term_combination = config.get('c_term_combination')
+    Run sequence alignment using Muscle.
 
-    logger.info('-- Building the sequence of the Collagen Triple Helix --')
-    logger.info('-- Prepare for Sequence Alignment --')
-    
-    file_prefix = os.path.splitext(os.path.basename(fasta_file))[0]
-    
-    logger.info(f'-- Sequence Alignment with Muscle: {file_prefix} --')
-    staggered_restored_sequences, msa_output, modeller_output = align_sequences(
-        fasta_file, 
-        TEMPLATE_FASTA_PATH, 
-        file_prefix, 
-        TEMPLATE_PDB_PATH
-    )
-    
-    logger.info('-- Prepare triple helical structure with MODELLER --')
-    output_pdb = run_modeller(
-        aligned_file=modeller_output,
-        output_prefix=file_prefix,
-        restyp_lib=RESTYP_LIB_PATH,
-        top_heav_lib=TOP_HEAV_LIB_PATH,
-        par_mod_lib=PAR_MOD_LIB_PATH
-    )
-    
-    if crosslink:
-    logger.info('-- Applying crosslinks --')
-    crosslinks_df = pd.read_csv(CROSSLINKS_FILE)
-    species_crosslinks = crosslinks_df[crosslinks_df['species'] == species]
-    
+    Args:
+        config (ColbuilderConfig): The configuration object.
+        file_prefix (str): The prefix for output files.
+        steps (int): The total number of steps in the process.
+
+    Returns:
+        Tuple[Path, Path]: Paths to the MSA output and Modeller output files.
+    """
+    LOG.info(f'Step {1}/{steps} Sequence alignment with Muscle: {file_prefix}')
+    with suppress_output():
+        msa_output_path, modeller_output = align_sequences(
+            Path(file_prefix + '.fasta'),
+            Path(config.TEMPLATE_FASTA_PATH),
+            file_prefix,
+            Path(config.TEMPLATE_PDB_PATH)
+        )
+    return Path(msa_output_path), Path(modeller_output)
+
+
+async def run_modelling(config: ColbuilderConfig, modeller_output: Path, file_prefix: str, steps: int) -> Path:
+    """
+    Run collagen structure generation using MODELLER.
+
+    Args:
+        config (ColbuilderConfig): The configuration object.
+        modeller_output (Path): Path to the Modeller output file.
+        file_prefix (str): The prefix for output files.
+        steps (int): The total number of steps in the process.
+
+    Returns:
+        Path: Path to the output PDB file.
+    """
+    LOG.info(f'Step 2/{steps} Collagen structure generation with MODELLER')
+    with suppress_output():
+        output_pdb = run_modeller(
+            aligned_file=str(modeller_output),
+            template_pdb=str(config.TEMPLATE_PDB_PATH),
+            output_prefix=file_prefix,
+            restyp_lib=str(config.RESTYP_LIB_PATH),
+            top_heav_lib=str(config.TOP_HEAV_LIB_PATH),
+            par_mod_lib=str(config.PAR_MOD_LIB_PATH)
+        )
+    return Path(output_pdb)
+
+def get_crosslink(df: pd.DataFrame, terminal: str, term_type: t.Optional[str], term_combination: t.Optional[str]) -> pd.DataFrame:
+    """
+    Get crosslink information from a DataFrame based on terminal, type, and residue combination.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing crosslink information.
+        terminal (str): The terminal type ('N' or 'C').
+        term_type (Optional[str]): The crosslink type.
+        term_combination (Optional[str]): The residues combination.
+
+    Returns:
+        pd.DataFrame: A DataFrame containing the matching crosslink information.
+    """
+    if term_type and term_combination:
+        return df[
+            (df['terminal'] == terminal) &
+            (df['type'] == term_type) &
+            (df['combination'] == term_combination)
+        ]
+    return pd.DataFrame()
+
+async def apply_crosslinks_if_needed(config: ColbuilderConfig, output_pdb: Path, file_prefix: str, steps: int) -> Path:
+    """
+    Apply crosslinks to the PDB file if needed.
+
+    Args:
+        config (ColbuilderConfig): The configuration object.
+        output_pdb (Path): Path to the input PDB file.
+        file_prefix (str): The prefix for output files.
+        steps (int): The total number of steps in the process.
+
+    Returns:
+        Path: Path to the output PDB file (with or without crosslinks).
+    """
+    LOG.info(f'Step 3/{steps} Crosslinks application')
+    with suppress_output():
+        crosslinks_df = pd.read_csv(config.CROSSLINKS_FILE)
+        species_crosslinks = crosslinks_df[crosslinks_df['species'] == config.species]
+
     if species_crosslinks.empty:
-        logger.warning(f"No crosslinks found for species: {species}")
-    else:
-        n_crosslink = pd.DataFrame()
-        c_crosslink = pd.DataFrame()
+        LOG.warning(f"No crosslinks found for species: {config.species}")
+        return output_pdb
+
+    n_crosslink = get_crosslink(species_crosslinks, "N", config.n_term_type, config.n_term_combination)
+    c_crosslink = get_crosslink(species_crosslinks, "C", config.c_term_type, config.c_term_combination)
+
+    if n_crosslink.empty and c_crosslink.empty:
+        LOG.warning(f"No specified crosslink combination found for species: {config.species}")
+        return output_pdb
+
+    with suppress_output(): 
+        n_suffix = f"N_{config.n_term_type}" if not n_crosslink.empty else "N_NONE"
+        c_suffix = f"C_{config.c_term_type}" if not c_crosslink.empty else "C_NONE"
+        output_pdb_crosslinked = f"{file_prefix}_{n_suffix}_{c_suffix}_temp.pdb"
+        return Path(apply_crosslinks(
+            str(output_pdb), 
+            output_pdb_crosslinked,
+            n_crosslink.iloc[0] if not n_crosslink.empty else None,
+            c_crosslink.iloc[0] if not c_crosslink.empty else None,
+            config
+        ))
+
+async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
+    """
+    Perform homology modeling to generate a specific collagen triple helix, starting from a FASTA file.
+
+    Args:
+        config (ColbuilderConfig): The configuration object.
+
+    Returns:
+        Tuple[Path, Path]: Paths to the final MSA output and PDB files.
+
+    Raises:
+        FileNotFoundError: If input or output files are not found.
+        Exception: For any other errors during the process.
+    """
+    fasta_file = Path(config.fasta_file).resolve()
+    if not fasta_file.exists():
+        raise FileNotFoundError(f"FASTA file not found: {fasta_file}")
+
+    steps = 3 if config.crosslink else 2
+    work_dir = Path.cwd() / 'debug_output' if config.debug else Path(tempfile.mkdtemp())
+    work_dir.mkdir(exist_ok=True)
+
+    try:
+        with change_dir(work_dir):
+            file_prefix = fasta_file.stem
+            shutil.copy(fasta_file, work_dir / fasta_file.name)
+            
+            msa_output_path, modeller_output = await run_alignment(config, file_prefix, steps)
+            
+            output_pdb = await run_modelling(config, modeller_output, file_prefix, steps)
+            
+            if config.crosslink:
+                output_pdb = await apply_crosslinks_if_needed(config, output_pdb, file_prefix, steps)
+                
+            formatted_stem = output_pdb.stem.replace('_temp', '')
+            formatted_output_pdb = output_pdb.with_stem(formatted_stem)
+            format_pdb(config, output_pdb, formatted_output_pdb)
+
+            if not formatted_output_pdb.exists():
+                raise FileNotFoundError(f"Formatted PDB file not found: {formatted_output_pdb}")
+
+        final_output = Path.cwd() / formatted_output_pdb.name
+        shutil.copy(work_dir / formatted_output_pdb.name, final_output)
         
-        if n_term_type and n_term_combination:
-            n_crosslink = species_crosslinks[
-                (species_crosslinks['terminal'] == "N") & 
-                (species_crosslinks['type'] == n_term_type) &
-                (species_crosslinks['combination'] == n_term_combination)
-            ]
-        
-        if c_term_type and c_term_combination:
-            c_crosslink = species_crosslinks[
-                (species_crosslinks['terminal'] == "C") &
-                (species_crosslinks['type'] == c_term_type) & 
-                (species_crosslinks['combination'] == c_term_combination)
-            ]
-        
-        if n_crosslink.empty and c_crosslink.empty:
-            logger.warning(f"No specified crosslink combination found for species: {species}")
+        msa_output_final_path = Path.cwd() / msa_output_path.name
+        shutil.copy(work_dir / msa_output_path.name, msa_output_final_path)
+
+        if not final_output.exists():
+            raise FileNotFoundError(f"Final PDB file not found: {final_output}")
+        if not msa_output_final_path.exists():
+            raise FileNotFoundError(f"Final MSA file not found: {msa_output_final_path}")
+
+    except Exception as e:
+        LOG.error(f"Error in build_sequence: {str(e)}", exc_info=True)
+        LOG.info(f"Directory contents after error: {[f.name for f in work_dir.iterdir()]}")
+        raise
+    finally:
+        if not config.debug:
+            shutil.rmtree(work_dir)
         else:
-            n_suffix = f"N_{n_term_type}" if not n_crosslink.empty else "N_NONE"
-            c_suffix = f"C_{c_term_type}" if not c_crosslink.empty else "C_NONE"
-            output_pdb_crosslinked = f"{file_prefix}_{n_suffix}_{c_suffix}.pdb"
-            apply_crosslinks(output_pdb, output_pdb_crosslinked, 
-                             n_crosslink.iloc[0] if not n_crosslink.empty else None, 
-                             c_crosslink.iloc[0] if not c_crosslink.empty else None)
-            output_pdb = output_pdb_crosslinked
-    
-    formatted_output_pdb = f"{os.path.splitext(output_pdb)[0]}_formatted.pdb"
-    format_pdb(output_pdb, formatted_output_pdb)
-    
-    logger.info(f'-- Model building and formatting completed. Final Output PDB: {formatted_output_pdb} --')
-    
-    return formatted_output_pdb
+            LOG.info(f"Debug files retained in: {work_dir}")
+
+    return msa_output_final_path, final_output
