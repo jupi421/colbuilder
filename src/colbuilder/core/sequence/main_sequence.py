@@ -331,6 +331,11 @@ async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
         
         msa_output_final_path = Path.cwd() / msa_output_path.name
         shutil.copy(work_dir / msa_output_path.name, msa_output_final_path)
+        
+        try:
+            os.remove(formatted_output)
+        except OSError:
+            pass
 
         if not final_output.exists():
             raise FileNotFoundError(f"Final PDB file not found: {final_output}")
