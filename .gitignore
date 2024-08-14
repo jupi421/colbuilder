@@ -102,3 +102,5 @@ ENV/
 *.pdb
 *.txt
 D/
+colbuilder_paper_output/
+*.sh

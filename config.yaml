@@ -10,7 +10,7 @@ debug: false
 sequence_generator: false
 fasta_file: homosapiens.fasta
 output_prefix: "my_collagen_sequence"
-species: "Homo_sapiens"
+species: "Rattus_norvegicus"
 crosslink: true
 n_term_type: "HLKNL"
 c_term_type: "HLKNL"
@@ -19,10 +19,10 @@ c_term_combination: "1047.C - 104.C"
 
 # Geometry Generation Configuration
 geometry_generator: true
-file: homosapiens_N_HLKNL_C_HLKNL.pdb  # Input PDB file. Note: Comment this line if sequence_generator is true
+#file: homosapiens_N_HLKNL_C_HLKNL.pdb  # Input PDB file. Note: Comment this line if sequence_generator is true
 output: "collagen_fibril"
 working_directory: "./"
-contact_distance: 60
+contact_distance: 1
 fibril_length: 334.0
 crystalcontacts_file: null # crystalcontacts_from_colbuilder.txt
 connect_file: null
