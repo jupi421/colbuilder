@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from colbuilder.core.utils.logger import setup_logger
-from colbuilder.core.config import ColbuilderConfig
+from colbuilder.core.utils.config import ColbuilderConfig
 
 LOG = setup_logger(__name__)
 
