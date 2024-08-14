@@ -32,11 +32,11 @@ If you find `Colbuilder` useful, please see the citation file for details on how
 ## Install colbuilder
 
 1. Use a virtual environment for the colbuilder project. We recommend the [miniforge](https://github.com/conda-forge/miniforge) environment manager.
-
+    
     conda create -n colbuilder python=3.9
     conda activate colbuilder
 
-3. Clone this repository and install Colbuilder:
+2. Clone this repository and install Colbuilder:
 
     git@github.com:graeter-group/colbuilder.git
     cd colbuilder
