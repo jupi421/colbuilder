@@ -86,7 +86,7 @@ After compiling the `colbuilder` Command Line Tool, edit the configuration file 
 
 # 📊 Examples & Documentation
 
-For more detailed examples and API documentation, please visit our [documentation folder](https://github.com/graeter-group/colbuilder/tree/debora-monego-patch-1/docs).
+For more detailed examples and API documentation, please visit our [documentation folder](https://github.com/graeter-group/colbuilder/tree/main/docs).
 
 # 📚 Publications
 
