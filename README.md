@@ -46,7 +46,7 @@ If you find ColBuilder useful, please see the citation file for details on how t
 
 A few external tools are required to run ColBuilder. You can download them according to the following instructions.
 
-`pymol`
+### PyMOL
 
     conda install -c conda-forge -c schrodinger pymol-bundle
 
@@ -54,11 +54,11 @@ A few external tools are required to run ColBuilder. You can download them accor
 
     conda install -c conda-forge libnetcdf==4.7.3
 
-`muscle`
+### muscle
 
     conda install muscle
 
-`UCSF Chimera`
+### UCSF Chimera
 
 Download the latest version of [UCSF Chimera](https://www.cgl.ucsf.edu/chimera/download.html) for your OS. We recommend using the 64-bit version. After downloading the binary, navigate to the download directory, make the binary executable and install it. 
 
@@ -70,7 +70,7 @@ The installer will ask you where you wish to create the symlink for UCSF Chimera
 
 **NOTE**: ColBuilder uses UCSF Chimera instead of the most recent version of the software, UCSF ChimeraX. 
 
-`Modeller`
+### Modeller
 
 Download [Modeller version 10.5](https://salilab.org/modeller/download_installation.html) for your OS and follow the INSTALLATION instructions. For Ubuntu users, we recommend downloading the Generic Unix Tarball version. During installation you will be asked where to install modeller. Please make sure you add this location and the following PYTHONPATH environment variable values to your bashrc file:
 
