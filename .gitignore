@@ -98,7 +98,7 @@ ENV/
 .mypy_cache/
 
 # outputs
-/*.fasta
-/*.pdb
-/*.txt
+*.fasta
+*.pdb
+*.txt
 D/
