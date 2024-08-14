@@ -232,10 +232,10 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
             crosslink_info.append({
                 'residue1_position': extract_numeric_position(crosslink['P1'].iloc[0]),
                 'residue1_type': crosslink['R1'].iloc[0],
-                'atom1': 'CE' if crosslink['R1'].iloc[0] == 'L4Y' else 'NZ',
+                'atom1': crosslink['A1'].iloc[0],
                 'residue2_position': extract_numeric_position(crosslink['P2'].iloc[0]),
                 'residue2_type': crosslink['R2'].iloc[0],
-                'atom2': 'CE' if crosslink['R2'].iloc[0] == 'L4Y' else 'NZ'
+                'atom2': crosslink['A2'].iloc[0]
             })
 
     optimization_params = {
