@@ -48,7 +48,7 @@ A few external tools are required to run ColBuilder. You can download them accor
 
 ### PyMOL
 
-    conda install -c conda-forge -c schrodinger pymol-bundle
+    conda install conda-forge::pymol-open-source
 
 **NOTE**: pymol cannot be called from python if the libnetcdf.so library is missing. If running `colbuilder -h` results in an error, we recommend installing the libnetcdf.so package:
 
