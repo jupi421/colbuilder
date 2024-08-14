@@ -7,7 +7,7 @@
 
 ---
 
-[![license](https://img.shields.io/badge/License-MIT-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+[![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://github.com/graeter-group/colbuilder/tree/debora-monego-patch-1/docs)
 
 # 📚 About
