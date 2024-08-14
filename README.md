@@ -35,7 +35,7 @@ If you find `Colbuilder` useful, please see the citation file for details on how
 
 ## Install colbuilder
 
-1. Use a virtual environment for the colbuilder project. We recommend the [![miniforge](https://github.com/conda-forge/miniforge)] environment manager.
+1. Use a virtual environment for the colbuilder project. We recommend the [miniforge](https://github.com/conda-forge/miniforge) environment manager.
     
     `conda create -n colbuilder python=3.9`
     `conda activate colbuilder`
@@ -64,7 +64,7 @@ A few external tools are required to run colbuilder. You can download them accor
 
 `UCSF Chimera`
 
-Download the latest version of [!UCSF Chimera](https://www.cgl.ucsf.edu/chimera/download.html) for your OS. We recommend using the 64-bit version. After downloading the binary, navigate to the download directory, make the binary executable and install it. 
+Download the latest version of [UCSF Chimera](https://www.cgl.ucsf.edu/chimera/download.html) for your OS. We recommend using the 64-bit version. After downloading the binary, navigate to the download directory, make the binary executable and install it. 
 
     `cd ~/Downloads # or where you downloaded the chimera binary`
     `chmod +x chimera*.bin`
@@ -76,22 +76,21 @@ The installer will ask you where you wish to create the symlink for UCSF Chimera
 
 `Modeller`
 
-Download [!Modeller version 10.5](https://salilab.org/modeller/download_installation.html) for your OS and follow the INSTALLATION instructions. For Ubuntu users, we recommend downloading the Generic Unix Tarball version. During installation you will be asked where to install modeller. Please make sure you add this location and the following PYTHONPATH environment variable values to your bashrc file:
+Download [Modeller version 10.5](https://salilab.org/modeller/download_installation.html) for your OS and follow the INSTALLATION instructions. For Ubuntu users, we recommend downloading the Generic Unix Tarball version. During installation you will be asked where to install modeller. Please make sure you add this location and the following PYTHONPATH environment variable values to your bashrc file:
 
     `export PYTHONPATH="/home/user/bin/modeller10.5/lib/x86_64-intel8/python3.3:$PYTHONPATH"`
     `export PYTHONPATH="/home/user/bin/modeller10.5/modlib:$PYTHONPATH"`
     `export LD_LIBRARY_PATH="/home/user/bin/modeller10.5/lib/x86_64-intel8:$LD_LIBRARY_PATH"`
 
 # 📖 Tutorial: The Collagen Microfibril
-`colbuilder --config_file config.yaml`
+
+After compiling the `colbuilder` Command Line Tool, edit the configuration file and run colbuilder with:
+
+    `colbuilder --config_file config.yaml`
 
 # 📊 Examples & Documentation
 
 For more detailed examples and API documentation, please visit our [documentation site](https://your-docs-url.com).
-
-# 🛠️ Development
-
-We welcome contributions! Please see our [contributing guide](CONTRIBUTING.md) for details.
 
 # 📄 License
 
@@ -101,8 +100,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you use Colbuilder 2.0 in your research, please cite our paper:
 
-[Paper citation placeholder]
 
 # 🙏 Acknowledgements
 
-We would like to thank [list of contributors or institutions].
+We would like to thank...
