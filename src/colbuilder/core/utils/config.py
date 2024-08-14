@@ -58,7 +58,7 @@ class ColbuilderConfig(BaseModel):
     TOP_HEAV_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "top_heav_mod.lib")
     PAR_MOD_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "par_mod.lib")
     CROSSLINKS_FILE: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "crosslinks.csv")
-    CHIMERA_SCRIPTS_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent / 'chimera_scripts', description="Directory with scripts run as subprocesses by Chimera")
+    CHIMERA_SCRIPTS_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'chimera_scripts', description="Directory with scripts run as subprocesses by Chimera")
     FORCE_FIELD_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'topology', description="Directory containing force field files")
 
     def __init__(self, **data):
