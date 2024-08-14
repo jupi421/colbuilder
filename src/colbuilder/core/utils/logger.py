@@ -39,11 +39,9 @@ class ColoredLogger(logging.Logger):
         separator = "=" * len(title)
         self.info(f"{Fore.CYAN}{separator}")
         self.info(f"{Fore.CYAN}{title}")
-        #self.info(f"{Fore.CYAN}{separator}{Style.RESET_ALL}")
 
     def subsection(self, title):
         separator = "-" * len(title)
-        #self.info(f"{Fore.MAGENTA}{separator}")
         self.info(f"{Fore.MAGENTA}{title}")
         #self.info(f"{Fore.MAGENTA}{separator}{Style.RESET_ALL}")
 

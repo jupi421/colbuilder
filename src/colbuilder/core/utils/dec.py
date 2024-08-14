@@ -29,19 +29,3 @@ def timeit(func: Callable[..., Any]) -> Callable[..., Any]:
             LOG.debug(f"{func.__name__} executed in {end_time - start_time:.2f} seconds")
             return result
     return wrapper
-
-    
-def retry_decorator(retries: int = 3):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            for attempt in range(retries):
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    LOG.error(f"Attempt {attempt + 1} failed: {str(e)}")
-                    if attempt == retries - 1:
-                        raise
-                    sleep(2 ** attempt)
-        return wrapper
-    return decorator

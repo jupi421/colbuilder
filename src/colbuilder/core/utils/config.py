@@ -1,19 +1,20 @@
-import os
-from typing import Any, Dict, Optional, Tuple, List
+# Copyright (c) 2024, Colbuilder Development Team
+# Distributed under the terms of the Apache License 2.0
+
+from typing import Any, Dict, Optional, Tuple, List, Set, Union
 from pathlib import Path
-from pydantic import BaseModel, Field
-from enum import Enum
+from pydantic import BaseModel, Field, field_validator
+from enum import Flag, auto
 import yaml
 
-class OperationMode(str, Enum):
-    SEQUENCE = "sequence"
-    GEOMETRY = "geometry"
-    TOPOLOGY = "topology"
-    FIBRIL = "fibril"
-    MIX = "mix"
-    REPLACE = "replace"
-    BOTH = "both"
-
+class OperationMode(Flag):
+    NONE = 0
+    SEQUENCE = auto()
+    GEOMETRY = auto()
+    TOPOLOGY = auto()
+    MIX = auto()
+    REPLACE = auto()
+    
 class ColbuilderConfig(BaseModel):
     mode: Optional[OperationMode] = Field(None, description="Operation mode")
     config_file: Optional[Path] = Field(None, description="YAML configuration file")
@@ -35,50 +36,77 @@ class ColbuilderConfig(BaseModel):
     crystalcontacts_file: Optional[Path] = Field(None, description="Crystal contacts file")
     connect_file: Optional[Path] = Field(None, description="Connect file")
     crystalcontacts_optimize: bool = Field(default=False, description="Optimize crystal contacts")
-    solution_space: Tuple[float, float, float] = Field(default=(1, 1, 1), description="Solution space")
-    fibril: bool = Field(default=False, description="Generate topology for colbuilder 1.0 67nm-long fibril")
+    solution_space: Union[List[float], Tuple[float, float, float]] = Field(default=(1, 1, 1), description="Solution space")
     mix_bool: bool = Field(default=False, description="Generate a mixed crosslinked microfibril")
-    ratio_mix: Dict[str, int] = Field(default={}, description="Ratio for mix-crosslink setup")
-    files_mix: Tuple[Path, ...] = Field(default=(), description="PDB files with different crosslink types")
+    ratio_mix: Union[str, Dict[str, int]] = Field(default={}, alias="ratio_mix")
+    files_mix: Union[List[Path], Tuple[Path, ...]] = Field(default=(), description="PDB files with different crosslink types")
     replace_bool: bool = Field(default=False, description="Generate a microfibril with less crosslinks")
     ratio_replace: Optional[float] = Field(None, description="Ratio of crosslinks to be replaced")
     replace_file: Optional[Path] = Field(None, description="File with crosslinks to be replaced")
     topology_generator: bool = Field(default=False, description="Generate topology files")
-    go_eps: float = Field(default=9.414, description="Potential well of go-like potential")
-    topology_file: Path = Field(default=Path("system.top"), description="Topology file name")
     force_field: Optional[str] = Field(None, description="Force field to be used")
     debug: bool = Field(default=False, description="Enable debug logging")
-    # System settings ~constants
-    pdb_first_line: Optional[str] = Field(default="CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2\n", description="Crystal contacts information")
+    pdb_first_line: Optional[str] = Field(default="CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2", description="Crystal contacts information")
 
-    # Paths from your original config
+    # Paths
     PROJECT_ROOT: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent)
     DATA_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data')
-    HOMOLOGY_LIB_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'homology')
-    TEMPLATE_PDB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'homology' / "template.pdb")
-    TEMPLATE_FASTA_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'homology' / "template.fasta")
-    RESTYP_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'homology' / "modeller" / "restyp_mod.lib")
-    TOP_HEAV_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'homology' / "modeller" / "top_heav_mod.lib")
-    PAR_MOD_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'homology' / "modeller" / "par_mod.lib")
-    CROSSLINKS_FILE: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'homology' / "crosslinks.csv")
+    HOMOLOGY_LIB_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence')
+    TEMPLATE_PDB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "template.pdb")
+    TEMPLATE_FASTA_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "template.fasta")
+    RESTYP_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "restyp_mod.lib")
+    TOP_HEAV_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "top_heav_mod.lib")
+    PAR_MOD_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "par_mod.lib")
+    CROSSLINKS_FILE: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "crosslinks.csv")
+    FORCE_FIELD_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'topology', description="Directory containing force field files")
 
     def __init__(self, **data):
         super().__init__(**data)
+        self.ratio_mix = self._convert_ratio_mix(self.ratio_mix)
+        self.solution_space = self._convert_to_tuple(self.solution_space)
+        self.files_mix = tuple(self.files_mix)
         self.set_mode()
 
+    def _convert_ratio_mix(self, value: Union[str, Dict[str, int]]) -> Dict[str, int]:
+        if isinstance(value, str):
+            return {item.split(':')[0]: int(item.split(':')[1]) for item in value.split()}
+        return value
+
+    def _convert_to_tuple(self, value: Union[List[float], Tuple[float, float, float]]) -> Tuple[float, float, float]:
+        if isinstance(value, list):
+            return tuple(value)
+        return value
+
+    @field_validator('solution_space', mode='before')
+    def validate_solution_space(cls, value):
+        if isinstance(value, list):
+            return tuple(value)
+        return value
+
+    @field_validator('files_mix', mode='before')
+    def validate_files_mix(cls, value):
+        return tuple(value)
+
+    @property
+    def ratio_mix(self) -> Dict[str, int]:
+        return self._ratio_mix
+
+    @ratio_mix.setter
+    def ratio_mix(self, value: Union[str, Dict[str, int]]):
+        self._ratio_mix = self._convert_ratio_mix(value)
+
     def set_mode(self):
-        if self.sequence_generator and self.geometry_generator:
-            self.mode = OperationMode.BOTH
-        elif self.sequence_generator:
-            self.mode = OperationMode.SEQUENCE
-        elif self.geometry_generator:
-            self.mode = OperationMode.GEOMETRY
-        elif self.fibril:
-            self.mode = OperationMode.FIBRIL
-        elif self.mix_bool:
-            self.mode = OperationMode.MIX
-        elif self.replace_bool:
-            self.mode = OperationMode.REPLACE
+        self.mode = OperationMode.NONE
+        if self.sequence_generator:
+            self.mode |= OperationMode.SEQUENCE
+        if self.geometry_generator:
+            self.mode |= OperationMode.GEOMETRY
+        if self.topology_generator:
+            self.mode |= OperationMode.TOPOLOGY
+        if self.mix_bool:
+            self.mode |= OperationMode.MIX
+        if self.replace_bool:
+            self.mode |= OperationMode.REPLACE
 
     class Config:
         use_enum_values = True
@@ -94,6 +122,7 @@ class ColbuilderConfig(BaseModel):
             self.TOP_HEAV_LIB_PATH,
             self.PAR_MOD_LIB_PATH,
             self.CROSSLINKS_FILE,
+            self.FORCE_FIELD_DIR,
             self.file,
             self.crystalcontacts_file,
             self.connect_file,
