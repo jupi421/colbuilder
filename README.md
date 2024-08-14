@@ -8,15 +8,15 @@
 ---
 
 [![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![GitHub release](https://img.shields.io/github/release/your-username/colbuilder.svg)](https://github.com/your-username/colbuilder/releases)
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://your-docs-url.com)
-[![PyPI version](https://badge.fury.io/py/colbuilder.svg)](https://badge.fury.io/py/colbuilder)
+[![GitHub release](https://img.shields.io/github/release/your-username/colbuilder.svg)]()
+[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)]()
+[![PyPI version](https://badge.fury.io/py/colbuilder.svg)]()
 
-![overview](https://github.com/user-attachments/assets/39d251b1-8114-4242-b9fc-e0cce900d22f)
+![overview]()
 
 # 📚 About
 
-![Colbuilder Workflow](path/to/workflow_image.png)
+![Colbuilder Workflow]()
 
 **Colbuilder** is a tool for generating atomistic models of collagen microfibrils from single collagen molecules. It offers flexibility in input parameters, structural optimization, and supports various crosslink types to mimic biological systems.
 
@@ -42,7 +42,7 @@ If you find `Colbuilder` useful, please see the citation file for details on how
 
 2. Clone this repository and install Colbuilder:
 
-    `git clone git@github.com:hits-mbm-dev/colbuilder.git`
+    `git@github.com:graeter-group/colbuilder.git`
     `cd colbuilder/`
     `pip install .`
 
