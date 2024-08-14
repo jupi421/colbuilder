@@ -7,10 +7,8 @@
 
 ---
 
-[![license](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![GitHub release](https://img.shields.io/github/release/your-username/colbuilder.svg)]()
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)]()
-[![PyPI version](https://badge.fury.io/py/colbuilder.svg)]()
+[![license](https://img.shields.io/badge/License-MIT-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://github.com/graeter-group/colbuilder/tree/debora-monego-patch-1/docs)
 
 ![overview]()
 
@@ -90,11 +88,7 @@ After compiling the `colbuilder` Command Line Tool, edit the configuration file 
 
 # 📊 Examples & Documentation
 
-For more detailed examples and API documentation, please visit our [documentation site](https://your-docs-url.com).
-
-# 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+For more detailed examples and API documentation, please visit our [documentation folder](https://github.com/graeter-group/colbuilder/tree/debora-monego-patch-1/docs).
 
 # 📚 Publications
 
