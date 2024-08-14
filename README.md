@@ -1,4 +1,4 @@
-![Colbuilder](path/to/logo.png)
+![Colbuilder](https://github.com/user-attachments/assets/ea9609dc-9b11-4335-8d9d-a4d1bc9298cb)
 
 <div align="center">
     <h1>Colbuilder 2.0</h1>
