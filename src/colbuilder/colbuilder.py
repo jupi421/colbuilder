@@ -9,6 +9,7 @@ import asyncio
 from tqdm import tqdm
 import time
 from colorama import init, Fore, Style
+from . import VERSION
 
 from colbuilder.core.utils.logger import setup_logger
 from colbuilder.core.utils.dec import timeit
@@ -21,6 +22,12 @@ LOG = setup_logger(__name__)
 
 async def import_module(module_path: str) -> Any:
     return __import__(module_path, fromlist=[''])
+
+def print_version(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo(f"colbuilder version {VERSION}")
+    ctx.exit()
 
 @timeit
 async def run_sequence_generation(config: ColbuilderConfig) -> Tuple[Path, Path]:
@@ -136,6 +143,9 @@ async def run_operations(config: ColbuilderConfig) -> None:
 @click.option('-topology', '--topology_generator', is_flag=True, help='Generate topology files')
 @click.option('-ff', '--force_field', help='Specify force field to be used, e.g. -ff amber99 OR -ff martini3')
 @click.option('--debug', is_flag=True, help='Enable debug logging')
+@click.option('--version', is_flag=True, callback=print_version,
+              expose_value=False, is_eager=True,
+              help="Show the version and exit.")
 @timeit
 def main(**kwargs):
     """Colbuilder 2.0: A tool for building collagen microfibrils."""
