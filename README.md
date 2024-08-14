@@ -24,7 +24,7 @@
 - Support for different crosslink types
 - Generation of atomistic and coarse-grained topology files
 
-The `Colbuilder` tool was created by the Gr\"ater group at the Max Plank Institute for Polymer Research, and will be regularly maintained.
+The `Colbuilder` tool was created by the Gräter group at the Max Planck Institute for Polymer Research, and will be regularly maintained.
 If you find `Colbuilder` useful, please see the citation file for details on how to cite.
 
 # 🚀 Getting Started
