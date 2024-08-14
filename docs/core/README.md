@@ -1,6 +1,6 @@
-# Colbuilder: Building Collagen Microfibrils
+# ColBuilder 2.0: Building Collagen Microfibrils
 
-Colbuilder is a tool for generating collagen microfibrils through a three-stage pipeline: sequence generation (homology modeling), geometry generation (fibril geometry), and topology generation. Colbuilder allows for customization of the collagen structure, including crosslink types and fibril properties.
+ColBuilder is a tool for generating collagen microfibrils through a three-stage pipeline: sequence generation (homology modeling), geometry generation (fibril geometry), and topology generation. ColBuilder allows for customization of the collagen structure, including crosslink types and fibril properties.
 
 ## Input
 
@@ -27,17 +27,13 @@ Colbuilder is a tool for generating collagen microfibrils through a three-stage 
 
 ### Run entire pipeline
 
-    ```bash
     colbuilder --config_file config.yaml
-    ```
 
 By setting `sequence_generator`, `geometry_generator`, and `topology_generator` as True in the config file, this command runs all stages of the pipeline as specified by keywords for each mode.
 
 ### Sequence Generation
 
-    ```bash
     colbuilder --config_file config.yaml --sequence_generator
-    ```
 
 Generates a collagen triple helix from sequence information.
 
@@ -47,9 +43,7 @@ Generates a collagen triple helix from sequence information.
 
 ### Geometry Generation
 
-    ```bash
     colbuilder --config_file config.yaml --geometry_generator -f input_triple_helix.pdb
-    ```
 
 Generates fibril geometry based on the collagen molecule structure.
 
@@ -58,9 +52,7 @@ Generates fibril geometry based on the collagen molecule structure.
 
 ### Topology Generation
 
-    ```bash
     colbuilder --config_file config.yaml --topology_generator -f input_triple_helix.pdb
-    ```
 
 Generates topology files for molecular dynamics simulations.
 
@@ -74,17 +66,13 @@ Generates topology files for molecular dynamics simulations.
 
 To generate a mixed crosslinked microfibril:
 
-    ```bash
     colbuilder --config_file config.yaml --mix_bool -ratio_mix T 70 -ratio_mix D 30 -files_mix species-T.pdb species-D.pdb
-    ```
 
 ### Replacing Crosslinks
 
 To replace a portion of crosslinks with lysines:
 
-    ```bash
     colbuilder --config_file config.yaml --replace_bool -ratio_replace 30
-    ```
 
 ## Pipeline Stages
 

@@ -1,15 +1,15 @@
-# Colbuilder Data Documentation
+# ColBuilder 2.0 Data Documentation
 
-This document describes the data files and structures used by Colbuilder, located in `src/colbuilder/data/`.
+This document describes the data files and structures used by ColBuilder, located in `src/colbuilder/data/`.
 
 ## Directory Structure
 
-    ```
     src/colbuilder/data/
-    ├── amber99/
-    │   ├── aminoacids.rtp
-    │   └── modifications.ff
-    ├── homology/
+    ├── topology
+    |   ├── amber99/
+    │       ├── aminoacids.rtp
+    │       └── modifications.ff
+    ├── sequence/
     │   ├── modeller/
     │   │   ├── par_mod.lib
     │   │   ├── restyp_mod.lib
@@ -18,24 +18,27 @@ This document describes the data files and structures used by Colbuilder, locate
     │   ├── crosslinks.csv
     │   ├── template.fasta
     │   └── template.pdb
-    ```
 
 ## Data Descriptions
 
+### topology
+
+This directory contains force field files used in the topology generation stage of ColBuilder.
+
 ### amber99/
 
-This directory contains force field files used in the topology generation stage of Colbuilder.
-
+Custom Amber99 files:
+ 
 - `aminoacids.rtp`: Residue topology file for amino acids in the Amber99 force field.
-- `modifications.ff`: Force field modifications specific to Colbuilder's needs.
+- `modifications.ff`: Force field modifications specific to ColBuilder's needs.
 
-### homology/
+### sequence/
 
-This directory contains files used in the sequence generation (homology modeling) stage of Colbuilder.
+This directory contains files used in the sequence generation (homology modeling) stage of ColBuilder.
 
 #### modeller/
 
-Custom MODELLER libraries for Colbuilder:
+Custom MODELLER libraries for ColBuilder:
 
 - `par_mod.lib`: Parameters for MODELLER specific to collagen modeling.
 - `restyp_mod.lib`: Residue type definitions for MODELLER.
@@ -50,7 +53,7 @@ Custom MODELLER libraries for Colbuilder:
 
 - `template.pdb`: Template structure file for rat collagen. Provides the structural basis for homology modeling.
 
-## Usage in Colbuilder Pipeline
+## Usage in ColBuilder Pipeline
 
 1. **Sequence Generation**:
    - `template.fasta` and `template.pdb` are used as references for homology modeling.
@@ -66,13 +69,13 @@ Custom MODELLER libraries for Colbuilder:
 
 ## Customization
 
-Users can potentially customize the Colbuilder pipeline by modifying these data files:
+Users can potentially customize the ColBuilder pipeline by modifying these data files:
 
 - Edit `crosslinks.csv` to change add further crosslink definitions. New residue types must also be added to the custom MODELLER libraries
 - Modify `template.fasta` or `template.pdb` to use a different reference structure for homology modeling.
 - Adjust force field parameters in `amber99/` files for specialized simulations.
 
-**Note**: Modifying these files should be done with caution and understanding of their impact on the Colbuilder pipeline.
+**Note**: Modifying these files should be done with caution and understanding of their impact on the ColBuilder pipeline.
 
 ## File Formats
 
@@ -81,4 +84,4 @@ Users can potentially customize the Colbuilder pipeline by modifying these data 
 - `.pdb`: Protein Data Bank format, contains atomic coordinates and other information about macromolecules.
 - `.lib`, `.rtp`, `.ff`: Specialized formats used by MODELLER and GROMACS. These are typically text-based and can be viewed with a text editor.
 
-For detailed information on file formats and their contents, refer to the documentation of MODELLER, GROMACS, and other relevant software used in the Colbuilder pipeline.
+For detailed information on file formats and their contents, refer to the documentation of MODELLER, GROMACS, and other relevant software used in the ColBuilder pipeline.

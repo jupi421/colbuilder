@@ -1,7 +1,7 @@
-![Colbuilder](path/to/logo.png)
+![ColBuilder](path/to/logo.png)
 
 <div align="center">
-    <h1>Colbuilder 2.0</h1>
+    <h1>ColBuilder 2.0</h1>
     <p>Generate microfibrils from single collagen molecules</p>
 </div>
 
@@ -12,9 +12,9 @@
 
 # 📚 About
 
-**Colbuilder** is a tool for generating atomistic models of collagen microfibrils from single collagen molecules. It offers flexibility in input parameters, structural optimization, and supports various crosslink types to mimic biological systems.
+**ColBuilder** is a tool for generating atomistic models of collagen microfibrils from single collagen molecules. It offers flexibility in input parameters, structural optimization, and supports various crosslink types to mimic biological systems.
 
-![Colbuilder Workflow](https://github.com/user-attachments/assets/24de0b10-162f-48ea-a7ef-d4663c134735)
+![ColBuilder Workflow](https://github.com/user-attachments/assets/24de0b10-162f-48ea-a7ef-d4663c134735)
 
 ## Key Features
 
@@ -24,19 +24,19 @@
 - Support for different crosslink types
 - Generation of atomistic and coarse-grained topology files
 
-The `Colbuilder` tool was created by the Gräter group at the Max Planck Institute for Polymer Research, and will be regularly maintained.
-If you find `Colbuilder` useful, please see the citation file for details on how to cite.
+The `colbuilder` tool was created by the Gräter group at the Max Planck Institute for Polymer Research, and will be regularly maintained.
+If you find ColBuilder useful, please see the citation file for details on how to cite.
 
 # 🚀 Getting Started
 
-## Install colbuilder
+## Install ColBuilder
 
-**Use a virtual environment for the colbuilder project.** We recommend the [miniforge](https://github.com/conda-forge/miniforge) environment manager.
+**Use a virtual environment for the ColBuilder project.** We recommend the [miniforge](https://github.com/conda-forge/miniforge) environment manager.
 
     conda create -n colbuilder python=3.9
     conda activate colbuilder
 
-**Clone this repository and install Colbuilder:**
+**Clone this repository and install ColBuilder:**
 
     git@github.com:graeter-group/colbuilder.git
     cd colbuilder
@@ -44,7 +44,7 @@ If you find `Colbuilder` useful, please see the citation file for details on how
 
 **Install additional dependencies:**
 
-A few external tools are required to run colbuilder. You can download them according to the following instructions.
+A few external tools are required to run ColBuilder. You can download them according to the following instructions.
 
 `pymol`
 
@@ -66,9 +66,9 @@ Download the latest version of [UCSF Chimera](https://www.cgl.ucsf.edu/chimera/d
     chmod +x chimera*.bin`
     ./chimera*.bin
 
-The installer will ask you where you wish to create the symlink for UCSF Chimera. We recommend choosing a symlink that is already present in your `$PATH`, but if you choose not to do so, remember to make sure Colbuilder can find it.
+The installer will ask you where you wish to create the symlink for UCSF Chimera. We recommend choosing a symlink that is already present in your `$PATH`, but if you choose not to do so, remember to make sure ColBuilder can find it.
 
-**NOTE**: Colbuilder uses UCSF Chimera instead of the most recent version of the software, UCSF ChimeraX. 
+**NOTE**: ColBuilder uses UCSF Chimera instead of the most recent version of the software, UCSF ChimeraX. 
 
 `Modeller`
 
@@ -80,7 +80,7 @@ Download [Modeller version 10.5](https://salilab.org/modeller/download_installat
 
 # 📖 Tutorial: The Collagen Microfibril
 
-After compiling the `colbuilder` Command Line Tool, edit the configuration file and run colbuilder with:
+After compiling the `colbuilder` Command Line Tool, edit the configuration file and run ColBuilder with:
 
     colbuilder --config_file config.yaml
 
@@ -90,7 +90,7 @@ For more detailed examples and API documentation, please visit our [documentatio
 
 # 📚 Publications
 
-If you use Colbuilder 2.0 in your research, please cite our paper:
+If you use ColBuilder 2.0 in your research, please cite our paper:
 
 # 🙏 Acknowledgements
 
