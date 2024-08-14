@@ -14,7 +14,8 @@
 
 **Colbuilder** is a tool for generating atomistic models of collagen microfibrils from single collagen molecules. It offers flexibility in input parameters, structural optimization, and supports various crosslink types to mimic biological systems.
 
-![Colbuilder Workflow](https://github.com/user-attachments/assets/24de0b10-162f-48ea-a7ef-d4663c134735)
+![Colbuilder Workflow](https://github.com/user-attachments/assets/ccbdfbdf-a78e-407c-899d-4ecc67f7cd07)
+
 ## Key Features
 
 - Generate microfibrils from single collagen molecules
