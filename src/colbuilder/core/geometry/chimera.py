@@ -3,8 +3,10 @@
 
 import subprocess
 import os
+from pathlib import Path
 
 from colbuilder.core.utils.logger import setup_logger
+from colbuilder.core.config import ColbuilderConfig
 
 LOG = setup_logger(__name__)
 
@@ -25,17 +27,16 @@ class Chimera(object):
         matrixset: Sets PDB models based on updated, symmetrized transformation matrices.
         swapaa: Swaps amino acid defined by user for mutation.
     """
-
-    def __init__(self, pdb=None):
+    def __init__(self, config, pdb=None):
         """
         Initialize Chimera object.
-
+        
         Args:
-            pdb (str, optional): Path to the PDB file.
+            config (ColbuilderConfig): Configuration object containing settings.
+            pdb (Optional[str]): Path to the PDB file. Defaults to None.
         """
+        self.chimera_dir = Path(config.CHIMERA_SCRIPTS_DIR)
         self.pdb_file = pdb
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-    
 
     def matrixget(self, pdb=None, contact_distance=0, crystalcontacts=""):
         """
@@ -49,11 +50,12 @@ class Chimera(object):
         Returns:
             subprocess.CompletedProcess: Result of the subprocess run.
         """
+        
         if pdb is None:
             pdb = self.pdb_file
         
         pdb_full_path = os.path.abspath(pdb)
-        script_path = os.path.join(os.path.dirname(__file__), '..', 'chimera_scripts', 'matrixget.py')
+        script_path = Path(self.chimera_dir) / 'matrixget.py'
         
         env = os.environ.copy()
         env['PDB_FILE'] = pdb_full_path
@@ -80,7 +82,7 @@ class Chimera(object):
             pdb = self.pdb_file
         
         pdb_full_path = os.path.abspath(pdb)
-        script_path = os.path.join(os.path.dirname(__file__), '..', 'chimera_scripts', 'matrixset.py')
+        script_path = Path(self.chimera_dir) / 'matrixset.py'
 
         env = os.environ.copy()
         env['PDB_FILE'] = pdb_full_path
@@ -125,7 +127,7 @@ class Chimera(object):
             Returns:
                 subprocess.CompletedProcess: Result of the subprocess run.
             """
-            swapaa_script = os.path.join(os.path.dirname(__file__), '..', 'chimera_scripts', 'swapaa.py')
+            swapaa_script = Path(self.directory) / 'swapaa.py'
             cmd = f"chimera --nogui --silent --script \"{swapaa_script} {replace} {system_type}\""
             LOG.debug(f"Running Chimera command: {cmd}")
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)

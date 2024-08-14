@@ -217,7 +217,7 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
     LOG.info(f'Step 4/{steps} Optimizing crosslinks with Chimera')
     LOG.info(f'{Fore.BLUE}Please wait, this may take some time ...{Style.RESET_ALL}')
     
-    script_path = os.path.join(os.path.dirname(__file__), '..', 'chimera_scripts', 'optimize_crosslinks.py')
+    script_path = os.path.join(Path(config.CHIMERA_SCRIPTS_DIR), 'optimize_crosslinks.py')
     LOG.debug(f"Chimera script path: {script_path}")
     
     n_crosslink = get_crosslink(crosslinks_df, "N", config.n_term_type, config.n_term_combination)

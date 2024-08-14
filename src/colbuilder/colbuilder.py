@@ -26,7 +26,7 @@ async def import_module(module_path: str) -> Any:
 async def run_sequence_generation(config: ColbuilderConfig) -> Tuple[Path, Path]:
     """Generate coordinates for collagen molecule from sequence information."""
     try:
-        sequence_module = await import_module('colbuilder.sequence.main_sequence')
+        sequence_module = await import_module('colbuilder.core.sequence.main_sequence')
         msa, final_pdb = await sequence_module.build_sequence(config)
         return Path(msa), Path(final_pdb)
     except Exception as e:
@@ -36,7 +36,7 @@ async def run_sequence_generation(config: ColbuilderConfig) -> Tuple[Path, Path]
 async def run_geometry_generation(config: ColbuilderConfig) -> System:
     """Generate fibril geometry."""
     try:
-        geometry_module = await import_module('colbuilder.geometry.main_geometry')
+        geometry_module = await import_module('colbuilder.core.geometry.main_geometry')
         return await geometry_module.build_geometry(config)
     except Exception as e:
         raise ColbuilderError(f"Geometry generation failed: {str(e)}")
@@ -45,7 +45,7 @@ async def run_geometry_generation(config: ColbuilderConfig) -> System:
 async def run_mix_geometry(system: System, config: ColbuilderConfig) -> System:
     """Mix geometry."""
     try:
-        geometry_module = await import_module('colbuilder.geometry.main_geometry')
+        geometry_module = await import_module('colbuilder.core.geometry.main_geometry')
         
         if isinstance(config.ratio_mix, str):
             ratio_mix = {item.split(':')[0]: int(item.split(':')[1]) for item in config.ratio_mix.split()}
@@ -62,7 +62,7 @@ async def run_mix_geometry(system: System, config: ColbuilderConfig) -> System:
 async def run_replace_geometry(system: System, config: ColbuilderConfig) -> System:
     """Replace geometry."""
     try:
-        geometry_module = await import_module('colbuilder.geometry.main_geometry')
+        geometry_module = await import_module('colbuilder.core.geometry.main_geometry')
         return await geometry_module.replace_geometry(system, config)
     except Exception as e:
         raise ColbuilderError(f"Replacing geometry failed: {str(e)}")
@@ -71,7 +71,7 @@ async def run_replace_geometry(system: System, config: ColbuilderConfig) -> Syst
 async def run_topology_generation(system: System, config: ColbuilderConfig) -> System:
     """Generate topology."""
     try:
-        topology_module = await import_module('colbuilder.topology.main_topology')
+        topology_module = await import_module('colbuilder.core.topology.main_topology')
         return await topology_module.build_topology(system, config)
     except Exception as e:
         raise ColbuilderError(f"Topology generation failed: {str(e)}")

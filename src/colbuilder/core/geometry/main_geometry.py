@@ -57,7 +57,7 @@ async def build_geometry(config: ColbuilderConfig) -> Any:
         crystal.translate_crystal(pdb=pdb_file, translate=[0, 0, 4000])
 
         path_pdb_file = path_wd / pdb_file
-        chimera = Chimera(str(path_pdb_file))
+        chimera = Chimera(config, str(path_pdb_file))
         steps = 6
 
         if pdb_file and contact_distance and not crystalcontacts_file:
@@ -314,7 +314,7 @@ async def mix_geometry(system: System, config: ColbuilderConfig) -> System:
             LOG.info(f'Step 1/{steps} Generating mix setup')
             for key in list(mix_pdb.keys()):
                 Crystal(pdb=str(mix_pdb[key])).translate_crystal(pdb=str(mix_pdb[key]), translate=[0, 0, 4000])
-                chimera_ = Chimera(str(path_wd / mix_pdb[key]))
+                chimera_ = Chimera(config, str(path_wd / mix_pdb[key]))
                 
                 LOG.info(f' System {key}:')
                 LOG.info(f'     Generating system from {mix_pdb[key]} {Fore.BLUE}...{Style.RESET_ALL}')
@@ -388,7 +388,7 @@ async def replace_geometry(system: System, config: ColbuilderConfig) -> System:
 
         LOG.info(f'{Fore.BLUE}Please wait, this may take some time ...{Style.RESET_ALL}')
         
-        chimera = Chimera(str(path_wd / system.crystal.pdb_file))
+        chimera = Chimera(config, str(path_wd / system.crystal.pdb_file))
         
         result = chimera.swapaa(replace=replace_file, system_type=system.get_model(model_id=0.0).type)
         
