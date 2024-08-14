@@ -10,11 +10,12 @@
 [![license](https://img.shields.io/badge/License-MIT-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://github.com/graeter-group/colbuilder/tree/debora-monego-patch-1/docs)
 
-![overview]()
+% ![overview]()
 
 # 📚 About
 
-![Colbuilder Workflow]()
+![Colbuilder Workflow](https://github.com/user-attachments/assets/24de0b10-162f-48ea-a7ef-d4663c134735)
+
 
 **Colbuilder** is a tool for generating atomistic models of collagen microfibrils from single collagen molecules. It offers flexibility in input parameters, structural optimization, and supports various crosslink types to mimic biological systems.
 
