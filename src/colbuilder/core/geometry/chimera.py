@@ -3,7 +3,6 @@
 
 import subprocess
 import os
-from pathlib import Path
 
 from colbuilder.core.utils.logger import setup_logger
 from colbuilder.core.utils.config import ColbuilderConfig
@@ -35,7 +34,7 @@ class Chimera(object):
             config (ColbuilderConfig): Configuration object containing settings.
             pdb (Optional[str]): Path to the PDB file. Defaults to None.
         """
-        self.chimera_dir = Path(config.CHIMERA_SCRIPTS_DIR)
+        self.chimera_dir = config.CHIMERA_SCRIPTS_DIR
         self.pdb_file = pdb
 
     def matrixget(self, pdb=None, contact_distance=0, crystalcontacts=""):
@@ -55,7 +54,7 @@ class Chimera(object):
             pdb = self.pdb_file
         
         pdb_full_path = os.path.abspath(pdb)
-        script_path = Path(self.chimera_dir) / 'matrixget.py'
+        script_path = os.path.join(self.chimera_dir, 'matrixget.py')
         
         env = os.environ.copy()
         env['PDB_FILE'] = pdb_full_path
@@ -82,7 +81,7 @@ class Chimera(object):
             pdb = self.pdb_file
         
         pdb_full_path = os.path.abspath(pdb)
-        script_path = Path(self.chimera_dir) / 'matrixset.py'
+        script_path = os.path.join(self.chimera_dir, 'matrixset.py')
 
         env = os.environ.copy()
         env['PDB_FILE'] = pdb_full_path
@@ -127,7 +126,7 @@ class Chimera(object):
             Returns:
                 subprocess.CompletedProcess: Result of the subprocess run.
             """
-            swapaa_script = Path(self.directory) / 'swapaa.py'
+            swapaa_script = os.path.join(self.directory, 'swapaa.py')
             cmd = f"chimera --nogui --silent --script \"{swapaa_script} {replace} {system_type}\""
             LOG.debug(f"Running Chimera command: {cmd}")
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
