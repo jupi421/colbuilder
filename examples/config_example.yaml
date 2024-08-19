@@ -7,10 +7,10 @@ config_file: null  # Path to this YAML configuration file
 debug: false
 
 # Sequence Generation Configuration
-sequence_generator: false
+sequence_generator: true
 fasta_file: homosapiens.fasta
 output_prefix: "my_collagen_sequence"
-species: "Rattus_norvegicus"
+species: "Homo_sapiens"
 crosslink: true
 n_term_type: "HLKNL"
 c_term_type: "HLKNL"
@@ -19,8 +19,8 @@ c_term_combination: "1047.C - 104.C"
 
 # Geometry Generation Configuration
 geometry_generator: true
-file: rattusnorvegicus_N_HLKNL_C_HLKNL.pdb  # Input PDB file. Note: Comment this line if sequence_generator is true
-output: "collagen_rat"
+# file: homosapiens_N_HLKNL_C_HLKNL.pdb  # Input PDB file. Note: Comment this line if sequence_generator is true
+output: "collagen_human"
 working_directory: "./"
 contact_distance: 60
 fibril_length: 334.0
@@ -29,7 +29,7 @@ connect_file: null
 crystalcontacts_optimize: false # Note: This is always true when generating geometry from contact_distance, but has to be set to true to be performed otherwise.
 
 # Mix Configuration
-mix_bool: false
+mix_bool: true
 ratio_mix: "D:70 T:30"
 files_mix: 
   - "human-D.pdb"
@@ -41,6 +41,6 @@ ratio_replace: 30
 replace_file: null
 
 # Topology Generation Configuration
-topology_generator: false
+topology_generator: true
 force_field: amber99 # Note: Choose between "amber99" and "martini"
 

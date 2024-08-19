@@ -23,7 +23,7 @@ file: rattusnorvegicus_N_HLKNL_C_HLKNL.pdb  # Input PDB file. Note: Comment this
 output: "collagen_rat"
 working_directory: "./"
 contact_distance: 60
-fibril_length: 334.0
+fibril_length: 56
 crystalcontacts_file: null # crystalcontacts_from_colbuilder.txt
 connect_file: null
 crystalcontacts_optimize: false # Note: This is always true when generating geometry from contact_distance, but has to be set to true to be performed otherwise.
