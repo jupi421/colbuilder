@@ -14,7 +14,7 @@
 
 This tutorial guides you through the process of building a collagen microfibril using ColBuilder. ColBuilder is designed to generate detailed molecular models of collagen fibrils, including sequence-based modeling, geometry optimization, and topology generation for molecular dynamics simulations.
 
-Examples of input files are provided in the [examples directory]().
+Examples of input files are provided in the [examples directory](https://github.com/graeter-group/colbuilder/tree/main/examples).
 
 ## Tutorial
 
