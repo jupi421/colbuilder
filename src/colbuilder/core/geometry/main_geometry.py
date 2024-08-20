@@ -52,6 +52,10 @@ async def build_geometry(config: ColbuilderConfig) -> Any:
         if pdb_file is None:
             raise ValueError('No PDB file given to build collagen microfibril')
 
+         # Create a copy of the original PDB file to work with
+        original_pdb_file = path_wd / f"{pdb_file}_original.pdb"
+        shutil.copy(f"{pdb_file}.pdb", original_pdb_file)
+        
         LOG.debug(f'Reading crystallographic symmetry from {pdb_file}')
         crystal = Crystal(pdb_file)
         crystal.translate_crystal(pdb=pdb_file, translate=[0, 0, 4000])
@@ -124,7 +128,7 @@ async def build_geometry(config: ColbuilderConfig) -> Any:
 
         LOG.info(f'Step 6/{steps} Writing collagen fibril')
         system.write_pdb(pdb_out=Path(pdb_out), fibril_length=fibril_length)
-        
+
         return system
 
     except FileNotFoundError as e:

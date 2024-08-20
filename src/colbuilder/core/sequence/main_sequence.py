@@ -219,6 +219,12 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
     
     script_path = os.path.join(Path(config.CHIMERA_SCRIPTS_DIR), 'optimize_crosslinks.py')
     LOG.debug(f"Chimera script path: {script_path}")
+
+    input_pdb = input_pdb.resolve()
+    output_pdb = output_pdb.resolve()
+
+    if not input_pdb.exists():
+        raise FileNotFoundError(f"Input PDB file not found: {input_pdb}")
     
     n_crosslink = get_crosslink(crosslinks_df, "N", config.n_term_type, config.n_term_combination)
     c_crosslink = get_crosslink(crosslinks_df, "C", config.c_term_type, config.c_term_combination)
@@ -239,13 +245,14 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
             })
 
     optimization_params = {
-        'target_distance': 4.0,
-        'max_distance': 2.0,
-        'max_iterations': 50000000,
-        'initial_temperature': 100.0,
-        'cooling_rate': 0.9999,
-        'max_no_improvement': 100000
-    }
+            "target_distance": 4.0, 
+            "max_distance": 1.5, 
+            "max_iterations": 100000, 
+            "initial_temperature": 100, 
+            "step_size_reduction": 0.95, 
+            "max_no_improvement": 50, 
+            "translation_step_size": 0.1
+            }
 
     env = os.environ.copy()
     env['INPUT_PDB'] = str(input_pdb)
@@ -264,6 +271,7 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
         LOG.debug("Chimera process completed. Checking for output file: %s", output_pdb)
         
         if process.returncode != 0:
+            LOG.error(f"Chimera error output: {stderr}")
             raise subprocess.CalledProcessError(process.returncode, command, stdout, stderr)
         
         if not output_pdb.exists():
@@ -277,6 +285,7 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
     except Exception as e:
         LOG.error(f"An unexpected error occurred: {str(e)}")
         raise
+
 @timeit    
 async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
     """
@@ -306,7 +315,6 @@ async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
             shutil.copy(fasta_file, work_dir / fasta_file.name)
             
             msa_output_path, modeller_output = await run_alignment(config, file_prefix, steps)
-            
             output_pdb = await run_modelling(config, modeller_output, file_prefix, steps)
             
             if config.crosslink:
@@ -316,29 +324,29 @@ async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
                 output_pdb = await apply_crosslinks_if_needed(config, output_pdb, file_prefix, steps)
                 
                 formatted_stem = output_pdb.stem.replace('_temp', '_disoriented')
-                formatted_output_pdb = output_pdb.with_stem(formatted_stem)
+                formatted_output_pdb = output_pdb.with_name(formatted_stem + output_pdb.suffix).resolve()
                 format_pdb(config, output_pdb, formatted_output_pdb)
 
                 if not formatted_output_pdb.exists():
                     raise FileNotFoundError(f"Formatted PDB file not found: {formatted_output_pdb}")
 
-        formatted_output = Path.cwd() / formatted_output_pdb.name
-        shutil.copy(work_dir / formatted_output_pdb.name, formatted_output)
+        formatted_output = work_dir / formatted_output_pdb.name
+
+        if formatted_output.resolve() != formatted_output_pdb.resolve():
+            shutil.copy(work_dir / formatted_output_pdb.name, formatted_output.resolve())
                 
-        final_output_name = formatted_output.stem.replace('_disoriented','')
-        final_output = formatted_output.with_stem(final_output_name)
+        final_output_name = formatted_output.stem.replace('_disoriented', '')
+        final_output = formatted_output.with_name(final_output_name + formatted_output.suffix).resolve()
         optimized_output = await optimize_crosslinks(config, formatted_output, final_output, species_crosslinks, steps)
-        
+
+        persistent_output_path = Path(config.working_directory) / final_output.name
+        shutil.copy(final_output, persistent_output_path)
+
         msa_output_final_path = Path.cwd() / msa_output_path.name
         shutil.copy(work_dir / msa_output_path.name, msa_output_final_path)
-        
-        try:
-            os.remove(formatted_output)
-        except OSError:
-            pass
 
-        if not final_output.exists():
-            raise FileNotFoundError(f"Final PDB file not found: {final_output}")
+        if not persistent_output_path.exists():
+            raise FileNotFoundError(f"Final PDB file not found: {persistent_output_path}")
         if not msa_output_final_path.exists():
             raise FileNotFoundError(f"Final MSA file not found: {msa_output_final_path}")
 
@@ -351,4 +359,4 @@ async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
         else:
             LOG.info(f"Debug files retained in: {work_dir}")
 
-    return msa_output_final_path, final_output
+    return msa_output_final_path, persistent_output_path

@@ -117,7 +117,7 @@ class Connect:
         """
         return contactpairs
 
-    def get_connect(self, ref_model: Any, model: Any, cut_off: float = 2.0) -> bool:
+    def get_connect(self, ref_model: Any, model: Any, cut_off: float = 10.0) -> bool:
         """
         Calculates distance between models: distance below cut_off (2.0 A) keep model.
 
