@@ -19,13 +19,8 @@ c_term_combination: "1047.C - 104.C"
 
 # Geometry Generation Configuration
 geometry_generator: true
-<<<<<<< HEAD
 file: null #homosapiens_N_HLKNL_C_HLKNL.pdb  # Input PDB file. Note: Comment this line if sequence_generator is true
 output: "collagen_fibril"
-=======
-file: rattusnorvegicus_N_HLKNL_C_HLKNL.pdb  # Input PDB file. Note: Comment this line if sequence_generator is true
-output: "collagen_rat"
->>>>>>> 1b4ed8a40fb6356872594088f073c434e720b4fa
 working_directory: "./"
 contact_distance: 60
 fibril_length: 334.0

@@ -52,7 +52,6 @@ async def build_geometry(config: ColbuilderConfig) -> Any:
         if pdb_file is None:
             raise ValueError('No PDB file given to build collagen microfibril')
 
-         # Create a copy of the original PDB file to work with
         original_pdb_file = path_wd / f"{pdb_file}_original.pdb"
         shutil.copy(f"{pdb_file}.pdb", original_pdb_file)
         

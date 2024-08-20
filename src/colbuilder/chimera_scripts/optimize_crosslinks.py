@@ -6,16 +6,17 @@ import math
 import sys
 import json
 
-residue_rotations = {}
+try:
+    chimera.dialogs.find("reply", create=False).Close()
+except:
+    pass
 
-def calculate_center_of_mass(residue):
-    total_mass = 0.0
-    weighted_sum = chimera.Vector(0.0, 0.0, 0.0)
-    for atom in residue.atoms:
-        mass = atom.element.mass
-        total_mass += mass
-        weighted_sum += chimera.Vector(atom.coord().x * mass, atom.coord().y * mass, atom.coord().z * mass)
-    return weighted_sum / total_mass
+log_file = os.path.join(os.path.expanduser("~"), "chimera_script.log")
+def log(message):
+    with open(log_file, "a") as f:
+        f.write(message + "\n")
+
+log("Chimera script started")
 
 def vector_length(v):
     return math.sqrt(v.x**2 + v.y**2 + v.z**2)
@@ -24,256 +25,214 @@ def normalize_vector(v):
     length = vector_length(v)
     return chimera.Vector(v.x/length, v.y/length, v.z/length)
 
-def rotate_ca_cb_bond(residue, angle):
-    ca_atom = residue.findAtom('CA')
-    cb_atom = residue.findAtom('CB')
-    if not ca_atom or not cb_atom:
-        return None
-
-    axis = cb_atom.coord() - ca_atom.coord()
-    axis = normalize_vector(axis)
-    rot = chimera.Xform.rotation(axis, angle)
-
+def rotate_residue(residue, axis, angle):
+    center = chimera.Vector(0, 0, 0)
     for atom in residue.atoms:
-        if atom.name not in ['CA', 'CB']:
-            vec = atom.coord() - ca_atom.coord()
-            rotated_vec = rot.apply(vec)
-            new_coord = rotated_vec + ca_atom.coord()
-            atom.setCoord(new_coord)
+        center += chimera.Vector(atom.coord().x, atom.coord().y, atom.coord().z)
+    center /= len(residue.atoms)
     
-    residue_key = (residue.id.chainId, residue.id.position)
-    if residue_key not in residue_rotations:
-        residue_rotations[residue_key] = []
-    residue_rotations[residue_key].append((axis, angle))
-
-def translate_residue(residue, translation_vector):
+    rotation = chimera.Xform.rotation(axis, angle)
     for atom in residue.atoms:
-        new_coord = atom.coord() + translation_vector
-        atom.setCoord(new_coord)
-    return ('translation', translation_vector)
+        vec = chimera.Vector(atom.coord().x, atom.coord().y, atom.coord().z) - center
+        rotated_vec = rotation.apply(vec)
+        new_coord = rotated_vec + center
+        atom.setCoord(chimera.Coord(new_coord.x, new_coord.y, new_coord.z))
 
-def optimize_residues_by_rotation(atom1, atom2, max_distance, max_iterations, temperature, step_size_reduction, max_no_improvement, translation_step_size):
+def find_closest_pair(models, residue1_info, residue2_info, atom1_name, atom2_name):
+    closest_pair = None
+    min_distance = float('inf')
+    
+    print("Searching for closest pair:")
+    print("  Residue 1: {} {}, Atom: {}".format(residue1_info['type'], residue1_info['position'], atom1_name))
+    print("  Residue 2: {} {}, Atom: {}".format(residue2_info['type'], residue2_info['position'], atom2_name))
+    
+    for m1 in models:
+        residues1 = [r for r in m1.residues if str(r.type) == str(residue1_info['type']) and r.id.position == int(residue1_info['position'])]
+        print("\nModel #{}: Found {} matching residues for Residue 1 ({} {}).".format(m1.id, len(residues1), residue1_info['type'], residue1_info['position']))
+        
+        for r1 in residues1:
+            atom1 = r1.findAtom(str(atom1_name))
+            if not atom1:
+                print("  Warning: Atom {} not found in residue {} {} of model #{}".format(atom1_name, r1.type, r1.id.position, m1.id))
+                continue
+            
+            print("  Residue 1: {} {} (model #{}) with atom {} at coordinates {}".format(r1.type, r1.id.position, m1.id, atom1_name, atom1.coord()))
+            
+            for m2 in models:
+                residues2 = [r for r in m2.residues if str(r.type) == str(residue2_info['type']) and r.id.position == int(residue2_info['position'])]
+                print("  Model #{}: Found {} matching residues for Residue 2 ({} {}).".format(m2.id, len(residues2), residue2_info['type'], residue2_info['position']))
+                
+                for r2 in residues2:
+                    atom2 = r2.findAtom(str(atom2_name))
+                    if not atom2:
+                        print("    Warning: Atom {} not found in residue {} {} of model #{}".format(atom2_name, r2.type, r2.id.position, m2.id))
+                        continue
+                    
+                    distance = chimera.distance(atom1.coord(), atom2.coord())
+                    print("    Residue 2: {} {} (model #{}) with atom {} at coordinates {}".format(r2.type, r2.id.position, m2.id, atom2_name, atom2.coord()))
+                    print("    Distance between Residue 1 ({} {} model #{}) and Residue 2 ({} {} model #{}): {:.3f}".format(
+                        r1.type, r1.id.position, m1.id,
+                        r2.type, r2.id.position, m2.id,
+                        distance))
+                    
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_pair = (atom1, atom2, m1.id, m2.id)
+                        print("    New closest pair found!")
+
+    if closest_pair:
+        print("\nClosest pair found:")
+        print("  Atom 1: {} {} (model #{})".format(closest_pair[0].residue.type, closest_pair[0].residue.id.position, closest_pair[2]))
+        print("  Atom 2: {} {} (model #{})".format(closest_pair[1].residue.type, closest_pair[1].residue.id.position, closest_pair[3]))
+        print("  Distance: {:.3f}".format(min_distance))
+        runCommand("show #{}:{}@{} #{}:{}@{}".format(
+            closest_pair[2], closest_pair[0].residue.id.position, closest_pair[0].name,
+            closest_pair[3], closest_pair[1].residue.id.position, closest_pair[1].name))
+        #runCommand("write format pdb #{} closest_pair.pdb".format(closest_pair[2]))
+    else:
+        print("\nNo suitable pair found.")
+
+    return closest_pair[:2], min_distance
+
+
+def optimize_crosslink(atom1, atom2, params):
     initial_distance = chimera.distance(atom1.coord(), atom2.coord())
-    # print("Initial distance: {:.2f} Angstroms".format(initial_distance))
-
     best_distance = initial_distance
     best_coords1 = [atom.coord() for atom in atom1.residue.atoms]
     best_coords2 = [atom.coord() for atom in atom2.residue.atoms]
+    transformations_applied1 = []
+    transformations_applied2 = []
 
-    no_improvement_count = 0
-    step_size = 5  
-    min_step_size = 1  
-    translation_attempted = False
+    log("Starting optimization for atoms {} and {}".format(atom1, atom2))
+    log("Initial distance: {:.3f}".format(initial_distance))
 
-    for iteration in range(max_iterations):
-        # Rotate CA-CB bonds with small, controlled angles
-        rotation1 = rotate_ca_cb_bond(atom1.residue, random.uniform(-step_size, step_size))
-        rotation2 = rotate_ca_cb_bond(atom2.residue, random.uniform(-step_size, step_size))
+    temperature = params['initial_temperature']
+    for iteration in xrange(params['max_iterations']):
+        axis1 = normalize_vector(chimera.Vector(*(atom1.residue.atoms[1].coord() - atom1.residue.atoms[0].coord())))
+        axis2 = normalize_vector(chimera.Vector(*(atom2.residue.atoms[1].coord() - atom2.residue.atoms[0].coord())))
+        angle1 = random.uniform(-5, 5)
+        angle2 = random.uniform(-5, 5)
+        rotation1 = chimera.Xform.rotation(axis1, angle1)
+        rotation2 = chimera.Xform.rotation(axis2, angle2)
+        
+        rotate_residue(atom1.residue, axis1, angle1)
+        rotate_residue(atom2.residue, axis2, angle2)
 
         current_distance = chimera.distance(atom1.coord(), atom2.coord())
-        # print("Current distance: {:.2f} Angstroms".format(current_distance))
-
-        delta_distance = current_distance - best_distance
-
-        if delta_distance < 0 or random.random() < math.exp(-delta_distance / temperature):
-            # print("Transformation accepted. Delta distance: {:.2f}".format(delta_distance))
+        
+        if current_distance < best_distance or random.random() < math.exp((best_distance - current_distance) / temperature):
             best_distance = current_distance
             best_coords1 = [atom.coord() for atom in atom1.residue.atoms]
             best_coords2 = [atom.coord() for atom in atom2.residue.atoms]
-            no_improvement_count = 0
-            step_size = max(min_step_size, step_size * step_size_reduction)
-            translation_attempted = False
+            transformations_applied1.append((axis1, angle1))
+            transformations_applied2.append((axis2, angle2))
+            log("Iteration {}: New best distance: {:.3f}".format(iteration, best_distance))
         else:
-            # print("Transformation rejected. Reverting rotation.")
             for atom, coord in zip(atom1.residue.atoms, best_coords1):
                 atom.setCoord(coord)
             for atom, coord in zip(atom2.residue.atoms, best_coords2):
                 atom.setCoord(coord)
-            no_improvement_count += 1
 
-        if no_improvement_count > max_no_improvement:
-            if not translation_attempted:
-                # print("No improvement. Attempting translation.")
-                direction = normalize_vector(atom2.coord() - atom1.coord())
-                translation_vector = direction * translation_step_size
-                translate_residue(atom1.residue, translation_vector)
-                translate_residue(atom2.residue, -translation_vector)
-                translation_attempted = True
-                no_improvement_count = 0
-            else:
-                # print("No improvement. Increasing step size.")
-                step_size *= 1.5
-                translation_attempted = False
-
-        if best_distance <= max_distance:
-            # print("Acceptable distance reached. Stopping optimization.")
+        temperature *= params['cooling_rate']
+        
+        if iteration % 100 == 0:
+            log("Iteration {}: Current distance: {:.3f}, Best distance: {:.3f}, Temperature: {:.2f}".format(
+                iteration, current_distance, best_distance, temperature))
+        
+        if best_distance <= params['target_distance']:
+            log("Target distance reached at iteration {}".format(iteration))
             break
 
-        temperature *= 0.99
+    log("Optimization completed. Final distance: {:.3f}".format(best_distance))
+    
+    return best_distance <= params['target_distance'], (transformations_applied1, transformations_applied2)
 
-    for atom, coord in zip(atom1.residue.atoms, best_coords1):
-        atom.setCoord(coord)
-    for atom, coord in zip(atom2.residue.atoms, best_coords2):
-        atom.setCoord(coord)
-
-    # print("Final best distance: {:.2f} Angstroms".format(best_distance))
-    return best_distance <= max_distance
-
-def apply_transformations_to_original(original_residue, transformed_residue, residue_rotations):
-    center = calculate_center_of_mass(original_residue)
-    for axis, angle in residue_rotations.get((transformed_residue.id.chainId, transformed_residue.id.position), []):
-        rot = chimera.Xform.rotation(axis, angle)
-        for atom in original_residue.atoms:
+def apply_transformation(residue, transformations):
+    center = chimera.Vector(0, 0, 0)
+    for atom in residue.atoms:
+        center += chimera.Vector(atom.coord().x, atom.coord().y, atom.coord().z)
+    center /= len(residue.atoms)
+    
+    for axis, angle in transformations:
+        rotation = chimera.Xform.rotation(axis, angle)
+        for atom in residue.atoms:
             vec = atom.coord() - center
-            rotated_vec = rot.apply(vec)
-            new_coord = rotated_vec + center
-            atom.setCoord(new_coord)
+            new_coord = rotation.apply(vec) + center
+            atom.setCoord(chimera.Coord(new_coord.x, new_coord.y, new_coord.z))
 
-def save_dimer(original, copy, dimer_output_file):
-    with open(dimer_output_file, 'w') as f:
-        runCommand("write format pdb 0 output_original.pdb")
-        with open("output_original.pdb", 'r') as original_file:
-            for line in original_file:
-                if line.startswith("ATOM") or line.startswith("HETATM"):
-                    f.write(line)
+    log("Applied {} transformations to residue {} {}".format(len(transformations), residue.type, residue.id.position))
 
-        runCommand("write format pdb 1 output_copy.pdb")
-        with open("output_copy.pdb", 'r') as copy_file:
-            for line in copy_file:
-                if line.startswith("ATOM") or line.startswith("HETATM"):
-                    f.write(line)
-
-def create_collagen_dimer(pdb_file, output_file, dimer_output_file, crosslink_info, optimization_params):
-    # print("Starting collagen dimer creation")
-    # print("Input PDB file: {}".format(pdb_file))
-    # print("Output PDB file: {}".format(output_file))
-    # print("Dimer output PDB file: {}".format(dimer_output_file))
-    # print("Crosslink info: {}".format(json.dumps(crosslink_info, indent=2)))
-    # print("Optimization parameters: {}".format(json.dumps(optimization_params, indent=2)))
-
-    original = chimera.openModels.open(pdb_file)[0]
-    copy = chimera.openModels.open(pdb_file)[0]
-
-    residues_original = {
-        crosslink['residue1_type']: sorted(
-            [r for r in original.residues if r.type == crosslink['residue1_type']],
-            key=lambda r: int(r.id.position)
-        )
-        for crosslink in crosslink_info
-    }
-    residues_original.update({
-        crosslink['residue2_type']: sorted(
-            [r for r in original.residues if r.type == crosslink['residue2_type']],
-            key=lambda r: int(r.id.position)
-        )
-        for crosslink in crosslink_info
-    })
-    residues_copy = {
-        crosslink['residue1_type']: sorted(
-            [r for r in copy.residues if r.type == crosslink['residue1_type']],
-            key=lambda r: int(r.id.position)
-        )
-        for crosslink in crosslink_info
-    }
-    residues_copy.update({
-        crosslink['residue2_type']: sorted(
-            [r for r in copy.residues if r.type == crosslink['residue2_type']],
-            key=lambda r: int(r.id.position)
-        )
-        for crosslink in crosslink_info
-    })
+def create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimization_params):
+    models = []
+    for pdb in input_pdbs:
+        models.extend(chimera.openModels.open(pdb))
     
-    pairs = []
+    log("Loaded {} models for optimization.".format(len(models)))
+
+    original_model = models[0]  
+    transformations_to_apply = {}  
+
     for i, crosslink in enumerate(crosslink_info):
-        if i == 0:
-            residue1 = next((r for r in residues_original[crosslink['residue1_type']] if r.id.position == int(crosslink['residue1_position'])), None)
-            residue2 = next((r for r in residues_copy[crosslink['residue2_type']] if r.id.position == int(crosslink['residue2_position'])), None)
+        log("\nProcessing crosslink {} of {}".format(i+1, len(crosslink_info)))
+        
+        residue1_info = {'type': str(crosslink['residue1_type']), 'position': int(crosslink['residue1_position'])}
+        residue2_info = {'type': str(crosslink['residue2_type']), 'position': int(crosslink['residue2_position'])}
+        
+        closest_pair, initial_distance = find_closest_pair(models, residue1_info, residue2_info, str(crosslink['atom1']), str(crosslink['atom2']))
+        
+        if not closest_pair:
+            log("Warning: Couldn't find a suitable pair for crosslink. Skipping.")
+            continue
+
+        atom1, atom2 = closest_pair
+        log("Proceeding with optimization for:")
+        log("  Atom 1: {} {} (model #{})".format(atom1.residue.type, atom1.residue.id.position, atom1.molecule.id))
+        log("  Atom 2: {} {} (model #{})".format(atom2.residue.type, atom2.residue.id.position, atom2.molecule.id))
+        log("  Initial distance: {:.3f}".format(initial_distance))
+
+        if initial_distance > 100:  
+            log("Warning: Initial distance is unusually large. Skipping this pair.")
+            continue
+
+        success, transformations = optimize_crosslink(atom1, atom2, optimization_params)
+        if not success:
+            log("Warning: Optimization failed for this crosslink.")
         else:
-            residue1 = next((r for r in residues_copy[crosslink['residue1_type']] if r.id.position == int(crosslink['residue1_position'])), None)
-            residue2 = next((r for r in residues_original[crosslink['residue2_type']] if r.id.position == int(crosslink['residue2_position'])), None)
-        
-        if residue1 is None or residue2 is None:
-            print("Error: Could not find specified residues for pair {}".format(i+1))
-            return
-        
-        pairs.append((residue1, residue2, crosslink['atom1'], crosslink['atom2']))
-    
-    if len(pairs) != 2:
-        print("Error: Expected 2 crosslink pairs, but found {}".format(len(pairs)))
-        return
+            residue1_key = (atom1.residue.type, atom1.residue.id.position)
+            residue2_key = (atom2.residue.type, atom2.residue.id.position)
+            transformations_to_apply[residue1_key] = transformations[0]
+            transformations_to_apply[residue2_key] = transformations[1]
 
-    residue1, residue2, atom1_name, atom2_name = pairs[0]
-    atom1 = residue1.findAtom(atom1_name)
-    atom2 = residue2.findAtom(atom2_name)
+    for residue in original_model.residues:
+        residue_key = (residue.type, residue.id.position)
+        if residue_key in transformations_to_apply:
+            apply_transformation(residue, transformations_to_apply[residue_key])
 
-    target_distance = optimization_params['target_distance']
-    current_vector = atom2.coord() - atom1.coord()
-    current_distance = vector_length(current_vector)
-    normalized_vector = normalize_vector(current_vector)
-    translation_vector = normalized_vector * (current_distance - target_distance)
-    
-    for atom in copy.atoms:
-        new_coord = atom.coord() - translation_vector
-        atom.setCoord(new_coord)
+    log("\nSaving the optimized original model...")
+    runCommand("write format pdb 0 {}".format(output_pdb))
 
-    residue3, residue4, atom3_name, atom4_name = pairs[1]
-    atom3 = residue3.findAtom(atom3_name)
-    atom4 = residue4.findAtom(atom4_name)
+    log("Closing additional models...")
+    for m in models[1:]:
+        chimera.openModels.close(m)
 
-    current_vector2 = atom4.coord() - atom3.coord()
-    current_distance2 = vector_length(current_vector2)
-    normalized_vector2 = normalize_vector(current_vector2)
-    translation_vector2 = normalized_vector2 * (current_distance2 - target_distance) * 0.5
-
-    original_coords = {atom: atom.coord() for atom in copy.atoms}
-
-    for atom in copy.atoms:
-        new_coord = atom.coord() - translation_vector2
-        atom.setCoord(new_coord)
-
-    new_distance2 = chimera.distance(atom3.coord(), atom4.coord())
-    if new_distance2 > current_distance2:
-        for atom, coord in original_coords.items():
-            atom.setCoord(coord)
-        print("Translation reverted as it increased the distance.")
-    else:
-        print("Translation applied. New distance: {:.2f} Angstroms".format(new_distance2))
-
-    for i, (res1, res2, atom1_name, atom2_name) in enumerate(pairs):
-        atom1 = res1.findAtom(atom1_name)
-        atom2 = res2.findAtom(atom2_name)
-        # print("\nOptimizing pair {}: {} (Chain {}, Position {}) - {} (Chain {}, Position {})".format(
-        #     i+1, res1.type, res1.id.chainId, res1.id.position, res2.type, res2.id.chainId, res2.id.position))
-
-        optimize_residues_by_rotation(atom1, atom2, 
-                                      max_distance=optimization_params['max_distance'], 
-                                      max_iterations=optimization_params['max_iterations'],
-                                      temperature=optimization_params['initial_temperature'], 
-                                      step_size_reduction=optimization_params['step_size_reduction'],
-                                      max_no_improvement=optimization_params['max_no_improvement'],
-                                      translation_step_size=optimization_params['translation_step_size'])
-
-        apply_transformations_to_original(res1, res1, residue_rotations)
-        apply_transformations_to_original(res2, res2, residue_rotations)
-
-    runCommand("write format pdb 0 {}".format(output_file)) 
-
-    # # Save both the original and copy models as separate chains in the dimer PDB file
-    # save_dimer(original, copy, dimer_output_file)
-    # print("\nOptimized model created successfully. Output saved to {} and {}".format(output_file, dimer_output_file))
+    log("Optimization completed. Output saved to: {}".format(output_pdb))
 
 if __name__ == "__main__":
-    input_pdb = os.environ.get('INPUT_PDB')
+    input_pdbs = os.environ.get('INPUT_PDB').split()
     output_pdb = os.environ.get('OUTPUT_PDB')
-    dimer_output_pdb = "ouput_dimer.pdb"
     crosslink_info_json = os.environ.get('CROSSLINK_INFO')
     optimization_params_json = os.environ.get('OPTIMIZATION_PARAMS')
 
-    if input_pdb and output_pdb and dimer_output_pdb and crosslink_info_json and optimization_params_json:
+    if all([input_pdbs, output_pdb, crosslink_info_json, optimization_params_json]):
         try:
+            print("Starting collagen crosslink optimization")
+            print("Input PDBs: {}".format(input_pdbs))
+            print("Output PDB: {}".format(output_pdb))
             crosslink_info = json.loads(crosslink_info_json)
             optimization_params = json.loads(optimization_params_json)
-            create_collagen_dimer(input_pdb, output_pdb, dimer_output_pdb, crosslink_info, optimization_params)
+            print("Crosslink info: {}".format(json.dumps(crosslink_info, indent=2)))
+            print("Optimization parameters: {}".format(json.dumps(optimization_params, indent=2)))
+            create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimization_params)
         except Exception as e:
             sys.stderr.write("An error occurred in the Chimera script: {}\n".format(str(e)))
             raise

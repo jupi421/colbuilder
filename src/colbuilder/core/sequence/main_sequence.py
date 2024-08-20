@@ -199,39 +199,81 @@ async def apply_crosslinks_if_needed(config: ColbuilderConfig, output_pdb: Path,
 @timeit
 async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_pdb: Path, crosslinks_df: pd.DataFrame, steps: int) -> Path:
     """
-    Optimize the crosslinks in the PDB file using Chimera.
-
+    Perform integrated crosslink optimization including generating copies and optimizing crosslinks.
+    Uses a Monte Carlo algorithm to bring binding atoms together by rotating the crosslinking residues around the 
+    axis passing through their COM.
+    
     Args:
         config (ColbuilderConfig): The configuration object.
         input_pdb (Path): Path to the input PDB file.
-        output_pdb (Path): Path to save the optimized PDB file.
+        output_pdb (Path): Path to save the final optimized PDB file.
         crosslinks_df (pd.DataFrame): DataFrame containing crosslink information.
-
+        steps (int): Total number of steps in the process.
+    
     Returns:
         Path: Path to the optimized PDB file.
-
+    
     Raises:
         subprocess.CalledProcessError: If an error occurs while running Chimera.
-        FileNotFoundError: If the output file is not created by Chimera.
+        FileNotFoundError: If expected files are not created.
     """
-    LOG.info(f'Step 4/{steps} Optimizing crosslinks with Chimera')
+    LOG.info(f'Step 4/{steps} Performing integrated crosslink optimization')
     LOG.info(f'{Fore.BLUE}Please wait, this may take some time ...{Style.RESET_ALL}')
     
-    script_path = os.path.join(Path(config.CHIMERA_SCRIPTS_DIR), 'optimize_crosslinks.py')
-    LOG.debug(f"Chimera script path: {script_path}")
-
+    chimera_scripts_dir = Path(config.CHIMERA_SCRIPTS_DIR)
+    generate_copies_script = chimera_scripts_dir / 'generate_copies.py'
+    optimize_crosslinks_script = chimera_scripts_dir / 'optimize_crosslinks.py'
+    
     input_pdb = input_pdb.resolve()
     output_pdb = output_pdb.resolve()
-
+    
     if not input_pdb.exists():
         raise FileNotFoundError(f"Input PDB file not found: {input_pdb}")
     
+    # Step 1: Generate copies
+    LOG.info("  - Generating copies using crystal contacts")
+    generated_pdbs_file = Path("generated_pdbs.txt")
+    
+    env = os.environ.copy()
+    env['INPUT_PDB'] = str(input_pdb)
+    
+    generate_command = ['chimera', '--nogui', '--script', str(generate_copies_script)]
+    
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *generate_command,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            LOG.error(f"Error in generating copies: {stderr.decode()}")
+            raise subprocess.CalledProcessError(process.returncode, generate_command, stdout, stderr)
+        
+        if not generated_pdbs_file.exists():
+            raise FileNotFoundError(f"Generated PDBs list file not found: {generated_pdbs_file}")
+        
+        with open(generated_pdbs_file, 'r') as f:
+            generated_pdbs = [Path(line.strip()) for line in f]
+        
+        LOG.debug(f"Generated {len(generated_pdbs)} PDB files.")
+    
+    except Exception as e:
+        LOG.error(f"An error occurred while generating copies: {str(e)}")
+        raise
+    
+    # Step 2: Optimize crosslinks
+    LOG.info("  - Optimizing crosslinks")
+    
     n_crosslink = get_crosslink(crosslinks_df, "N", config.n_term_type, config.n_term_combination)
     c_crosslink = get_crosslink(crosslinks_df, "C", config.c_term_type, config.c_term_combination)
-
+    
     def extract_numeric_position(position_str):
         return position_str.split('.')[0]
-
+    
     crosslink_info = []
     for crosslink in [n_crosslink, c_crosslink]:
         if not crosslink.empty:
@@ -243,48 +285,60 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
                 'residue2_type': crosslink['R2'].iloc[0],
                 'atom2': crosslink['A2'].iloc[0]
             })
-
+    
     optimization_params = {
-            "target_distance": 4.0, 
-            "max_distance": 1.5, 
-            "max_iterations": 100000, 
-            "initial_temperature": 100, 
-            "step_size_reduction": 0.95, 
-            "max_no_improvement": 50, 
-            "translation_step_size": 0.1
-            }
-
-    env = os.environ.copy()
-    env['INPUT_PDB'] = str(input_pdb)
+        "target_distance": 1.5,
+        "max_iterations": 1000000,
+        "initial_temperature": 100,
+        "cooling_rate": 0.95
+    }
+    
+    env['INPUT_PDB'] = ' '.join(str(pdb) for pdb in generated_pdbs)
     env['OUTPUT_PDB'] = str(output_pdb)
     env['CROSSLINK_INFO'] = json.dumps(crosslink_info)
     env['OPTIMIZATION_PARAMS'] = json.dumps(optimization_params)
     
-    command = ['chimera', '--nogui', '--script', str(script_path)]
+    optimize_command = ['chimera', '--nogui', '--script', str(optimize_crosslinks_script)]
     
     try:
-        LOG.debug(f"Running Chimera command: {' '.join(command)}")
+        process = await asyncio.create_subprocess_exec(
+            *optimize_command,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
         
-        process = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        stdout, stderr = process.communicate()
-        
-        LOG.debug("Chimera process completed. Checking for output file: %s", output_pdb)
+        stdout, stderr = await process.communicate()
         
         if process.returncode != 0:
-            LOG.error(f"Chimera error output: {stderr}")
-            raise subprocess.CalledProcessError(process.returncode, command, stdout, stderr)
+            LOG.error(f"Error in optimizing crosslinks: {stderr.decode()}")
+            raise subprocess.CalledProcessError(process.returncode, optimize_command, stdout, stderr)
         
         if not output_pdb.exists():
             raise FileNotFoundError(f"Output file not found: {output_pdb}")
         
-        LOG.debug(f"Crosslinks optimized successfully. Output saved to {output_pdb}")
+        LOG.info(f"  - Crosslinks optimized successfully")
         return output_pdb
+    
+    except asyncio.CancelledError:
+        LOG.warning("Optimization process was cancelled.")
+        raise
     except subprocess.CalledProcessError as e:
-        LOG.error(f"An error occurred while running Chimera: {e}")
+        LOG.error(f"An error occurred while optimizing crosslinks: {e}")
         raise
     except Exception as e:
         LOG.error(f"An unexpected error occurred: {str(e)}")
         raise
+    finally:
+        for pdb in generated_pdbs:
+            try:
+                pdb.unlink()
+            except Exception as e:
+                LOG.warning(f"Failed to delete temporary file {pdb}: {str(e)}")
+        try:
+            generated_pdbs_file.unlink()
+        except Exception as e:
+            LOG.warning(f"Failed to delete {generated_pdbs_file}: {str(e)}")
 
 @timeit    
 async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
