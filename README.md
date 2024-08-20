@@ -1,4 +1,4 @@
-<img src="https://github.com/user-attachments/assets/ea9609dc-9b11-4335-8d9d-a4d1bc9298cb" width="100" height="50">
+<img src="https://github.com/user-attachments/assets/ea9609dc-9b11-4335-8d9d-a4d1bc9298cb" width="1000" height="100">
 
 <div align="center">
     <h1>ColBuilder 2.0</h1>
