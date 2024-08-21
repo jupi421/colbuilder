@@ -11,13 +11,6 @@ try:
 except:
     pass
 
-log_file = os.path.join(os.path.expanduser("~"), "chimera_script.log")
-def log(message):
-    with open(log_file, "a") as f:
-        f.write(message + "\n")
-
-log("Chimera script started")
-
 def vector_length(v):
     return math.sqrt(v.x**2 + v.y**2 + v.z**2)
 
@@ -103,11 +96,11 @@ def optimize_crosslink(atom1, atom2, params):
     transformations_applied1 = []
     transformations_applied2 = []
 
-    log("Starting optimization for atoms {} and {}".format(atom1, atom2))
-    log("Initial distance: {:.3f}".format(initial_distance))
+    print("Starting optimization for atoms {} and {}".format(atom1, atom2))
+    print("Initial distance: {:.3f}".format(initial_distance))
 
     temperature = params['initial_temperature']
-    for iteration in xrange(params['max_iterations']):
+    for iteration in range(params['max_iterations']):
         axis1 = normalize_vector(chimera.Vector(*(atom1.residue.atoms[1].coord() - atom1.residue.atoms[0].coord())))
         axis2 = normalize_vector(chimera.Vector(*(atom2.residue.atoms[1].coord() - atom2.residue.atoms[0].coord())))
         angle1 = random.uniform(-5, 5)
@@ -126,7 +119,7 @@ def optimize_crosslink(atom1, atom2, params):
             best_coords2 = [atom.coord() for atom in atom2.residue.atoms]
             transformations_applied1.append((axis1, angle1))
             transformations_applied2.append((axis2, angle2))
-            log("Iteration {}: New best distance: {:.3f}".format(iteration, best_distance))
+            print("Iteration {}: New best distance: {:.3f}".format(iteration, best_distance))
         else:
             for atom, coord in zip(atom1.residue.atoms, best_coords1):
                 atom.setCoord(coord)
@@ -136,14 +129,14 @@ def optimize_crosslink(atom1, atom2, params):
         temperature *= params['cooling_rate']
         
         if iteration % 100 == 0:
-            log("Iteration {}: Current distance: {:.3f}, Best distance: {:.3f}, Temperature: {:.2f}".format(
+            print("Iteration {}: Current distance: {:.3f}, Best distance: {:.3f}, Temperature: {:.2f}".format(
                 iteration, current_distance, best_distance, temperature))
         
         if best_distance <= params['target_distance']:
-            log("Target distance reached at iteration {}".format(iteration))
+            print("Target distance reached at iteration {}".format(iteration))
             break
 
-    log("Optimization completed. Final distance: {:.3f}".format(best_distance))
+    print("Optimization completed. Final distance: {:.3f}".format(best_distance))
     
     return best_distance <= params['target_distance'], (transformations_applied1, transformations_applied2)
 
@@ -160,20 +153,18 @@ def apply_transformation(residue, transformations):
             new_coord = rotation.apply(vec) + center
             atom.setCoord(chimera.Coord(new_coord.x, new_coord.y, new_coord.z))
 
-    log("Applied {} transformations to residue {} {}".format(len(transformations), residue.type, residue.id.position))
-
 def create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimization_params):
     models = []
     for pdb in input_pdbs:
         models.extend(chimera.openModels.open(pdb))
     
-    log("Loaded {} models for optimization.".format(len(models)))
+    print("Loaded {} models for optimization.".format(len(models)))
 
     original_model = models[0]  
     transformations_to_apply = {}  
 
     for i, crosslink in enumerate(crosslink_info):
-        log("\nProcessing crosslink {} of {}".format(i+1, len(crosslink_info)))
+        print("\nProcessing crosslink {} of {}".format(i+1, len(crosslink_info)))
         
         residue1_info = {'type': str(crosslink['residue1_type']), 'position': int(crosslink['residue1_position'])}
         residue2_info = {'type': str(crosslink['residue2_type']), 'position': int(crosslink['residue2_position'])}
@@ -181,22 +172,22 @@ def create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimizati
         closest_pair, initial_distance = find_closest_pair(models, residue1_info, residue2_info, str(crosslink['atom1']), str(crosslink['atom2']))
         
         if not closest_pair:
-            log("Warning: Couldn't find a suitable pair for crosslink. Skipping.")
+            print("Warning: Couldn't find a suitable pair for crosslink. Skipping.")
             continue
 
         atom1, atom2 = closest_pair
-        log("Proceeding with optimization for:")
-        log("  Atom 1: {} {} (model #{})".format(atom1.residue.type, atom1.residue.id.position, atom1.molecule.id))
-        log("  Atom 2: {} {} (model #{})".format(atom2.residue.type, atom2.residue.id.position, atom2.molecule.id))
-        log("  Initial distance: {:.3f}".format(initial_distance))
+        print("Proceeding with optimization for:")
+        print("  Atom 1: {} {} (model #{})".format(atom1.residue.type, atom1.residue.id.position, atom1.molecule.id))
+        print("  Atom 2: {} {} (model #{})".format(atom2.residue.type, atom2.residue.id.position, atom2.molecule.id))
+        print("  Initial distance: {:.3f}".format(initial_distance))
 
         if initial_distance > 100:  
-            log("Warning: Initial distance is unusually large. Skipping this pair.")
+            print("Warning: Initial distance is unusually large. Skipping this pair.")
             continue
 
         success, transformations = optimize_crosslink(atom1, atom2, optimization_params)
         if not success:
-            log("Warning: Optimization failed for this crosslink.")
+            print("Warning: Optimization failed for this crosslink.")
         else:
             residue1_key = (atom1.residue.type, atom1.residue.id.position)
             residue2_key = (atom2.residue.type, atom2.residue.id.position)
@@ -208,20 +199,17 @@ def create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimizati
         if residue_key in transformations_to_apply:
             apply_transformation(residue, transformations_to_apply[residue_key])
 
-    log("\nSaving the optimized original model...")
-    runCommand("write format pdb 0 {}".format(output_pdb))
+    runCommand("write format pdb #{} {}".format(original_model.id, output_pdb))
 
-    log("Closing additional models...")
-    for m in models[1:]:
-        chimera.openModels.close(m)
+    print("Optimization completed. Output saved to: {}".format(output_pdb))
 
-    log("Optimization completed. Output saved to: {}".format(output_pdb))
+    chimera.openModels.close(models[1:])
 
-if __name__ == "__main__":
-    input_pdbs = os.environ.get('INPUT_PDB').split()
-    output_pdb = os.environ.get('OUTPUT_PDB')
-    crosslink_info_json = os.environ.get('CROSSLINK_INFO')
-    optimization_params_json = os.environ.get('OPTIMIZATION_PARAMS')
+def main():
+    input_pdbs = os.environ.get('INPUT_PDB', '').split()
+    output_pdb = os.environ.get('OUTPUT_PDB', '')
+    crosslink_info_json = os.environ.get('CROSSLINK_INFO', '')
+    optimization_params_json = os.environ.get('OPTIMIZATION_PARAMS', '')
 
     if all([input_pdbs, output_pdb, crosslink_info_json, optimization_params_json]):
         try:
@@ -233,8 +221,18 @@ if __name__ == "__main__":
             print("Crosslink info: {}".format(json.dumps(crosslink_info, indent=2)))
             print("Optimization parameters: {}".format(json.dumps(optimization_params, indent=2)))
             create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimization_params)
+            print("Optimization completed successfully")
         except Exception as e:
             sys.stderr.write("An error occurred in the Chimera script: {}\n".format(str(e)))
-            raise
+            chimera.closeSession()
+            sys.exit(1)
     else:
         sys.stderr.write("Error: Required environment variables not set\n")
+        chimera.closeSession()
+        sys.exit(1)
+
+    chimera.closeSession()
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()

@@ -231,7 +231,7 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
         raise FileNotFoundError(f"Input PDB file not found: {input_pdb}")
     
     # Step 1: Generate copies
-    LOG.info("  - Generating copies using crystal contacts")
+    LOG.info("     Generating copies using crystal contacts")
     generated_pdbs_file = Path("generated_pdbs.txt")
     
     env = os.environ.copy()
@@ -266,37 +266,62 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
         raise
     
     # Step 2: Optimize crosslinks
-    LOG.info("  - Optimizing crosslinks")
+    LOG.info("     Optimizing crosslinks")
     
     n_crosslink = get_crosslink(crosslinks_df, "N", config.n_term_type, config.n_term_combination)
     c_crosslink = get_crosslink(crosslinks_df, "C", config.c_term_type, config.c_term_combination)
+    # LOG.info(f"N-terminal crosslink empty: {n_crosslink.empty}")
+    # LOG.info(f"C-terminal crosslink empty: {c_crosslink.empty}")
+    # LOG.info(f"N-terminal crosslink: {n_crosslink.to_dict()}")
+    # LOG.info(f"C-terminal crosslink: {c_crosslink.to_dict()}")
     
     def extract_numeric_position(position_str):
         return position_str.split('.')[0]
     
     crosslink_info = []
-    for crosslink in [n_crosslink, c_crosslink]:
-        if not crosslink.empty:
-            crosslink_info.append({
-                'residue1_position': extract_numeric_position(crosslink['P1'].iloc[0]),
-                'residue1_type': crosslink['R1'].iloc[0],
-                'atom1': crosslink['A1'].iloc[0],
-                'residue2_position': extract_numeric_position(crosslink['P2'].iloc[0]),
-                'residue2_type': crosslink['R2'].iloc[0],
-                'atom2': crosslink['A2'].iloc[0]
-            })
+    if not n_crosslink.empty:
+        crosslink_info.append({
+            'residue1_position': extract_numeric_position(n_crosslink['P1'].iloc[0]),
+            'residue1_type': n_crosslink['R1'].iloc[0],
+            'atom1': n_crosslink['A1'].iloc[0],
+            'residue2_position': extract_numeric_position(n_crosslink['P2'].iloc[0]),
+            'residue2_type': n_crosslink['R2'].iloc[0],
+            'atom2': n_crosslink['A2'].iloc[0],
+            'residue3_position': extract_numeric_position(n_crosslink['P3'].iloc[0]),
+            'residue3_type': n_crosslink['R3'].iloc[0],
+            'atom31': n_crosslink['A31'].iloc[0],
+            'atom32': n_crosslink['A32'].iloc[0]
+        })
+    if not c_crosslink.empty:
+        crosslink_info.append({
+            'residue1_position': extract_numeric_position(c_crosslink['P1'].iloc[0]),
+            'residue1_type': c_crosslink['R1'].iloc[0],
+            'atom1': c_crosslink['A1'].iloc[0],
+            'residue2_position': extract_numeric_position(c_crosslink['P2'].iloc[0]),
+            'residue2_type': c_crosslink['R2'].iloc[0],
+            'atom2': c_crosslink['A2'].iloc[0],
+            'residue3_position': extract_numeric_position(c_crosslink['P3'].iloc[0]),
+            'residue3_type': c_crosslink['R3'].iloc[0],
+            'atom31': c_crosslink['A31'].iloc[0],
+            'atom32': c_crosslink['A32'].iloc[0]
+        })
     
     optimization_params = {
-        "target_distance": 1.5,
-        "max_iterations": 1000000,
+        "target_distance": 2.0,
+        "max_iterations": 2000000,
         "initial_temperature": 100,
         "cooling_rate": 0.95
     }
-    
+
     env['INPUT_PDB'] = ' '.join(str(pdb) for pdb in generated_pdbs)
     env['OUTPUT_PDB'] = str(output_pdb)
     env['CROSSLINK_INFO'] = json.dumps(crosslink_info)
     env['OPTIMIZATION_PARAMS'] = json.dumps(optimization_params)
+    # LOG.info(f"INPUT_PDB: {env['INPUT_PDB']}")
+    # LOG.info(f"OUTPUT_PDB: {env['OUTPUT_PDB']}")
+    # LOG.info(f"CROSSLINK_INFO: {env['CROSSLINK_INFO']}")
+    # LOG.info(f"OPTIMIZATION_PARAMS: {env['OPTIMIZATION_PARAMS']}")
+
     
     optimize_command = ['chimera', '--nogui', '--script', str(optimize_crosslinks_script)]
     
@@ -307,8 +332,9 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        
-        stdout, stderr = await process.communicate()
+        # stdout, stderr = await process.communicate()
+        # print(f"STDOUT: {stdout.decode()}")
+        # print(f"STDERR: {stderr.decode()}")
         
         if process.returncode != 0:
             LOG.error(f"Error in optimizing crosslinks: {stderr.decode()}")
@@ -317,7 +343,7 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
         if not output_pdb.exists():
             raise FileNotFoundError(f"Output file not found: {output_pdb}")
         
-        LOG.info(f"  - Crosslinks optimized successfully")
+        LOG.info(f"     Crosslinks optimized successfully")
         return output_pdb
     
     except asyncio.CancelledError:
@@ -388,6 +414,9 @@ async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
 
         if formatted_output.resolve() != formatted_output_pdb.resolve():
             shutil.copy(work_dir / formatted_output_pdb.name, formatted_output.resolve())
+        
+        dis_output_path = Path(config.working_directory) / formatted_output.name
+        shutil.copy(formatted_output, dis_output_path)
                 
         final_output_name = formatted_output.stem.replace('_disoriented', '')
         final_output = formatted_output.with_name(final_output_name + formatted_output.suffix).resolve()
