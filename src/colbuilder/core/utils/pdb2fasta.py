@@ -8,12 +8,17 @@ def pdb_to_fasta(pdb_file):
         "ILE": "I", "LEU": "L", "ASP": "D", "GLU": "E", "LYS": "K",
         "ARG": "R", "SER": "S", "THR": "T", "TYR": "Y", "HIS": "H",
         "CYS": "C", "ASN": "N", "GLN": "Q", "TRP": "W", "GLY": "G",
-        "MSE": "M", "HYP": "O", "L4Y": "-", "L5Y": "-"
+        "MSE": "M", "HYP": "O", "L4Y": "-", "L5Y": "-", "L4X": "-",
+        "L5X": "-", "LY4": "-", "LY5": "-", "LX4": "-", "LX5": "-",
+        "LY2": "-", "LY3": "-", "LYX": "-", "LX2": "-", "LX3": "-",
+        "LXX": "-", "L2Y": "-", "L3Y": "-", "LXY": "-", "L2X": "-",
+        "L3X": "-", "LYY": "-"
     }
     
     ca_pattern = re.compile(
         "^ATOM\s{2,6}\d{1,5}\s{2}CA\s[\sA]([A-Z]{3})\s([\s\w])|"
-        "^ATOM\s{2,6}\d{1,5}\s{2}CA\s[\sA](HYP|L4Y|L5Y)\s([\s\w])|"
+        "^ATOM\s{2,6}\d{1,5}\s{2}CA\s[\sA](HYP|L4Y|L5Y|L4X|L5X|LY4|LY5|LX4|LX5)\s([\s\w])|"
+        "^ATOM\s{2,6}\d{1,5}\s{2}CA\s[\sA](LY2|LY3|LYX|LX2|LX3|LXX|L2Y|L3Y|LXY|L2X|L3X|LYY)\s([\s\w])|"
         "^HETATM\s{0,4}\d{1,5}\s{2}CA\s[\sA](MSE)\s([\s\w])"
     )
     

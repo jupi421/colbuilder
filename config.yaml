@@ -32,8 +32,8 @@ crystalcontacts_optimize: false # Note: This is always true when generating geom
 mix_bool: false
 ratio_mix: "D:70 T:30"
 files_mix: 
-  - "human-D.pdb"
-  - "human-T.pdb"
+  - "human-D.pdb" # D: divalent
+  - "human-T.pdb" # T: trivalent
 
 # Replace Configuration
 replace_bool: false
