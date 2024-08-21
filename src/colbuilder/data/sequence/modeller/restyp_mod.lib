@@ -115,6 +115,25 @@ HETATM | NIC                 | 5 |   | NICH | reduced nicotinamide, jjp1/adm jr.
 HETATM | PPI                 | f |   | PPI1 | Inorganic phosphate, jjp1/adm jr.
 HETATM | RIB                 | r |   | RIBT | RIBOSE, Wilma Olsen's dihedral model
 HETATM | NA SOD              | i |   | SOD  | Sodium Ion
-ATOM   | L4Y                 | l |   | L4Y  | hknln, l4y
-ATOM   | L5Y                 | j |   | L5Y  | hknln, l5y
 ATOM   | HYP                 | O |   | HYP  | hydroxyproline
+ATOM   | L4Y                 | 8 |   | L4Y  | hknln, l4y
+ATOM   | L5Y                 | 9 |   | L5Y  | hknln, l5y
+ATOM   | L4X                 | 8 |   | L4X  | lknl, l4x
+ATOM   | L5X                 | 9 |   | L5X  | lknl, l5x
+ATOM   | LY4                 | 8 |   | LY4  | deh-hlnl, ly4
+ATOM   | LY5                 | 9 |   | LY5  | deh-hlnl, ly5
+ATOM   | LX4                 | 8 |   | LX4  | de-hlnl, lx4
+ATOM   | LX5                 | 9 |   | LX5  | de-hlnl, lx5
+ATOM   | LY3                 | 8 |   | LY3  | pyd, ly3
+ATOM   | LY2                 | 9 |   | LY2  | pyd, ly2
+ATOM   | LX3                 | 8 |   | LX3  | dpd, lx3
+ATOM   | LX2                 | 9 |   | LX2  | dpd, lx2
+ATOM   | L3Y                 | 8 |   | L3Y  | pyl, l3y
+ATOM   | L2Y                 | 9 |   | L2Y  | pyl, l2y
+ATOM   | L3X                 | 8 |   | L3X  | dpl, l3x
+ATOM   | L2X                 | 9 |   | L2X  | dpl, l2x
+ATOM   | LYX                 | l |   | LYX  | pyd, lyx
+ATOM   | LXX                 | j |   | LXX  | dpd, lxx
+ATOM   | LXY                 | l |   | LXY  | pyl, lxy
+ATOM   | LYY                 | j |   | LYY  | dpl, lyy
+
