@@ -332,13 +332,14 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        # stdout, stderr = await process.communicate()
+        stdout, stderr = await process.communicate()
         # print(f"STDOUT: {stdout.decode()}")
         # print(f"STDERR: {stderr.decode()}")
         
-        if process.returncode != 0:
-            LOG.error(f"Error in optimizing crosslinks: {stderr.decode()}")
-            raise subprocess.CalledProcessError(process.returncode, optimize_command, stdout, stderr)
+        if process.returncode is not None and process.returncode != 0:
+            error_message = stderr.decode() if stderr else "Unknown error occurred"
+            LOG.error(f"Error in optimizing crosslinks: {error_message}")
+            raise subprocess.CalledProcessError(process.returncode or 1, optimize_command, stdout, stderr)
         
         if not output_pdb.exists():
             raise FileNotFoundError(f"Output file not found: {output_pdb}")

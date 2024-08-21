@@ -166,38 +166,75 @@ def create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimizati
     for i, crosslink in enumerate(crosslink_info):
         print("\nProcessing crosslink {} of {}".format(i+1, len(crosslink_info)))
         
-        residue1_info = {'type': str(crosslink['residue1_type']), 'position': int(crosslink['residue1_position'])}
-        residue2_info = {'type': str(crosslink['residue2_type']), 'position': int(crosslink['residue2_position'])}
-        
-        closest_pair, initial_distance = find_closest_pair(models, residue1_info, residue2_info, str(crosslink['atom1']), str(crosslink['atom2']))
-        
-        if not closest_pair:
-            print("Warning: Couldn't find a suitable pair for crosslink. Skipping.")
-            continue
+        if crosslink['residue3_type'] != "NONE":
+            # Trivalent crosslink
+            residue1_info = {'type': str(crosslink['residue1_type']), 'position': int(crosslink['residue1_position'])}
+            residue2_info = {'type': str(crosslink['residue2_type']), 'position': int(crosslink['residue2_position'])}
+            residue3_info = {'type': str(crosslink['residue3_type']), 'position': int(crosslink['residue3_position'])}
+            
+            closest_pair1, initial_distance1 = find_closest_pair(models, residue1_info, residue3_info, str(crosslink['atom1']), str(crosslink['atom31']))
+            closest_pair2, initial_distance2 = find_closest_pair(models, residue2_info, residue3_info, str(crosslink['atom2']), str(crosslink['atom32']))
+            
+            if not (closest_pair1 and closest_pair2):
+                print("Warning: Couldn't find suitable pairs for trivalent crosslink. Skipping.")
+                continue
 
-        atom1, atom2 = closest_pair
-        print("Proceeding with optimization for:")
-        print("  Atom 1: {} {} (model #{})".format(atom1.residue.type, atom1.residue.id.position, atom1.molecule.id))
-        print("  Atom 2: {} {} (model #{})".format(atom2.residue.type, atom2.residue.id.position, atom2.molecule.id))
-        print("  Initial distance: {:.3f}".format(initial_distance))
+            atom1, atom31 = closest_pair1
+            atom2, atom32 = closest_pair2
 
-        if initial_distance > 100:  
-            print("Warning: Initial distance is unusually large. Skipping this pair.")
-            continue
+            print("Proceeding with optimization for trivalent crosslink:")
+            print("  Pair 1: {} {} - {} {}".format(atom1.residue.type, atom1.residue.id.position, atom31.residue.type, atom31.residue.id.position))
+            print("  Initial distance 1: {:.3f}".format(initial_distance1))
+            print("  Pair 2: {} {} - {} {}".format(atom2.residue.type, atom2.residue.id.position, atom32.residue.type, atom32.residue.id.position))
+            print("  Initial distance 2: {:.3f}".format(initial_distance2))
 
-        success, transformations = optimize_crosslink(atom1, atom2, optimization_params)
-        if not success:
-            print("Warning: Optimization failed for this crosslink.")
+            if initial_distance1 > 100 or initial_distance2 > 100:
+                print("Warning: Initial distances are unusually large. Skipping this crosslink.")
+                continue
+
+            success1, transformations1 = optimize_crosslink(atom1, atom31, optimization_params)
+            success2, transformations2 = optimize_crosslink(atom2, atom32, optimization_params)
+
+            if success1 and success2:
+                transformations_to_apply[(atom1.residue.type, atom1.residue.id.position)] = transformations1[0]
+                transformations_to_apply[(atom31.residue.type, atom31.residue.id.position)] = transformations1[1]
+                transformations_to_apply[(atom2.residue.type, atom2.residue.id.position)] = transformations2[0]
+                # Note: atom32 is the same residue as atom31, so we don't add it again
+            else:
+                print("Warning: Optimization failed for this trivalent crosslink.")
+
         else:
-            residue1_key = (atom1.residue.type, atom1.residue.id.position)
-            residue2_key = (atom2.residue.type, atom2.residue.id.position)
-            transformations_to_apply[residue1_key] = transformations[0]
-            transformations_to_apply[residue2_key] = transformations[1]
+            # Divalent crosslink
+            residue1_info = {'type': str(crosslink['residue1_type']), 'position': int(crosslink['residue1_position'])}
+            residue2_info = {'type': str(crosslink['residue2_type']), 'position': int(crosslink['residue2_position'])}
+            
+            closest_pair, initial_distance = find_closest_pair(models, residue1_info, residue2_info, str(crosslink['atom1']), str(crosslink['atom2']))
+            
+            if not closest_pair:
+                print("Warning: Couldn't find a suitable pair for divalent crosslink. Skipping.")
+                continue
+
+            atom1, atom2 = closest_pair
+            print("Proceeding with optimization for divalent crosslink:")
+            print("  {} {} - {} {}".format(atom1.residue.type, atom1.residue.id.position, atom2.residue.type, atom2.residue.id.position))
+            print("  Initial distance: {:.3f}".format(initial_distance))
+
+            if initial_distance > 100:
+                print("Warning: Initial distance is unusually large. Skipping this pair.")
+                continue
+
+            success, transformations = optimize_crosslink(atom1, atom2, optimization_params)
+            if success:
+                transformations_to_apply[(atom1.residue.type, atom1.residue.id.position)] = transformations[0]
+                transformations_to_apply[(atom2.residue.type, atom2.residue.id.position)] = transformations[1]
+            else:
+                print("Warning: Optimization failed for this divalent crosslink.")
 
     for residue in original_model.residues:
         residue_key = (residue.type, residue.id.position)
         if residue_key in transformations_to_apply:
             apply_transformation(residue, transformations_to_apply[residue_key])
+            print("Applied transformation to residue {} {}".format(residue.type, residue.id.position))
 
     runCommand("write format pdb #{} {}".format(original_model.id, output_pdb))
 
@@ -206,13 +243,13 @@ def create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimizati
     chimera.openModels.close(models[1:])
 
 def main():
-    input_pdbs = os.environ.get('INPUT_PDB', '').split()
-    output_pdb = os.environ.get('OUTPUT_PDB', '')
-    crosslink_info_json = os.environ.get('CROSSLINK_INFO', '')
-    optimization_params_json = os.environ.get('OPTIMIZATION_PARAMS', '')
+    try:
+        input_pdbs = os.environ.get('INPUT_PDB', '').split()
+        output_pdb = os.environ.get('OUTPUT_PDB', '')
+        crosslink_info_json = os.environ.get('CROSSLINK_INFO', '')
+        optimization_params_json = os.environ.get('OPTIMIZATION_PARAMS', '')
 
-    if all([input_pdbs, output_pdb, crosslink_info_json, optimization_params_json]):
-        try:
+        if all([input_pdbs, output_pdb, crosslink_info_json, optimization_params_json]):
             print("Starting collagen crosslink optimization")
             print("Input PDBs: {}".format(input_pdbs))
             print("Output PDB: {}".format(output_pdb))
@@ -222,17 +259,15 @@ def main():
             print("Optimization parameters: {}".format(json.dumps(optimization_params, indent=2)))
             create_optimized_collagen(input_pdbs, output_pdb, crosslink_info, optimization_params)
             print("Optimization completed successfully")
-        except Exception as e:
-            sys.stderr.write("An error occurred in the Chimera script: {}\n".format(str(e)))
-            chimera.closeSession()
-            sys.exit(1)
-    else:
-        sys.stderr.write("Error: Required environment variables not set\n")
+        else:
+            raise ValueError("Required environment variables not set")
+    except Exception as e:
+        sys.stderr.write("An error occurred in the Chimera script: {}\n".format(str(e)))
         chimera.closeSession()
         sys.exit(1)
-
-    chimera.closeSession()
-    sys.exit(0)
+    finally:
+        chimera.closeSession()
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
