@@ -254,7 +254,6 @@ def log_configuration_summary(cfg):
             LOG.info(f"     Replace File: {cfg.replace_file}")
     if cfg.topology_generator:
         LOG.info(f"- Topology Generator:")
-        LOG.info(f"     GO Epsilon: {cfg.go_epsilon}")
         LOG.info(f"     Force Field: {cfg.force_field}")
     
 if __name__ == '__main__':
