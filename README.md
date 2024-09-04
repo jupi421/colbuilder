@@ -7,7 +7,7 @@
 
 ---
 
-[![conda-forge](https://img.shields.io/badge/conda-forge-orange.svg)()
+[![conda-forge](https://img.shields.io/badge/conda-forge-orange.svg)]()
 [![documentation](https://img.shields.io/badge/docs-brightgreen.svg)](https://github.com/graeter-group/colbuilder/tree/main/docs)
 [![license](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
