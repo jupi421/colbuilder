@@ -1,7 +1,7 @@
 <img src="https://github.com/user-attachments/assets/ea9609dc-9b11-4335-8d9d-a4d1bc9298cb" width="1500">
 
 <div align="center">
-    <h1>ColBuilder 2.0</h1>
+    <h1>ColBuilder</h1>
     <p>Generate microfibrils from single collagen molecules</p>
 </div>
 
@@ -91,7 +91,7 @@ For more detailed examples and API documentation, please visit our [documentatio
 
 # 📚 Publications
 
-If you use ColBuilder 2.0 in your research, please cite our paper:
+If you use ColBuilder in your research, please cite our paper:
 
 # 🙏 Acknowledgements
 
