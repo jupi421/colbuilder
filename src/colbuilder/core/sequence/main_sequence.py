@@ -17,6 +17,7 @@ from colorama import init, Fore, Style
 from colbuilder.core.sequence.alignment import align_sequences
 from colbuilder.core.sequence.modeller import run_modeller
 from colbuilder.core.sequence.mutate_crosslinks import apply_crosslinks
+from colbuilder.core.sequence.optimize_crosslinks import optimize_structure
 
 from colbuilder.core.utils.logger import setup_logger
 from colbuilder.core.utils.config import ColbuilderConfig
@@ -54,30 +55,27 @@ def change_dir(path: Path) -> t.Generator[None, None, None]:
     finally:
         os.chdir(origin)
 
-@contextmanager
-def format_pdb(config: ColbuilderConfig, input_file_path: Path, output_file_path: Path) -> None:
+def format_pdb(config: ColbuilderConfig, file_path: Path) -> None:
     """
-    Format a PDB file by modifying its first line and removing 'REMARK' lines from MODELLER output.
-
+    Format a PDB file in place by modifying its first line and removing 'REMARK' lines from MODELLER output.
     Args:
         config (ColbuilderConfig): The configuration object.
-        input_file_path (Path): The path to the input PDB file.
-        output_file_path (Path): The path to save the formatted PDB file.
-
+        file_path (Path): The path to the PDB file to modify.
     Raises:
         IOError: If there's an error reading or writing the PDB file.
     """
+    file_path = file_path.resolve() 
     pdb_first_line = str(config.pdb_first_line)
     
     try:
-        with open(input_file_path, "r") as input_file:
-            lines = input_file.readlines()
+        with open(file_path, "r") as f:
+            lines = f.readlines()
         
         lines[0] = pdb_first_line + '\n'
         lines = [line for line in lines if not line.startswith("REMARK")]
         
-        with open(output_file_path, "w") as output_file:
-            output_file.writelines(lines)
+        with open(file_path, "w") as f:
+            f.writelines(lines)
         
     except IOError as e:
         LOG.error(f"An error occurred while formatting PDB file: {str(e)}")
@@ -155,46 +153,44 @@ def get_crosslink(df: pd.DataFrame, terminal: str, term_type: t.Optional[str], t
     return pd.DataFrame()
 
 @timeit
-async def apply_crosslinks_if_needed(config: ColbuilderConfig, output_pdb: Path, file_prefix: str, steps: int) -> Path:
+async def apply_crosslinks_if_needed(config: ColbuilderConfig, output_pdb: Path, file_prefix: str, crosslinks_df: pd.DataFrame, steps: int) -> Path:
     """
     Apply crosslinks to the PDB file if needed.
-
     Args:
         config (ColbuilderConfig): The configuration object.
         output_pdb (Path): Path to the input PDB file.
         file_prefix (str): The prefix for output files.
         steps (int): The total number of steps in the process.
-
     Returns:
-        Path: Path to the output PDB file (with or without crosslinks).
+        Path: Path to the output PDB file with appropriate crosslink suffixes.
+    Raises:
+        ValueError: If no crosslinks are found for the specified species.
     """
-    LOG.info(f'Step 3/{steps} Crosslinks application')
     with suppress_output():
-        crosslinks_df = pd.read_csv(config.CROSSLINKS_FILE)
-        species_crosslinks = crosslinks_df[crosslinks_df['species'] == config.species]
-
-    if species_crosslinks.empty:
-        LOG.warning(f"No crosslinks found for species: {config.species}")
-        return output_pdb
-
-    n_crosslink = get_crosslink(species_crosslinks, "N", config.n_term_type, config.n_term_combination)
-    c_crosslink = get_crosslink(species_crosslinks, "C", config.c_term_type, config.c_term_combination)
-
-    if n_crosslink.empty and c_crosslink.empty:
-        LOG.warning(f"No specified crosslink combination found for species: {config.species}")
-        return output_pdb
-
-    with suppress_output(): 
+        if crosslinks_df.empty:
+            LOG.error(f"Please add crosslinks information for species: {config.species}")
+            raise ValueError(f"No crosslinks found for species: {config.species}")
+        else:
+            n_crosslink = get_crosslink(crosslinks_df, "N", config.n_term_type, config.n_term_combination)
+            c_crosslink = get_crosslink(crosslinks_df, "C", config.c_term_type, config.c_term_combination)
         n_suffix = f"N_{config.n_term_type}" if not n_crosslink.empty else "N_NONE"
         c_suffix = f"C_{config.c_term_type}" if not c_crosslink.empty else "C_NONE"
         output_pdb_crosslinked = f"{file_prefix}_{n_suffix}_{c_suffix}_temp.pdb"
-        return Path(apply_crosslinks(
-            str(output_pdb), 
-            output_pdb_crosslinked,
-            n_crosslink.iloc[0] if not n_crosslink.empty else None,
-            c_crosslink.iloc[0] if not c_crosslink.empty else None,
-            config
-        ))
+        
+        if config.crosslink:
+            LOG.info(f'Step 3/{steps} Crosslinks application')
+            return Path(apply_crosslinks(
+                str(output_pdb), 
+                output_pdb_crosslinked,
+                n_crosslink.iloc[0] if not n_crosslink.empty else None,
+                c_crosslink.iloc[0] if not c_crosslink.empty else None,
+                config
+            ))
+        else:
+            LOG.warning(f"No crosslinks being added to this fibril.")
+            output_pdb_nocross = f"{file_prefix}_N_NONE_C_NONE_temp.pdb"
+            output_pdb.rename(output_pdb_nocross)
+            return Path(output_pdb_nocross)
 
 @timeit
 async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_pdb: Path, crosslinks_df: pd.DataFrame, steps: int) -> Path:
@@ -222,7 +218,6 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
     
     chimera_scripts_dir = Path(config.CHIMERA_SCRIPTS_DIR)
     generate_copies_script = chimera_scripts_dir / 'generate_copies.py'
-    optimize_crosslinks_script = chimera_scripts_dir / 'optimize_crosslinks.py'
     
     input_pdb = input_pdb.resolve()
     output_pdb = output_pdb.resolve()
@@ -258,138 +253,171 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
         
         with open(generated_pdbs_file, 'r') as f:
             generated_pdbs = [Path(line.strip()) for line in f]
+
+        LOG.debug(f"Working directory during copy generation: {Path.cwd()}")
+        LOG.debug(f"Generated PDB files: {generated_pdbs}")
+        for pdb in generated_pdbs:
+            if pdb.exists():
+                LOG.debug(f"Found generated PDB: {pdb.resolve()}")
+            else:
+                LOG.warning(f"Missing generated PDB: {pdb.resolve()}")
         
         LOG.debug(f"Generated {len(generated_pdbs)} PDB files.")
+        
     
-    except Exception as e:
-        LOG.error(f"An error occurred while generating copies: {str(e)}")
-        raise
-    
-    # Step 2: Optimize crosslinks
-    LOG.info("     Optimizing crosslinks")
-    
-    n_crosslink = get_crosslink(crosslinks_df, "N", config.n_term_type, config.n_term_combination)
-    c_crosslink = get_crosslink(crosslinks_df, "C", config.c_term_type, config.c_term_combination)
-    # LOG.info(f"N-terminal crosslink empty: {n_crosslink.empty}")
-    # LOG.info(f"C-terminal crosslink empty: {c_crosslink.empty}")
-    # LOG.info(f"N-terminal crosslink: {n_crosslink.to_dict()}")
-    # LOG.info(f"C-terminal crosslink: {c_crosslink.to_dict()}")
-    
-    def extract_numeric_position(position_str):
-        return position_str.split('.')[0]
-    
-    crosslink_info = []
-    if not n_crosslink.empty:
-        crosslink_info.append({
-            'residue1_position': extract_numeric_position(n_crosslink['P1'].iloc[0]),
-            'residue1_type': n_crosslink['R1'].iloc[0],
-            'atom1': n_crosslink['A1'].iloc[0],
-            'residue2_position': extract_numeric_position(n_crosslink['P2'].iloc[0]),
-            'residue2_type': n_crosslink['R2'].iloc[0],
-            'atom2': n_crosslink['A2'].iloc[0],
-            'residue3_position': extract_numeric_position(n_crosslink['P3'].iloc[0]),
-            'residue3_type': n_crosslink['R3'].iloc[0],
-            'atom31': n_crosslink['A31'].iloc[0],
-            'atom32': n_crosslink['A32'].iloc[0]
-        })
-    if not c_crosslink.empty:
-        crosslink_info.append({
-            'residue1_position': extract_numeric_position(c_crosslink['P1'].iloc[0]),
-            'residue1_type': c_crosslink['R1'].iloc[0],
-            'atom1': c_crosslink['A1'].iloc[0],
-            'residue2_position': extract_numeric_position(c_crosslink['P2'].iloc[0]),
-            'residue2_type': c_crosslink['R2'].iloc[0],
-            'atom2': c_crosslink['A2'].iloc[0],
-            'residue3_position': extract_numeric_position(c_crosslink['P3'].iloc[0]),
-            'residue3_type': c_crosslink['R3'].iloc[0],
-            'atom31': c_crosslink['A31'].iloc[0],
-            'atom32': c_crosslink['A32'].iloc[0]
-        })
-    
-    optimization_params = {
-        "target_distance": 2.0,
-        "max_iterations": 2000000,
-        "initial_temperature": 100,
-        "cooling_rate": 0.95
-    }
+        # Step 2: Optimize crosslinks
+        LOG.info("     Optimizing crosslinks")
+        
+        n_crosslink = get_crosslink(crosslinks_df, "N", config.n_term_type, config.n_term_combination)
+        c_crosslink = get_crosslink(crosslinks_df, "C", config.c_term_type, config.c_term_combination)
+        
+        def extract_numeric_position(position_str):
+            return position_str.split('.')[0] if position_str and position_str != "NONE" else None
 
-    env['INPUT_PDB'] = ' '.join(str(pdb) for pdb in generated_pdbs)
-    env['OUTPUT_PDB'] = str(output_pdb)
-    env['CROSSLINK_INFO'] = json.dumps(crosslink_info)
-    env['OPTIMIZATION_PARAMS'] = json.dumps(optimization_params)
-    # LOG.info(f"INPUT_PDB: {env['INPUT_PDB']}")
-    # LOG.info(f"OUTPUT_PDB: {env['OUTPUT_PDB']}")
-    # LOG.info(f"CROSSLINK_INFO: {env['CROSSLINK_INFO']}")
-    # LOG.info(f"OPTIMIZATION_PARAMS: {env['OPTIMIZATION_PARAMS']}")
+        def extract_chain_id(position_str):
+            return position_str.split('.')[1] if position_str and position_str != "NONE" else None
 
-    
-    optimize_command = ['chimera', '--nogui', '--script', str(optimize_crosslinks_script)]
-    
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *optimize_command,
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        # print(f"STDOUT: {stdout.decode()}")
-        # print(f"STDERR: {stderr.decode()}")
+        crosslink_info = []
+        if not n_crosslink.empty:
+            crosslink_dict = {
+                'chain1_id': extract_chain_id(n_crosslink['P1'].iloc[0]),
+                'residue1_position': extract_numeric_position(n_crosslink['P1'].iloc[0]),
+                'residue1_type': n_crosslink['R1'].iloc[0],
+                'atom1': n_crosslink['A1'].iloc[0],
+                'chain2_id': extract_chain_id(n_crosslink['P2'].iloc[0]),
+                'residue2_position': extract_numeric_position(n_crosslink['P2'].iloc[0]),
+                'residue2_type': n_crosslink['R2'].iloc[0],
+                'atom2': n_crosslink['A2'].iloc[0],
+            }
+            if n_crosslink['P3'].iloc[0] != "NONE":
+                crosslink_dict.update({
+                    'chain3_id': extract_chain_id(n_crosslink['P3'].iloc[0]),
+                    'residue3_position': extract_numeric_position(n_crosslink['P3'].iloc[0]),
+                    'residue3_type': n_crosslink['R3'].iloc[0],
+                    'atom31': n_crosslink['A31'].iloc[0],
+                    'atom32': n_crosslink['A32'].iloc[0]
+                })
+            else:
+               crosslink_dict.update({
+                    'chain3_id': "NONE",
+                    'residue3_position': "NONE",
+                    'residue3_type': "NONE",
+                    'atom31': "NONE",
+                    'atom32': "NONE"
+                }) 
+            crosslink_info.append(crosslink_dict)
+
+        if not c_crosslink.empty:
+            crosslink_dict = {
+                'chain1_id': extract_chain_id(c_crosslink['P1'].iloc[0]),
+                'residue1_position': extract_numeric_position(c_crosslink['P1'].iloc[0]),
+                'residue1_type': c_crosslink['R1'].iloc[0],
+                'atom1': c_crosslink['A1'].iloc[0],
+                'chain2_id': extract_chain_id(c_crosslink['P2'].iloc[0]),
+                'residue2_position': extract_numeric_position(c_crosslink['P2'].iloc[0]),
+                'residue2_type': c_crosslink['R2'].iloc[0],
+                'atom2': c_crosslink['A2'].iloc[0],
+            }
+            if c_crosslink['P3'].iloc[0] != "NONE":
+                crosslink_dict.update({
+                    'chain3_id': extract_chain_id(c_crosslink['P3'].iloc[0]),
+                    'residue3_position': extract_numeric_position(c_crosslink['P3'].iloc[0]),
+                    'residue3_type': c_crosslink['R3'].iloc[0],
+                    'atom31': c_crosslink['A31'].iloc[0],
+                    'atom32': c_crosslink['A32'].iloc[0]
+                })
+            else:
+               crosslink_dict.update({
+                    'chain3_id': "NONE",
+                    'residue3_position': "NONE",
+                    'residue3_type': "NONE",
+                    'atom31': "NONE",
+                    'atom32': "NONE"
+                }) 
+            crosslink_info.append(crosslink_dict)
+            
+        if len(generated_pdbs) < 3:
+            raise ValueError("Not enough PDB copies generated for optimization")
         
-        if process.returncode is not None and process.returncode != 0:
-            error_message = stderr.decode() if stderr else "Unknown error occurred"
-            LOG.error(f"Error in optimizing crosslinks: {error_message}")
-            raise subprocess.CalledProcessError(process.returncode or 1, optimize_command, stdout, stderr)
+        copy1_pdb = generated_pdbs[0] 
+        copy2_pdb = generated_pdbs[2] 
         
-        if not output_pdb.exists():
-            raise FileNotFoundError(f"Output file not found: {output_pdb}")
+        if n_crosslink['P3'].iloc[0] and c_crosslink['P3'].iloc[0] != "NONE":
+            max_total_distance = 7
+        else:
+            max_total_distance = 5
+        max_attempts = 3
+        attempt = 0
+        current_input = input_pdb
+        total_distance = float('inf')
         
-        LOG.info(f"     Crosslinks optimized successfully")
+        while total_distance > max_total_distance and attempt < max_attempts:
+            attempt += 1
+            LOG.info(f"          Optimization attempt {attempt}/{max_attempts}")
+
+            total_distance, tracker = optimize_structure(
+                initial_pdb=str(input_pdb),
+                copy1_pdb=str(copy1_pdb),
+                copy2_pdb=str(copy2_pdb),
+                crosslink_info=crosslink_info,
+                optimized_pdb=str(output_pdb)
+            )
+            
+            current_input = output_pdb
+            LOG.debug(f"          Current total distance: {total_distance:.2f}")
+        
+        if total_distance > 9:
+            raise ValueError(f"          Crosslinks optimization failed. Please restart homology modeling.")
+        
+        LOG.info(f"          Crosslinks optimized successfully")
         return output_pdb
-    
-    except asyncio.CancelledError:
-        LOG.warning("Optimization process was cancelled.")
-        raise
-    except subprocess.CalledProcessError as e:
-        LOG.error(f"An error occurred while optimizing crosslinks: {e}")
-        raise
+            
     except Exception as e:
         LOG.error(f"An unexpected error occurred: {str(e)}")
         raise
     finally:
-        for pdb in generated_pdbs:
+        if not config.debug:
+            for pdb in generated_pdbs:
+                try:
+                    pdb.unlink()
+                except Exception as e:
+                    LOG.warning(f"Failed to delete temporary file {pdb}: {str(e)}")
             try:
-                pdb.unlink()
+                generated_pdbs_file.unlink()
             except Exception as e:
-                LOG.warning(f"Failed to delete temporary file {pdb}: {str(e)}")
-        try:
-            generated_pdbs_file.unlink()
-        except Exception as e:
-            LOG.warning(f"Failed to delete {generated_pdbs_file}: {str(e)}")
+                LOG.warning(f"Failed to delete {generated_pdbs_file}: {str(e)}")
+            for cleanup_file in ['optimized_copy1.pdb', 'optimized_copy2.pdb']:
+                try:
+                    Path(cleanup_file).unlink()
+                except Exception:
+                    pass
 
 @timeit    
 async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
     """
     Perform homology modeling to generate a specific collagen triple helix, starting from a FASTA file.
-
     Args:
         config (ColbuilderConfig): The configuration object.
-
     Returns:
         Tuple[Path, Path]: Paths to the final MSA output and PDB files.
-
     Raises:
         FileNotFoundError: If input or output files are not found.
         Exception: For any other errors during the process.
     """
+    original_dir = Path.cwd()
+    working_dir = original_dir / config.working_directory
+    working_dir = working_dir.resolve()
+    working_dir.mkdir(exist_ok=True)
+
     fasta_file = Path(config.fasta_file).resolve()
     if not fasta_file.exists():
         raise FileNotFoundError(f"FASTA file not found: {fasta_file}")
-
+        
     steps = 4 if config.crosslink else 2
     work_dir = Path.cwd() / 'debug_output' if config.debug else Path(tempfile.mkdtemp())
     work_dir.mkdir(exist_ok=True)
-
+    LOG.debug(f"Temporary working directory: {work_dir.resolve()}")
+    
     try:
         with change_dir(work_dir):
             file_prefix = fasta_file.stem
@@ -398,41 +426,39 @@ async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
             msa_output_path, modeller_output = await run_alignment(config, file_prefix, steps)
             output_pdb = await run_modelling(config, modeller_output, file_prefix, steps)
             
+            crosslinks_df = pd.read_csv(config.CROSSLINKS_FILE)
+            species_crosslinks = crosslinks_df[crosslinks_df['species'] == config.species]
+                
+            output_pdb = await apply_crosslinks_if_needed(config, output_pdb, file_prefix, species_crosslinks, steps)
+            
+            format_pdb(config, output_pdb)
+            if not output_pdb.exists():
+                raise FileNotFoundError(f"Formatted PDB file not found: {output_pdb}")
+            
+            dis_output_name = output_pdb.stem.replace('_temp', '_disoriented') + output_pdb.suffix
+            dis_output_path = working_dir / dis_output_name
+            shutil.copy2(output_pdb, dis_output_path)
+            
+            final_output_name = output_pdb.stem.replace('_temp', '') + output_pdb.suffix
+            final_output = working_dir / final_output_name
+            
             if config.crosslink:
-                crosslinks_df = pd.read_csv(config.CROSSLINKS_FILE)
-                species_crosslinks = crosslinks_df[crosslinks_df['species'] == config.species]
-                
-                output_pdb = await apply_crosslinks_if_needed(config, output_pdb, file_prefix, steps)
-                
-                formatted_stem = output_pdb.stem.replace('_temp', '_disoriented')
-                formatted_output_pdb = output_pdb.with_name(formatted_stem + output_pdb.suffix).resolve()
-                format_pdb(config, output_pdb, formatted_output_pdb)
+                optimized_output = await optimize_crosslinks(config, dis_output_path, final_output, species_crosslinks, steps)
+                format_pdb(config, final_output)
+            else:
+                shutil.copy2(dis_output_path, final_output)
+                format_pdb(config, final_output)
 
-                if not formatted_output_pdb.exists():
-                    raise FileNotFoundError(f"Formatted PDB file not found: {formatted_output_pdb}")
+            dis_output_path.unlink()
 
-        formatted_output = work_dir / formatted_output_pdb.name
+            msa_output_final_path = working_dir / msa_output_path.name
+            if msa_output_final_path.resolve() != Path(msa_output_path).resolve():
+                shutil.copy2(msa_output_path, msa_output_final_path)
 
-        if formatted_output.resolve() != formatted_output_pdb.resolve():
-            shutil.copy(work_dir / formatted_output_pdb.name, formatted_output.resolve())
-        
-        dis_output_path = Path(config.working_directory) / formatted_output.name
-        shutil.copy(formatted_output, dis_output_path)
-                
-        final_output_name = formatted_output.stem.replace('_disoriented', '')
-        final_output = formatted_output.with_name(final_output_name + formatted_output.suffix).resolve()
-        optimized_output = await optimize_crosslinks(config, formatted_output, final_output, species_crosslinks, steps)
-
-        persistent_output_path = Path(config.working_directory) / final_output.name
-        shutil.copy(final_output, persistent_output_path)
-
-        msa_output_final_path = Path.cwd() / msa_output_path.name
-        shutil.copy(work_dir / msa_output_path.name, msa_output_final_path)
-
-        if not persistent_output_path.exists():
-            raise FileNotFoundError(f"Final PDB file not found: {persistent_output_path}")
-        if not msa_output_final_path.exists():
-            raise FileNotFoundError(f"Final MSA file not found: {msa_output_final_path}")
+            if not final_output.exists():
+                raise FileNotFoundError(f"Final PDB file not found: {final_output}")
+            if not msa_output_final_path.exists():
+                raise FileNotFoundError(f"Final MSA file not found: {msa_output_final_path}")
 
     except Exception as e:
         LOG.error(f"Error in build_sequence: {str(e)}", exc_info=True)
@@ -443,4 +469,4 @@ async def build_sequence(config: ColbuilderConfig) -> t.Tuple[Path, Path]:
         else:
             LOG.info(f"Debug files retained in: {work_dir}")
 
-    return msa_output_final_path, persistent_output_path
+    return msa_output_final_path, final_output
