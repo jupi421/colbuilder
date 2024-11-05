@@ -117,23 +117,6 @@ class Connect:
         """
         return contactpairs
 
-    def get_connect(self, ref_model: Any, model: Any, cut_off: float = 3.0) -> bool:
-        """
-        Calculates distance between models: distance below cut_off (2.0 A) keep model.
-
-        Args:
-            ref_model (Any): Reference model.
-            model (Any): Model to compare.
-            cut_off (float): Distance cut-off in Angstroms.
-
-        Returns:
-            bool: True if models are connected, False otherwise.
-        """
-        for ref_c, c in product(ref_model.crosslink, model.crosslink):
-            if np.linalg.norm(ref_c.position - c.position) < cut_off:
-                return True
-        return False
-
     def _get_unique_connections(self, system) -> List[str]:
         """
         Get unique connections for all models, including those with only self-connections.
@@ -176,6 +159,28 @@ class Connect:
         for connection in self._get_unique_connections(system):
             print(connection)
 
+    def get_connect(self, ref_model: Any, model: Any, cut_off: float = 3.0) -> bool:
+        """
+        Calculates distance between models: distance below cut_off (2.0 A) keep model.
+
+        Args:
+            ref_model (Any): Reference model.
+            model (Any): Model to compare.
+            cut_off (float): Distance cut-off in Angstroms.
+
+        Returns:
+            bool: True if models are connected, False otherwise.
+        """
+        if not hasattr(ref_model, 'crosslink') or not hasattr(model, 'crosslink'):
+            return False
+        if not ref_model.crosslink or not model.crosslink:
+            return False
+            
+        for ref_c, c in product(ref_model.crosslink, model.crosslink):
+            if np.linalg.norm(ref_c.position - c.position) < cut_off:
+                return True
+        return False
+
     def run_connect(self, system: Any, unit_cell: Optional[List[float]] = None) -> Dict[float, List[float]]:
         """
         Wrapper to determine connection between all contacts (1) or
@@ -188,6 +193,16 @@ class Connect:
         Returns:
             Dict[float, List[float]]: Dictionary of connections.
         """
+        has_crosslinks = any(
+            hasattr(system.get_model(model_id=model_id), 'crosslink') and 
+            system.get_model(model_id=model_id).crosslink 
+            for model_id in system.get_models()
+        )
+        
+        if not has_crosslinks:
+            LOG.debug("No crosslinks found in system - skipping connection analysis")
+            return {}
+
         if unit_cell is None:
             return self.get_contact_connect(system=system)
         else:

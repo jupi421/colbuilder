@@ -77,6 +77,10 @@ class ModellerWrapper:
         Raises:
             Exception: If an error occurs during the MODELLER process.
         """
+        class MyModel(AutoModel):
+            def special_patches(self, aln):
+                self.rename_segments(segment_ids=["A", "B", "C"], renumber_residues=[1, 1, 1])
+        
         try:
             env = Environ(
                 rand_seed=-8123,
@@ -90,12 +94,13 @@ class ModellerWrapper:
             template_dir = os.path.dirname(self.template_pdb)
             env.io.atom_files_directory = ['.', template_dir]
             
-            a = AutoModel(
+            a = MyModel(
                 env,
                 alnfile=str(self.aligned_file),
                 knowns="template",
                 sequence="target"
             )
+        
             a.very_fast()
             a.starting_model = 1
             a.ending_model = 1

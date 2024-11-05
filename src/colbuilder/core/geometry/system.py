@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Any, Union
 from pathlib import Path
 import numpy as np
 import os
+import shutil
 
 from colbuilder.core.utils.logger import setup_logger
 
@@ -223,24 +224,88 @@ class System:
             The number of models with the specified state.
         """
         return sum(model.count_state(state=state) for model in self.system.values())
+    
+    def safe_remove_directory(self, directory: Union[str, Path]) -> None:
+        """
+        Safely remove a directory and all its contents.
+        
+        Parameters
+        ----------
+        directory : Union[str, Path]
+            The directory to remove
+        """
+        try:
+            directory_path = Path(directory).resolve() 
+            
+            if not directory_path.exists():
+                LOG.debug(f"Directory does not exist, nothing to remove: {directory_path}")
+                return
+                
+            if not any(directory_path.name == x for x in ['NC', 'T', 'D', 'TD', 'DT']):
+                LOG.warning(f"Refusing to remove directory that isn't a type directory: {directory_path}")
+                return
+                
+            shutil.rmtree(directory_path)
+            LOG.debug(f"Successfully removed directory: {directory_path}")
+        except Exception as e:
+            LOG.warning(f"Failed to remove directory {directory_path}: {str(e)}")
 
     def write_pdb(self, pdb_out: Union[str, Path], fibril_length: float):
+        """
+        Write the system to a PDB file and cleanup temporary files.
+
+        Parameters
+        ----------
+        pdb_out : Union[str, Path]
+            Output path for the PDB file.
+        fibril_length : float
+            Length of the fibril in nanometers.
+        """
         pdb_out_path = Path(pdb_out)
-        with open(pdb_out_path.with_suffix('.pdb'), 'w') as f:
-            crystal_pdb = self.crystal.pdb_file.with_suffix('.pdb')
-            if not crystal_pdb.exists():
-                LOG.warning(f"Crystal PDB file not found: {crystal_pdb}")
-            else:
-                f.write(open(crystal_pdb).readline())
-            
-            for model in self.system.values():
-                if model.connect is not None:
-                    if len(model.connect) != 1 or fibril_length <= 300:
-                        for connect in model.connect:
-                            caps_pdb = Path(model.type) / f"{int(connect)}.caps.pdb"
-                            if not caps_pdb.exists():
-                                LOG.warning(f"Caps PDB file not found: {caps_pdb}")
-                                continue
-                            pdb_model = open(caps_pdb, 'r').readlines()
-                            f.writelines(line for line in pdb_model if line.startswith(self.is_line) and not line.startswith('TER'))
-            f.write("END")
+        type_directories = set()
+        
+        try:
+            with open(pdb_out_path.with_suffix('.pdb'), 'w') as f:
+                crystal_pdb = self.crystal.pdb_file.with_suffix('.pdb')
+                if not crystal_pdb.exists():
+                    LOG.warning(f"Crystal PDB file not found: {crystal_pdb}")
+                else:
+                    f.write(open(crystal_pdb).readline())
+                
+                for model in self.system.values():
+                    model_type = model.type or "NC" 
+                    type_directories.add(model_type)
+                    
+                    if model.connect is not None:
+                        if len(model.connect) != 1 or fibril_length <= 300:
+                            for connect in model.connect:
+                                caps_pdb = Path(model_type) / f"{int(connect)}.caps.pdb"
+                                if not caps_pdb.exists():
+                                    LOG.warning(f"Caps PDB file not found: {caps_pdb}")
+                                    continue
+                                pdb_model = open(caps_pdb, 'r').readlines()
+                                f.writelines(line for line in pdb_model 
+                                        if line.startswith(self.is_line) or line.startswith('TER'))
+                    else:
+                        caps_pdb = Path(model_type) / f"{int(model.id)}.caps.pdb"
+                        if not caps_pdb.exists():
+                            LOG.warning(f"Caps PDB file not found: {caps_pdb}")
+                            continue
+                        try:
+                            with open(caps_pdb, 'r') as model_file:
+                                pdb_model = model_file.readlines()
+                                f.writelines(line for line in pdb_model 
+                                        if line.startswith(self.is_line) or line.startswith('TER'))
+                        except Exception as e:
+                            LOG.error(f"Error reading caps PDB file {caps_pdb}: {str(e)}")
+                            continue
+                            
+                f.write("END")
+                
+            LOG.debug("Cleaning up temporary type directories")
+            for type_dir in type_directories:
+                self.safe_remove_directory(type_dir)
+                
+        except Exception as e:
+            LOG.error(f"Error writing PDB file {pdb_out_path}: {str(e)}")
+            raise

@@ -3,7 +3,7 @@
 
 from pymol import cmd, editor
 import subprocess
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import os
 
 class Caps:
@@ -92,13 +92,13 @@ class Caps:
         for chain in self.model:
             self.chain_length[chain] = len(self.model[chain])
 
-    def add_caps(self, pdb_id: int, crosslink_type: str) -> str:
+    def add_caps(self, pdb_id: int, crosslink_type: Optional[str] = None) -> str:
         """
         Adds caps to both ends of each model.
         
         Args:
             pdb_id (int): PDB identifier.
-            crosslink_type (str): Type of crosslink.
+            crosslink_type (Optional[str]): Type of crosslink. Uses 'NC' for non-crosslinked structures.
         
         Returns:
             str: Path to the new PDB file with caps.
@@ -109,6 +109,8 @@ class Caps:
         pdb_file = f"{pdb_id}.pdb"
         if not os.path.exists(pdb_file):
             raise FileNotFoundError(f"PDB file not found: {pdb_file}")
+
+        output_dir = crosslink_type if crosslink_type else "NC"
 
         cmd.load(pdb_file)
         for cap in self.caps:
@@ -121,16 +123,16 @@ class Caps:
         
         cmd.save('tmp.pdb')
         cmd.delete(name=str(pdb_id))
-        return self.write_caps(pdb='tmp.pdb', pdb_id=pdb_id, crosslink_type=crosslink_type)
+        return self.write_caps(pdb='tmp.pdb', pdb_id=pdb_id, output_dir=output_dir)
 
-    def write_caps(self, pdb: str, pdb_id: int, crosslink_type: str) -> str:
+    def write_caps(self, pdb: str, pdb_id: int, output_dir: str) -> str:
         """
         Write PDB file with caps.
         
         Args:
             pdb (str): Path to temporary PDB file.
             pdb_id (int): PDB identifier.
-            crosslink_type (str): Type of crosslink.
+            output_dir (str): Directory to save the output file.
 
         Returns:
             str: Path to the new PDB file with caps.
@@ -141,7 +143,6 @@ class Caps:
         if not os.path.exists(pdb):
             raise FileNotFoundError(f"Temporary PDB file not found: {pdb}")
 
-        output_dir = f"{crosslink_type}"
         os.makedirs(output_dir, exist_ok=True)
         output_file = f"{output_dir}/{pdb_id}.caps.pdb"
 
@@ -155,6 +156,3 @@ class Caps:
         subprocess.run(f"rm {pdb_id}.pdb", shell=True, check=True)
         subprocess.run(f"rm {pdb}", shell=True, check=True)
         return output_file
-
-if __name__ == "__main__":
-    pass

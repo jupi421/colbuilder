@@ -104,23 +104,28 @@ async def build_geometry(config: ColbuilderConfig) -> Any:
         connect.write_connect(system=system, connect_file=connect.connect_file)
 
         LOG.info(f'Step 5/{steps} Adding caps')
-        rm_dir = os.path.join(path_wd, system.get_model(model_id=0.0).type)
-        if os.path.exists(rm_dir):
-            LOG.debug(f'Removing directory: {rm_dir}')
-            try:
-                shutil.rmtree(rm_dir)
-            except Exception as e:
-                LOG.warning(f'Failed to remove directory {rm_dir}: {str(e)}')
-        else:
-            LOG.debug(f'Directory does not exist, skipping removal: {rm_dir}')
-        LOG.debug(f'Creating directory: {rm_dir}')
+        model_type = system.get_model(model_id=0.0).type
+        rm_dir = os.path.join(path_wd, model_type)
+        
         try:
             os.makedirs(rm_dir, exist_ok=True)
         except Exception as e:
             LOG.error(f'Failed to create directory {rm_dir}: {str(e)}')
             raise ColbuilderError(f"Geometry generation failed: Unable to create directory. {rm_dir}")
+        
         try:
-            cap_system(system=system, crosslink_type=system.get_model(model_id=0.0).type)
+            has_crosslinks = any(
+                hasattr(system.get_model(model_id=model_id), 'crosslink') and 
+                system.get_model(model_id=model_id).crosslink 
+                for model_id in system.get_models()
+            )
+            
+            if has_crosslinks:
+                cap_system(system=system, crosslink_type=model_type)
+            else:
+                LOG.debug("     System has no crosslinks, using standard capping")
+                cap_system(system=system, crosslink_type="NC")
+                
         except Exception as e:
             LOG.error(f'Failed to add caps: {str(e)}')
             raise ColbuilderError(f"Geometry generation failed: Unable to add caps.")
@@ -188,12 +193,20 @@ def build_from_contactdistance(
     LOG.info(f'     Connecting system')
     system, connect = connect_system(system=system, connect_file=connect_file)
     
-    LOG.info(f'     Optimizing system')
-    optimizer = Optimizer(system=system, solution_space=solution_space)
-    system = optimizer.run_optimize(system=system, connect=connect)
-    system, connect = connect_system(system=system, connect_file=connect_file)
+    has_crosslinks = any(
+        hasattr(system.get_model(model_id=model_id), 'crosslink') and 
+        system.get_model(model_id=model_id).crosslink 
+        for model_id in system.get_models()
+    )
     
-    crystalcontacts.crystalcontacts_file = crystalcontacts_file + '_opt'
+    if has_crosslinks:
+        LOG.info(f'     Optimizing system')
+        optimizer = Optimizer(system=system, solution_space=solution_space)
+        system = optimizer.run_optimize(system=system, connect=connect)
+        system, connect = connect_system(system=system, connect_file=connect_file)
+        crystalcontacts.crystalcontacts_file = crystalcontacts_file + '_opt'
+    else:
+        LOG.info(f'     Skipping optimization for non-crosslinked system')
     
     return system, crystalcontacts, connect
 
@@ -213,7 +226,7 @@ def build_from_crystalcontacts(
         bool_external_connect = True
         connect_file = Path(connect_file).with_suffix('')
         
-    crystalcontacts = CrystalContacts(str(crystalcontacts_file))
+    crystalcontacts = CrystalContacts(str(crystalcontacts_file)) # requires crosslinks
     
     LOG.info(f'     Building system')
     system = build_system(crystal=crystal, crystalcontacts=crystalcontacts)
