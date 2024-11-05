@@ -22,8 +22,8 @@ geometry_generator: true
 file: null #homosapiens_N_NONE_C_NONE.pdb  # Input PDB file. Note: Comment this line if sequence_generator is true
 output: "collagen_fibril"
 working_directory: "./"
-contact_distance: 20
-fibril_length: 40.0
+contact_distance: 60
+fibril_length: 330.0
 crystalcontacts_file: null # crystalcontacts_from_colbuilder.txt
 connect_file: null
 crystalcontacts_optimize: false # Note: This is always true when generating geometry from contact_distance, but has to be set to true to be performed otherwise.
