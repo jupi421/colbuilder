@@ -34,7 +34,7 @@ async def build_geometry(config: ColbuilderConfig) -> Any:
 
     try:
         path_wd = Path(config.working_directory)
-        pdb_file = str(config.file)
+        pdb_file = str(config.pdb_file)
         if pdb_file.endswith('.pdb'):
             pdb_file = pdb_file[:-4]
         contact_distance = config.contact_distance
