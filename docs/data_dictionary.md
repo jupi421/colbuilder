@@ -17,22 +17,20 @@ This data dictionary provides a comprehensive overview of the parameters, variab
 | Name | Type | Scope | Description |
 |------|------|-------|-------------|
 | fasta_file | pathlib.Path | User | Path to the input FASTA file for sequence generation. Must be a valid FASTA file containing collagen sequences with the same formatting as the template fasta file. |
-| output_prefix | str | User | Prefix for output files. Used to name all generated files consistently. |
-| species | str | User | Species name for crosslink information (e.g., "Homo_sapiens"). Must match the species names in the crosslinks database. |
+| species | str | User | Species name for crosslink information (e.g., "homo_sapiens"). Must match the species names in the crosslinks database. |
 | crosslink | bool | User | Flag to enable/disable crosslink application. If True, crosslinks will be added to the structure, and further crosslink information must be provided. See also: `n_term_type`, `c_term_type`, `n_term_combination`, `c_term_combination` in this section, and `crosslink` in the Geometry Generation section. |
 | n_term_type | str | User | N-terminal crosslink type (e.g., "HLKNL"). Must be a valid crosslink type from the database. |
 | c_term_type | str | User | C-terminal crosslink type (e.g., "HLKNL"). Must be a valid crosslink type from the database. |
 | n_term_combination | str | User | Residue combination for N-terminal crosslink. Specifies residue number and chain id for each crosslinking residue, as resnum.chain. Residues are separated by a "-". Example: "9.C - 947.A" indicates a crosslink between residue 9 of chain C and residue 947 of chain A. |
 | c_term_combination | str | User | Residue combination for C-terminal crosslink. Specifies residue number and chain id for each crosslinking residue, as resnum.chain. Residues are separated by a "-" (e.g., "1047.C - 104.C"). |
-| file | pathlib.Path | User | Input PDB file for geometry generation (if skipping sequence generation). Must be a valid PDB file with crystal contacts information in the first line. |
-| output | pathlib.Path | User | Path and name for output PDB file of microfibril. |
+| pdb_file | pathlib.Path | User | Input PDB file for geometry generation (if skipping sequence generation). Must be a valid PDB file with crystal contacts information in the first line. |
 | working_directory | pathlib.Path | User | Path to set working directory. All output files will be saved here. |
 | contact_distance | float | User | Contact distance as proxy for radial size of microfibril (in Angstroms). Typical range: 10 to 60 Å. |
 | fibril_length | float | User | Length of microfibril (in nanometers). Typical range: 67 to 330 nm. |
 | crystalcontacts_file | Optional[pathlib.Path] | User | Path to file for reading crystal contacts. If not provided, contacts will be calculated. |
 | connect_file | Optional[pathlib.Path] | User | Path to file for reading connections between contacts. If not provided, connections will be calculated. |
 | crystalcontacts_optimize | bool | User | Flag to optimize crystal contacts. If True, contacts will be optimized in a Bravais lattice for better packing. |
-| solution_space | np.ndarray | User | Solution space of optimization problem [d_x, d_y, d_z]. Defines the search space for optimization in Angstroms. |
+| solution_space | np.ndarray | Optional | Solution space of optimization problem [d_x, d_y, d_z]. Defines the search space for optimization in Angstroms. |
 | mix_bool | bool | User | Flag to generate a mixed crosslinked microfibril. If True, different crosslink types will be mixed. See also: `ratio_mix` and `files_mix` in this section. |
 | ratio_mix | Dict[str, int] | User | Ratio for mix-crosslink setup. Keys are crosslink types, values are percentages. Must sum to 100. Example: {"T": 70, "D": 30} for a mixture of 70% type T and 30% type D crosslinks. |
 | files_mix | List[pathlib.Path] | User | PDB files with different crosslink types for mixing. Each file must be a valid PDB. |
@@ -60,12 +58,15 @@ This section covers parameters and data structures related to the generation of 
 | restyp_lib | pathlib.Path | Internal | Path to the custom residue type library file for MODELLER. |
 | top_heav_lib | pathlib.Path | Internal | Path to the custom topology library file for MODELLER. |
 | par_mod_lib | pathlib.Path | Internal | Path to the custom parameter library file for MODELLER. |
-| target_distance | float | Internal | Target distance for crosslink pairs before performing optimization (in Angstroms). Typical value: 4.0 Å. |
-| max_distance | float | Internal | Maximum allowed distance for crosslink pairs (binding atoms) after optimization (in Angstroms). Typical value: 2.0 Å. |
-| max_iterations | int | Internal | Maximum number of iterations for crosslink optimization. Typical value: 50,000,000. |
-| initial_temperature | float | Internal | Initial temperature for simulated annealing in crosslink optimization. Typical value: 100.0 (arbitrary units). |
-| cooling_rate | float | Internal | Cooling rate for simulated annealing in crosslink optimization. Typical value: 0.9999. |
-| max_no_improvement | int | Internal | Maximum number of iterations without improvement before resetting in crosslink optimization. Typical value: 100,000. |
+| copy1_pdb | pathlib.Path | Internal | Path to first copy PDB. |
+| copy2_pdb | pathlib.Path | Internal | Path to second copy PDB. |
+| is_divalent | bool | Internal | Flag to determine whether the crosslink is divalent (true) or trivalent (false). |
+| target_distance | float | Internal | Target distance for crosslink pairs (binding atoms) after optimization (in Angstroms). Typical value: 1.5 Å. |
+| max_steps | int | Internal | Maximum number of iterations for each attempt of crosslink optimization. Typical value: 20,000. |
+| temperature | float | Internal | Initial temperature for simulated annealing in crosslink optimization. Typical value: 1.0 (arbitrary units). |
+| cooling_rate | float | Internal | Cooling rate for simulated annealing in crosslink optimization. Typical value: 0.999. |
+| min_temp | float | Internal | Minimum temperature in crosslink optimization. Typical value: 0.2 (arbitrary units). |
+| no_improvement_count | int | Internal | Count to keep track of maximum number of iterations without improvement before resetting in crosslink optimization. Typical value: 500. |
 
 ## Geometry Generation
 The Geometry Generation section includes parameters and structures for building the three-dimensional structure of the collagen microfibril. This involves crystal contact calculation, fibril assembly, and optimization of the overall structure.

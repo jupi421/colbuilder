@@ -43,16 +43,15 @@ $ colbuilder --config_file config.yaml --sequence_generator
 
 Inputs:
 - `config.yaml`: Configuration file with parameters for sequence generation.
-  - `fasta_file`: Path to input FASTA file (*required*)
-  - `output_prefix`: Prefix for output files (*required*)
+  - `fasta_file`: Path to input FASTA file (*optional*)
   - `species`: Species name for crosslink information (*required*)
   - `crosslink`: Enable/disable crosslink application (*required*)
   - `n_term_type`, `c_term_type`: N-terminal and C-terminal crosslink types
   - `n_term_combination`, `c_term_combination`: Residue combinations for crosslinks
 
 Outputs:
-- `{output_prefix}_msa.fasta`: Multiple Sequence Alignment file
-- `{output_prefix}.pdb`: PDB file of the collagen triple helix
+- `{species}_alignment.fasta`: Multiple Sequence Alignment file
+- `{species}_N_{n_term_type}_C_{c_term_type}.pdb`: PDB file of the collagen triple helix
 
 ### 3. Geometry Generation
 
@@ -63,13 +62,13 @@ $ colbuilder --config_file config.yaml --geometry_generator
 ```
 
 Inputs (additional to previous step):
-- `file`: Input PDB file (if skipping sequence generation)
+- `pdb_file`: Input PDB file (if skipping sequence generation)
 - `contact_distance`: Contact distance for microfibril radial size (*required* if `crystalcontacts_optimize` is False)
 - `fibril_length`: Length of microfibril (*required*)
 - `crystalcontacts_optimize`: Flag to optimize crystal contacts (*optional*)
 
 Outputs:
-- `{output_prefix}_fibril.pdb`: PDB file of the collagen microfibril
+- `collagen_fibril_{species}.pdb`: PDB file of the collagen microfibril
 
 ### 4. Topology Generation
 
@@ -83,15 +82,15 @@ Inputs (additional to previous steps):
 - `force_field`: Force field to be used (e.g., 'amber99')
 
 Outputs:
-- `{output_prefix}.top`: Topology file
-- `{output_prefix}.gro`: GROMACS coordinate file
+- `collagen_fibril_{species}.top`: Topology file
+- `collagen_fibril_{species}.gro`: GROMACS coordinate file
 
 ### 5. Output Analysis
 
 After running ColBuilder, you can analyze the output files:
 
-1. Visualize the `{output_prefix}_fibril.pdb` file using molecular visualization software like PyMOL or VMD.
-2. Check the `{output_prefix}.top` and `{output_prefix}.gro` files for consistency and completeness.
+1. Visualize the `collagen_fibril_{species}.pdb` file using molecular visualization software like PyMOL or VMD.
+2. Check the `collagen_fibril_{species}.top` and `collagen_fibril_{species}.gro` files for consistency and completeness.
 3. Use GROMACS tools to validate the topology and prepare for molecular dynamics simulations.
 
 ## Further Reading

@@ -7,13 +7,12 @@ ColBuilder is a tool for generating collagen microfibrils through a three-stage 
 `config.yaml` with parameters for each stage of the pipeline:
 
 - `mode`: Combination of SEQUENCE, GEOMETRY, TOPOLOGY
-- `fasta_file`: Path to input FASTA file for sequence generation
-- `output_prefix`: Prefix for output files
-- `species`: Species name for crosslink information
+- `species`: Species name for sequence and crosslink information (check list of species available in the config file)
+- `fasta_file`: Path to input FASTA file for pdb generation from custom sequence
 - `crosslink`: Boolean to enable/disable crosslink application
 - `n_term_type`, `c_term_type`: N-terminal and C-terminal crosslink types
 - `n_term_combination`, `c_term_combination`: Residue combinations for crosslinks
-- `file`: Input PDB file for geometry generation (if skipping sequence generation)
+- `pdb_file`: Input PDB file for geometry generation (if skipping sequence generation)
 - `contact_distance`: Contact distance for microfibril radial size
 - `fibril_length`: Length of microfibril
 - `mix_bool`: Enable mixing of different crosslink types
@@ -38,8 +37,8 @@ By setting `sequence_generator`, `geometry_generator`, and `topology_generator` 
 Generates a collagen triple helix from sequence information.
 
 **Outputs**:
-- `{output_prefix}_msa.fasta`: Multiple Sequence Alignment file
-- `{output_prefix}.pdb`: PDB file of the collagen triple helix
+- `{species}_alignment.fasta`: Multiple Sequence Alignment file
+- `{species}_N_{n_term_type}_C_{c_term_type}.pdb`: PDB file of the collagen triple helix
 
 ### Geometry Generation
 
@@ -48,7 +47,7 @@ Generates a collagen triple helix from sequence information.
 Generates fibril geometry based on the collagen molecule structure.
 
 **Outputs**:
-- `{output_prefix}.pdb`: PDB file of the collagen fibril
+- `collagen_fibril_{species}.pdb`: PDB file of the collagen fibril
 
 ### Topology Generation
 
@@ -57,8 +56,8 @@ Generates fibril geometry based on the collagen molecule structure.
 Generates topology files for molecular dynamics simulations.
 
 **Outputs**:
-- `{output_prefix}.top`: Topology file
-- `{output_prefix}.gro`: GROMACS coordinate file
+- `collagen_fibril_{species}.top`: Topology file
+- `collagen_fibril_{species}.gro`: GROMACS coordinate file
 
 ## Additional Features
 
@@ -80,7 +79,7 @@ To replace a portion of crosslinks with lysines:
    - Sequence alignment using Muscle
    - Collagen structure generation with MODELLER
    - Crosslinks application (if specified) with MODELLER
-   - Optimization of crosslinks using Chimera
+   - Optimization of crosslinks orientation for bonding
 
 2. **Geometry Generation (Fibril Geometry)**
    - Building system geometry from contact distance or crystal contacts

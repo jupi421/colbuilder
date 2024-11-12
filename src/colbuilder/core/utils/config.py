@@ -3,8 +3,8 @@
 
 from typing import Any, Dict, Optional, Tuple, List, Set, Union
 from pathlib import Path
-from pydantic import BaseModel, Field, field_validator
-from enum import Flag, auto
+from pydantic import BaseModel, Field, field_validator, validator
+from enum import Flag, auto, Enum
 import yaml
 
 class OperationMode(Flag):
@@ -16,39 +16,48 @@ class OperationMode(Flag):
     REPLACE = auto()
     
 class ColbuilderConfig(BaseModel):
+    # Operation mode 
     mode: Optional[OperationMode] = Field(None, description="Operation mode")
+    debug: bool = Field(default=False, description="Enable debug logging")
+    working_directory: Path = Field(default=Path.cwd(), description="Working directory")
     config_file: Optional[Path] = Field(None, description="YAML configuration file")
+    
+    # PDB file generation mode (from sequence)
     sequence_generator: bool = Field(default=False, description="Run sequence generation")
-    geometry_generator: bool = Field(default=False, description="Run geometry generation")
+    species: str = Field(..., description="Species name")
     fasta_file: Optional[str] = Field(None, description="FASTA file")
-    output_prefix: Optional[str] = Field(None, description="Output prefix for sequence generation")
-    species: Optional[str] = Field(None, description="Species name")
     crosslink: bool = Field(default=False, description="Apply crosslinks")
     n_term_type: Optional[str] = Field(None, description="N-terminal type")
     c_term_type: Optional[str] = Field(None, description="C-terminal type")
     n_term_combination: Optional[str] = Field(None, description="N-terminal combination")
     c_term_combination: Optional[str] = Field(None, description="C-terminal combination")
-    file: Optional[Path] = Field(None, description="Input PDB file")
-    output: Path = Field(default=Path("collagen_fibril"), description="Output file name")
-    working_directory: Path = Field(default=Path.cwd(), description="Working directory")
+
+    # Fibril geometry generation mode (from pdb file)
+    geometry_generator: bool = Field(default=False, description="Run geometry generation")
+    pdb_file: Optional[Path] = Field(None, description="Input PDB file")
     contact_distance: Optional[float] = Field(None, description="Contact distance for microfibril")
     fibril_length: float = Field(default=334, description="Length of microfibril")
     crystalcontacts_file: Optional[Path] = Field(None, description="Crystal contacts file")
     connect_file: Optional[Path] = Field(None, description="Connect file")
     crystalcontacts_optimize: bool = Field(default=False, description="Optimize crystal contacts")
     solution_space: Union[List[float], Tuple[float, float, float]] = Field(default=(1, 1, 1), description="Solution space")
+    pdb_first_line: Optional[str] = Field(default="CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2", description="Crystal contacts information")
+    
+    # Mix crosslinks mode
     mix_bool: bool = Field(default=False, description="Generate a mixed crosslinked microfibril")
     ratio_mix: Union[str, Dict[str, int]] = Field(default={}, alias="ratio_mix")
     files_mix: Union[List[Path], Tuple[Path, ...]] = Field(default=(), description="PDB files with different crosslink types")
+    
+    # Replace crosslinks by original residue mode
     replace_bool: bool = Field(default=False, description="Generate a microfibril with less crosslinks")
     ratio_replace: Optional[float] = Field(None, description="Ratio of crosslinks to be replaced")
     replace_file: Optional[Path] = Field(None, description="File with crosslinks to be replaced")
+    
+    # Topology generation mode
     topology_generator: bool = Field(default=False, description="Generate topology files")
     force_field: Optional[str] = Field(None, description="Force field to be used")
-    debug: bool = Field(default=False, description="Enable debug logging")
-    pdb_first_line: Optional[str] = Field(default="CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2", description="Crystal contacts information")
-
-    # Paths
+    
+    # Path Configuration
     PROJECT_ROOT: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent)
     DATA_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data')
     HOMOLOGY_LIB_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence')
@@ -68,6 +77,25 @@ class ColbuilderConfig(BaseModel):
         self.files_mix = tuple(self.files_mix)
         self.set_mode()
 
+    # Species mapping
+    _species_map = {
+        "homo_sapiens", "ailuropoda_melanoleuca", "danio_rerio", "mus_musculus",
+        "mustela_putorius", "myotis_lucifugus", "otolemur_garnettii",
+        "pan_troglodytes", "pongo_abelii", "rattus_norvegicus", "bos_taurus",
+        "callithrix_jacchus", "canis_lupus", "loxodonta_africana",
+        "oreochromis_niloticus", "oryzias_latipes", "pelodiscus_sinensis",
+        "tetraodon_nigroviridis", "xiphophorus_maculatus"
+    }
+    
+    def model_post_init(self, __context: Any) -> None:
+        if self.fasta_file is None:
+            if self.species in self._species_map:
+                fasta_name = f"{self.species.replace('_', '')}.fasta"
+                self.fasta_file = str(self.HOMOLOGY_LIB_DIR / "fasta_sequences" / fasta_name)
+            else:
+                raise ValueError(f"Must provide fasta_file when using custom species: {self.species}")
+        self.set_mode()
+        
     def _convert_ratio_mix(self, value: Union[str, Dict[str, int]]) -> Dict[str, int]:
         if isinstance(value, str):
             return {item.split(':')[0]: int(item.split(':')[1]) for item in value.split()}
@@ -124,7 +152,7 @@ class ColbuilderConfig(BaseModel):
             self.PAR_MOD_LIB_PATH,
             self.CROSSLINKS_FILE,
             self.FORCE_FIELD_DIR,
-            self.file,
+            self.pdb_file,
             self.crystalcontacts_file,
             self.connect_file,
             self.replace_file,
@@ -140,8 +168,12 @@ class ColbuilderConfig(BaseModel):
         self.set_mode()
 
     def __str__(self):
-        return f"ColbuilderConfig(mode={self.mode}, file={self.file}, output={self.output})"
-
+        return f"ColbuilderConfig(mode={self.mode}, pdb_file={self.pdb_file}, output={self.output})"
+    
+    @property
+    def output(self) -> str:
+        return f"collagen_fibril_{self.species}"
+    
 _config_instance = None
 
 def get_config(**kwargs) -> ColbuilderConfig:

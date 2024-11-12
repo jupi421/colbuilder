@@ -92,41 +92,42 @@ async def run_operations(config: ColbuilderConfig) -> None:
         LOG.subsection("Homology Modelling")
         msa, final_pdb = await run_sequence_generation(config)
         LOG.info(f"{Fore.BLUE}Homology modelling completed.{Style.RESET_ALL} {Fore.GREEN}MSA: {msa}; Final PDB (triple helix): {final_pdb}{Style.RESET_ALL}")
-        config.file = final_pdb
+        config.pdb_file = final_pdb
 
     if OperationMode.GEOMETRY in config.mode:
         LOG.section("Generating collagen fibril...")
         LOG.subsection("Geometry Generation")
-        if config.file is None:
+        if config.pdb_file is None:
             raise ColbuilderError("Input file is required for geometry generation.")
         system = await run_geometry_generation(config)
         LOG.info(f"{Fore.BLUE}Geometry generation completed.{Style.RESET_ALL}")
 
     if OperationMode.MIX in config.mode:
         LOG.subsection("Mixing Geometry")
-        if config.file is None:
+        if config.pdb_file is None:
            raise ColbuilderError("System is not initialized. Run geometry generation first.") 
         system = await run_mix_geometry(system, config)
         
     if OperationMode.REPLACE in config.mode:
         LOG.subsection("Replacing Geometry")
-        if config.file is None:
+        if config.pdb_file is None:
             raise ColbuilderError("System is not initialized. Run geometry generation first.")
         system = await run_replace_geometry(system, config)
 
     if OperationMode.TOPOLOGY in config.mode:
         LOG.section("Generating topology...")
-        if config.file is None:
+        if config.pdb_file is None:
             raise ColbuilderError("System is not initialized. Run geometry generation first.")
         system = await run_topology_generation(system, config)
         LOG.info(f"{Fore.BLUE}Topology generation completed.{Style.RESET_ALL}")
 
 @click.command()
 @click.option('--config_file', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='YAML configuration file')
+@click.option('--species', type=str, help='Species name (e.g., homo_sapiens)') 
 @click.option('--sequence_generator', is_flag=True, help='Run sequence generation')
 @click.option('--geometry_generator', is_flag=True, help='Run geometry generation')
-@click.option('-f', '--file', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='PDB-input file for single triple helix or template fibril')
-@click.option('-o', '--output', type=click.Path(path_type=Path), default='collagen_fibril', help='Name for PDB-file of microfibril')
+@click.option('-fasta', '--fasta_file', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='Fasta-input file for collagen triple helix sequence')
+@click.option('-pdb', '--pdb_file', type=click.Path(exists=True, dir_okay=False, path_type=Path), help='PDB-input file for single triple helix or template fibril')
 @click.option('-wd', '--working_directory', type=click.Path(exists=True, file_okay=False, path_type=Path), default=Path.cwd(), help='Set working directory')
 @click.option('-dc', '--contact_distance', type=float, help='Contact distance as input for radial size of microfibril, e.g. 10 to 60')
 @click.option('-length', '--fibril_length', type=float, default=334, help='Length of microfibril')
@@ -148,10 +149,10 @@ async def run_operations(config: ColbuilderConfig) -> None:
               help="Show the version and exit.")
 @timeit
 def main(**kwargs):
-    """Colbuilder 2.0: A tool for building collagen microfibrils."""
+    """Colbuilder: A tool for building collagen microfibrils."""
     start_time = time.time()
     
-    LOG.title("Colbuilder 2.0")
+    LOG.title("Colbuilder")
     LOG.info(f"{Fore.BLUE}{Style.BRIGHT}Starting Colbuilder process...")
     LOG.debug(f"Current working directory: {Path.cwd()}")
     LOG.debug(f"Python version: {sys.version}")
@@ -170,7 +171,8 @@ def main(**kwargs):
 
         end_time = time.time()
         LOG.section("Process Complete")
-        LOG.info(f"{Fore.BLUE}Final PDB fibril: {cfg.output}.pdb{Style.RESET_ALL}")
+        if cfg.geometry_generator:
+            LOG.info(f"{Fore.BLUE}Final PDB fibril: {cfg.output}.pdb{Style.RESET_ALL}")
         LOG.info(f"{Fore.BLUE}Colbuilder process completed successfully in {end_time - start_time:.2f} seconds.{Style.RESET_ALL}")
 
     except ColbuilderError as e:
@@ -182,22 +184,25 @@ def main(**kwargs):
 
 def setup_configuration(kwargs):
     """Set up the configuration based on input arguments."""
-    if 'ratio_mix' in kwargs:
-        if isinstance(kwargs['ratio_mix'], dict):
+    config_data = kwargs.copy()
+
+    if 'config_file' in kwargs and kwargs['config_file']:
+        user_config = load_yaml_config(kwargs['config_file'])
+        config_data.update(user_config)  
+    
+    if 'ratio_mix' in config_data:
+        if isinstance(config_data['ratio_mix'], dict):
             pass
-        elif isinstance(kwargs['ratio_mix'], list):
-            kwargs['ratio_mix'] = {item[0]: item[1] for item in kwargs['ratio_mix'] if len(item) == 2}
+        elif isinstance(config_data['ratio_mix'], list):
+            config_data['ratio_mix'] = {item[0]: item[1] for item in config_data['ratio_mix'] if len(item) == 2}
         else:
-            kwargs['ratio_mix'] = {}
+            config_data['ratio_mix'] = {}
     
-    cfg = get_config(**kwargs)
-    LOG.debug(f"Initial config: {cfg}")
+    LOG.debug(f"Configuration data before creating instance: {config_data}")
     
-    if cfg.config_file:
-        user_config = load_yaml_config(cfg.config_file)
-        cfg.update(user_config)
-    
+    cfg = get_config(**config_data)
     LOG.debug(f"Final configuration: {cfg}")
+    
     return cfg
 
 def log_configuration_summary(cfg):
@@ -228,7 +233,7 @@ def log_configuration_summary(cfg):
         LOG.info(f"     Replace Crosslinks \u2713")
     if cfg.topology_generator:
         LOG.info(f"     Topology \u2713")
-    LOG.info(f"- Input File: {cfg.file}")
+    LOG.info(f"- Input File: {cfg.pdb_file}")
     LOG.info(f"- Output File: {cfg.output}.pdb")
     LOG.info(f"- Working Directory: {cfg.working_directory}")
     if cfg.debug:
