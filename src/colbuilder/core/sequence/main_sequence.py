@@ -336,11 +336,11 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
                 }) 
             crosslink_info.append(crosslink_dict)
             
-        if len(generated_pdbs) < 3:
+        if len(generated_pdbs) < 2:
             raise ValueError("Not enough PDB copies generated for optimization")
         
         copy1_pdb = generated_pdbs[0] 
-        copy2_pdb = generated_pdbs[2] 
+        copy2_pdb = generated_pdbs[1] 
         
         if n_crosslink['P3'].iloc[0] and c_crosslink['P3'].iloc[0] != "NONE":
             max_total_distance = 7
