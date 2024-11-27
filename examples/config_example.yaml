@@ -2,7 +2,7 @@
 mode: null
 config_file: null
 sequence_generator: true
-geometry_generator: false
+geometry_generator: true
 topology_generator: false
 debug: false
 
@@ -26,8 +26,8 @@ c_term_combination: "1047.C - 104.C"
 
 # Geometry Parameters
 pdb_file: null # Set to null if sequence_generator is true
-contact_distance: 60
-fibril_length: 330.0
+contact_distance: 20
+fibril_length: 60.0
 crystalcontacts_file: null
 connect_file: null
 crystalcontacts_optimize: false # Note: This is automatically true when generating geometry from contact_distance, but has to be manually set to true to be performed otherwise.
