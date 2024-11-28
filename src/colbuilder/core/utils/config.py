@@ -32,6 +32,10 @@ class ColbuilderConfig(BaseModel):
     n_term_combination: Optional[str] = Field(None, description="N-terminal combination")
     c_term_combination: Optional[str] = Field(None, description="C-terminal combination")
 
+    @field_validator('species', mode='before')
+    def convert_species_to_lowercase(cls, value: str) -> str:
+        return value.lower() if value else value
+
     # Fibril geometry generation mode (from pdb file)
     geometry_generator: bool = Field(default=False, description="Run geometry generation")
     pdb_file: Optional[Path] = Field(None, description="Input PDB file")
