@@ -2,7 +2,7 @@ species,OR,terminal,combination,type,R1,A1,P1,R2,A2,P2,R3,A31,A32,P3
 ailuropoda_melanoleuca,LYS,C,1047.C - 1047.A - 104.C,DPD,LX3,CG,1047.C,LX2,CB,1047.A,LXX,C13,C12,104.C
 ailuropoda_melanoleuca,LYS,C,1047.C - 1047.A - 99.B,DPD,LX3,CG,1047.C,LX2,CB,1047.A,LXX,C13,C12,99.B
 ailuropoda_melanoleuca,LYS,N,9.C - 6.B - 947.B,DPD,LX3,CG,9.C,LX2,CB,6.B,LXX,C13,C12,947.B
-ailuropoda_melanoleuca,LYS,N,6.B - 5.B - 9.C - 947.A,DPD,LX3,CG,6.B,LX2,CB,9.C,LXX,C13,C12,947.A
+ailuropoda_melanoleuca,LYS,N,6.B - 9.C - 947.A,DPD,LX3,CG,6.B,LX2,CB,9.C,LXX,C13,C12,947.A
 ailuropoda_melanoleuca,LYS,C,1047.C - 1047.A - 104.C,DPL,L3X,CG,1047.C,L2X,CG,1047.A,LYY,C13,C12,104.C
 ailuropoda_melanoleuca,LYS,C,1047.C - 1047.A - 99.B,DPL,L3X,CG,1047.C,L2X,CG,1047.A,LYY,C13,C12,99.B
 ailuropoda_melanoleuca,LYS,N,9.C - 6.B - 947.B,DPL,L3X,CG,9.C,L2X,CG,6.B,LYY,C13,C12,947.B
@@ -34,7 +34,7 @@ ailuropoda_melanoleuca,LYS,N,6.B - 947.B,NOCROSS,NONE,NONE,NONE,NONE,NONE,NONE,N
 ailuropoda_melanoleuca,LYS,C,1047.C - 1047.A - 104.C,PYD,LY3,CG,1047.C,LY2,CB,1047.A,LYX,C13,C12,104.C
 ailuropoda_melanoleuca,LYS,C,1047.C - 1047.A - 99.B,PYD,LY3,CG,1047.C,LY2,CB,1047.A,LYX,C13,C12,99.B
 ailuropoda_melanoleuca,LYS,N,9.C - 6.B - 947.B,PYD,LY3,CG,9.C,LY2,CB,6.B,LYX,C13,C12,947.B
-ailuropoda_melanoleuca,LYS,N,6.B - 6.B - 9.C - 947.A,PYD,LY3,CG,6.B,LY2,CB,9.C,LYX,C13,C12,947.A
+ailuropoda_melanoleuca,LYS,N,6.B - 9.C - 947.A,PYD,LY3,CG,6.B,LY2,CB,9.C,LYX,C13,C12,947.A
 ailuropoda_melanoleuca,LYS,C,1047.C - 1047.A - 104.C,PYL,L3Y,CG,1047.C,L2Y,CG,1047.A,LXY,C13,C12,104.C
 ailuropoda_melanoleuca,LYS,C,1047.C - 1047.A - 99.B,PYL,L3Y,CG,1047.C,L2Y,CG,1047.A,LXY,C13,C12,99.B
 ailuropoda_melanoleuca,LYS,N,9.C - 6.B - 947.B,PYL,L3Y,CG,9.C,L2Y,CG,6.B,LXY,C13,C12,947.B
