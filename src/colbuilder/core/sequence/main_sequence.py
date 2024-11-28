@@ -264,7 +264,6 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
         
         LOG.debug(f"Generated {len(generated_pdbs)} PDB files.")
         
-    
         # Step 2: Optimize crosslinks
         LOG.info("     Optimizing crosslinks")
         
@@ -278,74 +277,81 @@ async def optimize_crosslinks(config: ColbuilderConfig, input_pdb: Path, output_
             return position_str.split('.')[1] if position_str and position_str != "NONE" else None
 
         crosslink_info = []
+        has_triple_crosslink = False
+        
+        # Process N-terminal crosslinks if they exist
         if not n_crosslink.empty:
+            n_crosslink_row = n_crosslink.iloc[0]
             crosslink_dict = {
-                'chain1_id': extract_chain_id(n_crosslink['P1'].iloc[0]),
-                'residue1_position': extract_numeric_position(n_crosslink['P1'].iloc[0]),
-                'residue1_type': n_crosslink['R1'].iloc[0],
-                'atom1': n_crosslink['A1'].iloc[0],
-                'chain2_id': extract_chain_id(n_crosslink['P2'].iloc[0]),
-                'residue2_position': extract_numeric_position(n_crosslink['P2'].iloc[0]),
-                'residue2_type': n_crosslink['R2'].iloc[0],
-                'atom2': n_crosslink['A2'].iloc[0],
+                'chain1_id': extract_chain_id(n_crosslink_row['P1']),
+                'residue1_position': extract_numeric_position(n_crosslink_row['P1']),
+                'residue1_type': n_crosslink_row['R1'],
+                'atom1': n_crosslink_row['A1'],
+                'chain2_id': extract_chain_id(n_crosslink_row['P2']),
+                'residue2_position': extract_numeric_position(n_crosslink_row['P2']),
+                'residue2_type': n_crosslink_row['R2'],
+                'atom2': n_crosslink_row['A2'],
+                'chain3_id': "NONE",
+                'residue3_position': "NONE",
+                'residue3_type': "NONE",
+                'atom31': "NONE",
+                'atom32': "NONE"
             }
-            if n_crosslink['P3'].iloc[0] != "NONE":
+            
+            if 'P3' in n_crosslink_row and n_crosslink_row['P3'] != "NONE":
+                has_triple_crosslink = True
                 crosslink_dict.update({
-                    'chain3_id': extract_chain_id(n_crosslink['P3'].iloc[0]),
-                    'residue3_position': extract_numeric_position(n_crosslink['P3'].iloc[0]),
-                    'residue3_type': n_crosslink['R3'].iloc[0],
-                    'atom31': n_crosslink['A31'].iloc[0],
-                    'atom32': n_crosslink['A32'].iloc[0]
+                    'chain3_id': extract_chain_id(n_crosslink_row['P3']),
+                    'residue3_position': extract_numeric_position(n_crosslink_row['P3']),
+                    'residue3_type': n_crosslink_row['R3'],
+                    'atom31': n_crosslink_row['A31'],
+                    'atom32': n_crosslink_row['A32']
                 })
-            else:
-               crosslink_dict.update({
-                    'chain3_id': "NONE",
-                    'residue3_position': "NONE",
-                    'residue3_type': "NONE",
-                    'atom31': "NONE",
-                    'atom32': "NONE"
-                }) 
             crosslink_info.append(crosslink_dict)
 
+        # Process C-terminal crosslinks if they exist
         if not c_crosslink.empty:
+            c_crosslink_row = c_crosslink.iloc[0]
             crosslink_dict = {
-                'chain1_id': extract_chain_id(c_crosslink['P1'].iloc[0]),
-                'residue1_position': extract_numeric_position(c_crosslink['P1'].iloc[0]),
-                'residue1_type': c_crosslink['R1'].iloc[0],
-                'atom1': c_crosslink['A1'].iloc[0],
-                'chain2_id': extract_chain_id(c_crosslink['P2'].iloc[0]),
-                'residue2_position': extract_numeric_position(c_crosslink['P2'].iloc[0]),
-                'residue2_type': c_crosslink['R2'].iloc[0],
-                'atom2': c_crosslink['A2'].iloc[0],
+                'chain1_id': extract_chain_id(c_crosslink_row['P1']),
+                'residue1_position': extract_numeric_position(c_crosslink_row['P1']),
+                'residue1_type': c_crosslink_row['R1'],
+                'atom1': c_crosslink_row['A1'],
+                'chain2_id': extract_chain_id(c_crosslink_row['P2']),
+                'residue2_position': extract_numeric_position(c_crosslink_row['P2']),
+                'residue2_type': c_crosslink_row['R2'],
+                'atom2': c_crosslink_row['A2'],
+                'chain3_id': "NONE",
+                'residue3_position': "NONE",
+                'residue3_type': "NONE",
+                'atom31': "NONE",
+                'atom32': "NONE"
             }
-            if c_crosslink['P3'].iloc[0] != "NONE":
+            
+            if 'P3' in c_crosslink_row and c_crosslink_row['P3'] != "NONE":
+                has_triple_crosslink = True
                 crosslink_dict.update({
-                    'chain3_id': extract_chain_id(c_crosslink['P3'].iloc[0]),
-                    'residue3_position': extract_numeric_position(c_crosslink['P3'].iloc[0]),
-                    'residue3_type': c_crosslink['R3'].iloc[0],
-                    'atom31': c_crosslink['A31'].iloc[0],
-                    'atom32': c_crosslink['A32'].iloc[0]
+                    'chain3_id': extract_chain_id(c_crosslink_row['P3']),
+                    'residue3_position': extract_numeric_position(c_crosslink_row['P3']),
+                    'residue3_type': c_crosslink_row['R3'],
+                    'atom31': c_crosslink_row['A31'],
+                    'atom32': c_crosslink_row['A32']
                 })
-            else:
-               crosslink_dict.update({
-                    'chain3_id': "NONE",
-                    'residue3_position': "NONE",
-                    'residue3_type': "NONE",
-                    'atom31': "NONE",
-                    'atom32': "NONE"
-                }) 
             crosslink_info.append(crosslink_dict)
             
         if len(generated_pdbs) < 2:
             raise ValueError("Not enough PDB copies generated for optimization")
         
+        if not crosslink_info:
+            LOG.warning("No crosslinks found to optimize")
+            shutil.copy2(input_pdb, output_pdb)
+            return output_pdb
+            
         copy1_pdb = generated_pdbs[0] 
         copy2_pdb = generated_pdbs[1] 
         
-        if n_crosslink['P3'].iloc[0] and c_crosslink['P3'].iloc[0] != "NONE":
-            max_total_distance = 7
-        else:
-            max_total_distance = 5
+        # Set max_total_distance based on whether we have any triple crosslinks
+        max_total_distance = 7 if has_triple_crosslink else 5
         max_attempts = 3
         attempt = 0
         current_input = input_pdb
