@@ -886,126 +886,6 @@
    CD1   CD2    CG    CB
    CE1   CE2    CZ    OH
     N     CA     C    +N    105.4       0.75       1
-
-[ DOP ]
- [ atoms ]
-     N    N           -0.41570     1
-     H    H            0.27190     2
-    CA    CT          -0.09192     3
-    HA    H1           0.12423     4
-    CB    CT          -0.07334     5
-   HB1    HC           0.07485     6
-   HB2    HC           0.07485     7
-    CG    CA           0.00415     8
-   CD1    CA          -0.18682     9
-   HD1    HA           0.19644    10
-   CE1    CA          -0.34668    11
-   HE1    HA           0.18979    12						
-    CZ    C            0.25093    13
-   OH1    OH          -0.66648    14
-   HH1    HO           0.47708    15
-   CE2    CA           0.36462    16
-   OH2    OH          -0.63628    17
-   HH2    HO           0.47708    18 
-   CD2    CA          -0.33398    19
-   HD2    HA           0.21588    20
-     C    C            0.59730    21
-     O    O           -0.56790    22
- [ bonds ]
-     N     H
-     N    CA
-    CA    HA
-    CA    CB
-    CA     C
-    CB   HB1
-    CB   HB2
-    CB    CG
-    CG   CD1
-    CG   CD2
-   CD1   HD1
-   CD1   CE1
-   CE1   HE1
-   CE1    CZ
-    CZ   OH1
-    CZ   CE2
-   OH1   HH1
-   CE2   OH2
-   OH2   HH2
-   CE2   CD2
-   CD2   HD2
-     C     O
-    -C     N
- [ impropers ]
-    -C    CA     N     H
-    CA    +N     C     O
-    CG   CE2   CD2   HD2
-    CZ   CD2   CE2   OH2
-   CD1    CZ   CE1   HE1
-    CG   CE1   CD1   HD1
-   CD1   CD2    CG    CB
-   CE1   CE2    CZ   OH1
-    N     CA     C    +N    105.4       0.75       1
-
-[ DOP2 ]
- [ atoms ]
-     N    N           -0.41570     1
-     H    H            0.27190     2
-    CA    CT          -0.00140     3
-    HA    H1           0.08760     4
-    CB    CT          -0.01520     5
-   HB1    HC           0.02950     6
-   HB2    HC           0.02950     7
-    CG    CA          -0.00110     8
-   CD1    CA          -0.19060     9
-   HD1    HA           0.16990    10
-   CE1    CA           0.32260    11
-   OH1    OH          -0.55790    12
-   HH1    HO           0.39920    13 						
-    CZ    C            0.32260    14
-   OH2    OH          -0.55790    15
-   HH2    HO           0.39920    16
-   CE2    CA          -0.23410    17
-   HE2    HA           0.16560    18
-   CD2    CA          -0.19060    19
-   HD2    HA           0.16990    20
-     C    C            0.59730    21
-     O    O           -0.56790    22
- [ bonds ]
-     N     H
-     N    CA
-    CA    HA
-    CA    CB
-    CA     C
-    CB   HB1
-    CB   HB2
-    CB    CG
-    CG   CD1
-    CG   CD2
-   CD1   HD1
-   CD1   CE1
-   CE1   OH1
-   OH1   HH1
-   CE1    CZ
-    CZ    OH
-    CZ   CE2
-   OH2   HH2
-   CE2   HE2
-   CE2   CD2
-   CD2   HD2
-     C     O
-    -C     N
- [ impropers ]
-    -C    CA     N     H
-    CA    +N     C     O
-    CG   CE2   CD2   HD2
-    CZ   CD2   CE2   HE2
-   CD1    CZ   CE1   OH1
-    CG   CE1   CD1   HD1
-   CD1   CD2    CG    CB
-   CE1   CE2    CZ   OH2
-    N     CA     C    +N    105.4       0.75       1
-
-
                         
 [ GLU ]
  [ atoms ]
@@ -1760,25 +1640,25 @@
 
 [ L44 ]
  [ atoms ]
-     N    N          -0.461491     1
-     H    H           0.230710     2
-    CA    CT          0.021892     3
-    HA    H1          0.078910     4
-    CB    CT          0.080497     5
-   HB1    HC          0.032632     6
-   HB2    HC          0.032632     7
-    CG    CT         -0.086178     8
-   HG1    HC          0.030920     9
-   HG2    HC          0.030920    10
-    CD    CT          0.068944    11
-   HD1    H1          0.055076    12
-    OD    OH         -0.539732    13
-   HOD    HO          0.337777    14
-    CE    CT          0.051115    15
-   HE1    HC          0.034302    16
-   HE2    HC          0.034302    17
-     C    C           0.481721    18
-     O    O          -0.443517    19
+     N    N          -0.672428     1
+     H    H           0.294298     2
+    CA    CT          0.202966     3
+    HA    H1          0.038594     4
+    CB    CT          0.062590     5
+   HB1    HC          0.034393     6
+   HB2    HC          0.034393     7
+    CG    CT         -0.152329     8
+   HG1    HC          0.035777     9
+   HG2    HC          0.035777    10
+    CD    CT          0.126323    11
+   HD1    H1          0.046053    12
+    OD    OH         -0.548153    13
+   HOD    HO          0.338907    14
+    CE    CT          0.054805    15
+   HE1    HC          0.038262    16
+   HE2    HC          0.038262    17
+     C    C           0.475867    18
+     O    O          -0.456768    19
  [ bonds ]
      N     H
      N    CA
@@ -1806,25 +1686,25 @@
 
 [ L5S ]
  [ atoms ]
-     N    N          -0.388135     1
-     H    H           0.220642     2
-    CA    CT          0.091622     3
-    HA    H1          0.039241     4
-    CB    CT         -0.109437     5
-   HB1    HC          0.047934     6
-   HB2    HC          0.047934     7
-    CG    CT          0.287289     8
-   HG1    HC         -0.067965     9
-   HG2    HC         -0.067965    10
-    CD    CT         -0.181193    11
-   HD1    HC          0.053904    12
-   HD2    HC          0.053904    13
-    CE    CT         -0.024969    14
-   HE1    H1          0.121769    15
-    NZ    N3         -0.425473    16
-   HZ1    H           0.246246    17
-     C    C           0.516536    18
-     O    O          -0.521065    19
+     N    N          -0.390940     1
+     H    H           0.220374     2
+    CA    CT          0.117512     3
+    HA    H1          0.031493     4
+    CB    CT         -0.083152     5
+   HB1    HC          0.051255     6
+   HB2    HC          0.051255     7
+    CG    CT          0.079521     8
+   HG1    HC         -0.010722     9
+   HG2    HC         -0.010722    10
+    CD    CT         -0.100768    11
+   HD1    HC          0.047632    12
+   HD2    HC          0.047632    13
+    CE    CT         -0.004815    14
+   HE1    H1          0.117539    15
+    NZ    N3         -0.465251    16
+   HZ1    H           0.248605    17
+     C    C           0.504061    18
+     O    O          -0.518112    19
  [ bonds ]
      N     H
      N    CA
@@ -1852,22 +1732,22 @@
 
 [ HIH ]
  [ atoms ]
-     N    N           -0.337066  1
-     H    H            0.211777  2
-    CA    CT           0.055240  3
-    HA    H1           0.092681  4
-    CB    CT          -0.637110  5
-   HB1    HC           0.202615  6
-   HB2    HC           0.202615  7
-    CG    CC           0.475664  8
-   ND1    NA          -0.553324  9
-   HD1    H            0.343774 10
-   CE1    CC           0.342717 11
-   NE2    NB          -0.410570 12
-   CD2    CV          -0.234965 13
-   HD2    H4           0.182050 14
-     C    C            0.581653 15
-     O    O           -0.530003 16
+     N    N           -0.341632  1
+     H    H            0.213436  2
+    CA    CT           0.059789  3
+    HA    H1           0.091231  4
+    CB    CT          -0.637878  5
+   HB1    HC           0.203709  6
+   HB2    HC           0.203709  7
+    CG    CC           0.473513  8
+   ND1    NA          -0.560583  9
+   HD1    H            0.347326 10
+   CE1    CC           0.331719 11
+   NE2    NB          -0.406656 12
+   CD2    CV          -0.235851 13
+   HD2    H4           0.182714 14
+     C    C            0.580831 15
+     O    O           -0.530731 16
  [ bonds ]
      N     H
      N    CA

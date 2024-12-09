@@ -1,21 +1,37 @@
 # Copyright (c) 2024, Colbuilder Development Team
 # Distributed under the terms of the Apache License 2.0
 
-from typing import Any, Dict, Optional, Tuple, List, Set, Union
-from pathlib import Path
-from pydantic import BaseModel, Field, field_validator, validator
 from enum import Flag, auto, Enum
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple, Union, Literal, Any
+from pydantic import BaseModel, Field, field_validator, computed_field, model_validator, ValidationInfo
 import yaml
+import re
+from functools import lru_cache
+
+from .validators import BioformatValidator
+from .exceptions import (
+    ConfigurationError,
+    SequenceGenerationError,
+    GeometryGenerationError,
+    TopologyGenerationError
+)
+
+from colbuilder.core.utils.logger import setup_logger
+LOG = setup_logger(__name__)
 
 class OperationMode(Flag):
+    """Operation modes for the Colbuilder pipeline."""
     NONE = 0
     SEQUENCE = auto()
     GEOMETRY = auto()
     TOPOLOGY = auto()
     MIX = auto()
     REPLACE = auto()
-    
+
 class ColbuilderConfig(BaseModel):
+    """Main configuration class for the Colbuilder pipeline."""
+    
     # Operation mode 
     mode: Optional[OperationMode] = Field(None, description="Operation mode")
     debug: bool = Field(default=False, description="Enable debug logging")
@@ -32,11 +48,7 @@ class ColbuilderConfig(BaseModel):
     n_term_combination: Optional[str] = Field(None, description="N-terminal combination")
     c_term_combination: Optional[str] = Field(None, description="C-terminal combination")
 
-    @field_validator('species', mode='before')
-    def convert_species_to_lowercase(cls, value: str) -> str:
-        return value.lower() if value else value
-
-    # Fibril geometry generation mode (from pdb file)
+    # Fibril geometry generation mode
     geometry_generator: bool = Field(default=False, description="Run geometry generation")
     pdb_file: Optional[Path] = Field(None, description="Input PDB file")
     contact_distance: Optional[float] = Field(None, description="Contact distance for microfibril")
@@ -44,15 +56,24 @@ class ColbuilderConfig(BaseModel):
     crystalcontacts_file: Optional[Path] = Field(None, description="Crystal contacts file")
     connect_file: Optional[Path] = Field(None, description="Connect file")
     crystalcontacts_optimize: bool = Field(default=False, description="Optimize crystal contacts")
-    solution_space: Union[List[float], Tuple[float, float, float]] = Field(default=(1, 1, 1), description="Solution space")
-    pdb_first_line: Optional[str] = Field(default="CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2", description="Crystal contacts information")
-    
+    solution_space: Union[List[float], Tuple[float, float, float]] = Field(
+        default=(1, 1, 1),
+        description="Solution space"
+    )
+    pdb_first_line: Optional[str] = Field(
+        default="CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2",
+        description="Crystal contacts information"
+    )
+   
     # Mix crosslinks mode
     mix_bool: bool = Field(default=False, description="Generate a mixed crosslinked microfibril")
     ratio_mix: Union[str, Dict[str, int]] = Field(default={}, alias="ratio_mix")
-    files_mix: Union[List[Path], Tuple[Path, ...]] = Field(default=(), description="PDB files with different crosslink types")
+    files_mix: Union[List[Path], Tuple[Path, ...]] = Field(
+        default=(),
+        description="PDB files with different crosslink types"
+    )
     
-    # Replace crosslinks by original residue mode
+    # Replace crosslinks mode
     replace_bool: bool = Field(default=False, description="Generate a microfibril with less crosslinks")
     ratio_replace: Optional[float] = Field(None, description="Ratio of crosslinks to be replaced")
     replace_file: Optional[Path] = Field(None, description="File with crosslinks to be replaced")
@@ -62,17 +83,48 @@ class ColbuilderConfig(BaseModel):
     force_field: Optional[str] = Field(None, description="Force field to be used")
     
     # Path Configuration
-    PROJECT_ROOT: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent)
-    DATA_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data')
-    HOMOLOGY_LIB_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence')
-    TEMPLATE_PDB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "template.pdb")
-    TEMPLATE_FASTA_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "template.fasta")
-    RESTYP_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "restyp_mod.lib")
-    TOP_HEAV_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "top_heav_mod.lib")
-    PAR_MOD_LIB_PATH: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "par_mod.lib")
-    CROSSLINKS_FILE: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "crosslinks.csv")
-    CHIMERA_SCRIPTS_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'chimera_scripts', description="Directory with scripts run as subprocesses by Chimera")
-    FORCE_FIELD_DIR: Path = Field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'topology', description="Directory containing force field files")
+    PROJECT_ROOT: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent
+    )
+    DATA_DIR: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data'
+    )
+    HOMOLOGY_LIB_DIR: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence'
+    )
+    TEMPLATE_PDB_PATH: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "template.pdb"
+    )
+    TEMPLATE_FASTA_PATH: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "template.fasta"
+    )
+    RESTYP_LIB_PATH: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "restyp_mod.lib"
+    )
+    TOP_HEAV_LIB_PATH: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "top_heav_mod.lib"
+    )
+    PAR_MOD_LIB_PATH: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "modeller" / "par_mod.lib"
+    )
+    CROSSLINKS_FILE: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'sequence' / "crosslinks.csv"
+    )
+    CHIMERA_SCRIPTS_DIR: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'chimera_scripts'
+    )
+    FORCE_FIELD_DIR: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent.parent / 'data' / 'topology'
+    )
+
+    _species_map: Set[str] = {
+        "homo_sapiens", "ailuropoda_melanoleuca", "danio_rerio", "mus_musculus",
+        "mustela_putorius", "myotis_lucifugus", "otolemur_garnettii",
+        "pan_troglodytes", "pongo_abelii", "rattus_norvegicus", "bos_taurus",
+        "callithrix_jacchus", "canis_lupus", "loxodonta_africana",
+        "oreochromis_niloticus", "oryzias_latipes", "pelodiscus_sinensis",
+        "tetraodon_nigroviridis", "xiphophorus_maculatus"
+    }
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -81,54 +133,123 @@ class ColbuilderConfig(BaseModel):
         self.files_mix = tuple(self.files_mix)
         self.set_mode()
 
-    # Species mapping
-    _species_map = {
-        "homo_sapiens", "ailuropoda_melanoleuca", "danio_rerio", "mus_musculus",
-        "mustela_putorius", "myotis_lucifugus", "otolemur_garnettii",
-        "pan_troglodytes", "pongo_abelii", "rattus_norvegicus", "bos_taurus",
-        "callithrix_jacchus", "canis_lupus", "loxodonta_africana",
-        "oreochromis_niloticus", "oryzias_latipes", "pelodiscus_sinensis",
-        "tetraodon_nigroviridis", "xiphophorus_maculatus"
-    }
-    
     def model_post_init(self, __context: Any) -> None:
+        """Post initialization validation and processing."""
         if self.fasta_file is None:
             if self.species in self._species_map:
                 fasta_name = f"{self.species.replace('_', '')}.fasta"
                 self.fasta_file = str(self.HOMOLOGY_LIB_DIR / "fasta_sequences" / fasta_name)
             else:
-                raise ValueError(f"Must provide fasta_file when using custom species: {self.species}")
+                error_info = ConfigurationError.get_error_info("CFG_ERR_003")
+                custom_message = f"Must provide fasta_file when using custom species: {self.species}"
+                full_message = f"ERROR: {error_info.message}. {custom_message}"
+                raise ConfigurationError(
+                    message=full_message,
+                    error_code="CFG_ERR_003"
+                )
         self.set_mode()
         
+    @model_validator(mode='after')
+    def validate_geometry_requirements(self) -> 'ColbuilderConfig':
+        """Validate geometry generation requirements."""
+        if self.geometry_generator:
+            if self.contact_distance is None and self.crystalcontacts_file is None:
+                raise ConfigurationError(
+                    "Either contact_distance or crystalcontacts_file must be provided for geometry generation",
+                    error_code="CFG_ERR_006"
+                )
+            if self.contact_distance == 0 and self.crystalcontacts_file is None:
+                pass
+        return self
+
+    @field_validator('contact_distance')
+    def validate_contact_distance(cls, value: Optional[float]) -> Optional[float]:
+        """Validate contact distance value."""
+        if value is not None:
+            if not isinstance(value, (int, float)):
+                raise ConfigurationError(
+                    "Contact distance must be a numeric value",
+                    error_code="CFG_ERR_006"
+                )
+            if value <= 0:
+                raise ConfigurationError(
+                    f"Contact distance must be positive, got {value}",
+                    error_code="CFG_ERR_006"
+                )
+        return value
+
+    @field_validator('fibril_length')
+    def validate_fibril_length(cls, value: float) -> float:
+        """Validate fibril length value."""
+        if not isinstance(value, (int, float)):
+            raise ConfigurationError(
+                "Fibril length must be a numeric value",
+                error_code="CFG_ERR_006"
+            )
+        if value <= 0:
+            raise ConfigurationError(
+                f"Fibril length must be positive, got {value}",
+                error_code="CFG_ERR_006"
+            )
+        if value > 334:
+            raise ConfigurationError(
+                f"Fibril length must be less than 334, got {value}",
+                error_code="CFG_ERR_006"
+            )
+        return value
+
+    @field_validator('force_field')
+    def validate_force_field(cls, value: Optional[str]) -> Optional[str]:
+        """Validate force field value."""
+        valid_fields = {"amber99", "martini"}
+        if value is not None and value not in valid_fields:
+            raise ConfigurationError(
+                f"Force field must be one of {valid_fields}, got {value}",
+                error_code="CFG_ERR_006"
+            )
+        return value
+
+    @field_validator('species', mode='before')
+    def convert_species_to_lowercase(cls, value: str) -> str:
+        """Convert species name to lowercase."""
+        return value.lower() if value else value
+
     def _convert_ratio_mix(self, value: Union[str, Dict[str, int]]) -> Dict[str, int]:
+        """Convert string ratio mix to dictionary."""
         if isinstance(value, str):
             return {item.split(':')[0]: int(item.split(':')[1]) for item in value.split()}
         return value
 
     def _convert_to_tuple(self, value: Union[List[float], Tuple[float, float, float]]) -> Tuple[float, float, float]:
+        """Convert list to tuple for solution space."""
         if isinstance(value, list):
             return tuple(value)
         return value
 
     @field_validator('solution_space', mode='before')
     def validate_solution_space(cls, value):
+        """Validate solution space format."""
         if isinstance(value, list):
             return tuple(value)
         return value
 
     @field_validator('files_mix', mode='before')
     def validate_files_mix(cls, value):
+        """Validate files mix format."""
         return tuple(value)
 
     @property
     def ratio_mix(self) -> Dict[str, int]:
+        """Get ratio mix property."""
         return self._ratio_mix
 
     @ratio_mix.setter
     def ratio_mix(self, value: Union[str, Dict[str, int]]):
+        """Set ratio mix property."""
         self._ratio_mix = self._convert_ratio_mix(value)
 
     def set_mode(self):
+        """Set operation mode based on configuration flags."""
         self.mode = OperationMode.NONE
         if self.sequence_generator:
             self.mode |= OperationMode.SEQUENCE
@@ -141,10 +262,8 @@ class ColbuilderConfig(BaseModel):
         if self.replace_bool:
             self.mode |= OperationMode.REPLACE
 
-    class Config:
-        use_enum_values = True
-
     def validate_paths(self):
+        """Validate existence of required input paths and files."""
         input_paths = [
             self.PROJECT_ROOT,
             self.DATA_DIR,
@@ -163,36 +282,198 @@ class ColbuilderConfig(BaseModel):
         ]
         for path in input_paths:
             if isinstance(path, Path) and path is not None and not path.exists():
-                raise FileNotFoundError(f"Required input file or directory not found: {path}")
+                raise ConfigurationError(
+                    f"Required input file or directory not found: {path}",
+                    error_code="CFG_ERR_002"
+                )
+
+    @field_validator('ratio_mix', mode='before')
+    def validate_ratio_mix(cls, v: Union[str, Dict[str, int]], info: ValidationInfo) -> Dict[str, int]:
+        """Validate ratio mix format and values."""
+        try:
+            if isinstance(v, str):
+                result = {item.split(':')[0]: int(item.split(':')[1]) for item in v.split()}
+                if sum(result.values()) != 100:
+                    raise ConfigurationError(
+                        "Mix ratios must sum to 100%",
+                        error_code="CFG_ERR_004"
+                    )
+                return result
+            return v
+        except (ValueError, IndexError):
+            raise ConfigurationError(
+                "Invalid ratio mix format. Expected 'Type:percentage Type:percentage'",
+                error_code="CFG_ERR_004"
+            )
+
+    @model_validator(mode='after')
+    def validate_mix_config(self) -> 'ColbuilderConfig':
+        """Validate mixing configuration."""
+        if self.mix_bool:
+            if not self.ratio_mix:
+                raise ConfigurationError(
+                    "ratio_mix must be specified when mix_bool is True",
+                    error_code="CFG_ERR_004"
+                )
+            if not self.files_mix:
+                raise ConfigurationError(
+                    "files_mix must be specified when mix_bool is True",
+                    error_code="CFG_ERR_004"
+                )
+
+        if self.n_term_combination:
+            if not re.match(r'^\d+\.[A-C]\s*-\s*\d+\.[A-C]$', self.n_term_combination):
+                raise ConfigurationError(
+                    f"Invalid N-terminal combination format: {self.n_term_combination}. "
+                    "Expected format: 'ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '9.C - 947.A')",
+                    error_code="CFG_ERR_006"
+                )
+    
+        if self.c_term_combination:
+            if not re.match(r'^\d+\.[A-C]\s*-\s*\d+\.[A-C]$', self.c_term_combination):
+                raise ConfigurationError(
+                    f"Invalid C-terminal combination format: {self.c_term_combination}. "
+                    "Expected format: 'number.Chain - number.Chain' (e.g., '1047.C - 104.C')",
+                    error_code="CFG_ERR_006"
+                )
+
+        if self.replace_bool:
+            if self.ratio_replace is None:
+                raise ConfigurationError(
+                    "ratio_replace must be specified when replace_bool is True",
+                    error_code="CFG_ERR_006"
+                )
+            if not isinstance(self.ratio_replace, (int, float)):
+                raise ConfigurationError(
+                    "ratio_replace must be a numeric value",
+                    error_code="CFG_ERR_006"
+                )
+            if self.ratio_replace < 0 or self.ratio_replace > 100:
+                raise ConfigurationError(
+                    f"ratio_replace must be between 0 and 100, got {self.ratio_replace}",
+                    error_code="CFG_ERR_006"
+                )
+
+        if len(self.solution_space) != 3:
+            raise ConfigurationError(
+                f"Solution space must have exactly 3 values, got {len(self.solution_space)}",
+                error_code="CFG_ERR_006"
+            )
+        for val in self.solution_space:
+            if not isinstance(val, (int, float)) or val <= 0:
+                raise ConfigurationError(
+                    f"Solution space values must be positive numbers, got {val}",
+                    error_code="CFG_ERR_006"
+                )
+
+        return self
 
     def update(self, new_config: Dict[str, Any]):
+        """Update configuration with new values."""
         for key, value in new_config.items():
             if hasattr(self, key):
                 setattr(self, key, value)
         self.set_mode()
 
     def __str__(self):
+        """String representation of the configuration."""
         return f"ColbuilderConfig(mode={self.mode}, pdb_file={self.pdb_file}, output={self.output})"
     
     @property
     def output(self) -> str:
+        """Get the output filename."""
         return f"collagen_fibril_{self.species}"
+
+    class Config:
+        """Pydantic configuration."""
+        use_enum_values = True
+
+
+def validate_input_files(config: ColbuilderConfig) -> None:
+    """Validate input files if they are provided and required."""
+    validator = BioformatValidator()
     
+    try:
+        if config.sequence_generator and config.fasta_file is not None:
+            fasta_path = Path(config.fasta_file)
+            warnings = validator.validate_input_files(fasta_path, None)
+            if warnings:
+                for warning in warnings:
+                    LOG.warning(warning)
+                    
+        if config.geometry_generator and config.pdb_file is not None:
+            pdb_path = config.pdb_file
+            warnings = validator.validate_input_files(
+                fasta_path=Path(config.fasta_file) if config.fasta_file else None, 
+                pdb_path=pdb_path
+            )
+            if warnings:
+                for warning in warnings:
+                    LOG.warning(warning)
+                        
+    except SequenceGenerationError as e:
+        raise ConfigurationError(
+            f"ERROR: {str(e)}",
+            original_error=e,
+            error_code="CFG_ERR_005"
+        )
+    except GeometryGenerationError as e:
+        raise ConfigurationError(
+            f"ERROR: {str(e)}",
+            original_error=e,
+            error_code="CFG_ERR_005"
+        )
+    except Exception as e:
+        raise ConfigurationError(
+            "File validation failed",
+            original_error=e,
+            error_code="CFG_ERR_005"
+        )
+
+
 _config_instance = None
 
+
 def get_config(**kwargs) -> ColbuilderConfig:
+    """Get or create the configuration singleton."""
     global _config_instance
     if _config_instance is None:
-        _config_instance = ColbuilderConfig(**kwargs)
-        _config_instance.validate_paths()
+        try:
+            _config_instance = ColbuilderConfig(**kwargs)
+            _config_instance.validate_paths()
+            validate_input_files(_config_instance)
+        except ConfigurationError:
+            raise
+        except Exception as e:
+            raise ConfigurationError(
+                "Configuration initialization failed",
+                original_error=e,
+                error_code="CFG_ERR_001",
+                context={"kwargs": kwargs} 
+            )
     return _config_instance
 
+
 def load_yaml_config(yaml_file: Path) -> Dict[str, Any]:
-    with open(yaml_file, 'r') as file:
-        return yaml.safe_load(file)
+    """Load configuration from YAML file."""
+    try:
+        with open(yaml_file, 'r') as file:
+            return yaml.safe_load(file)
+    except Exception as e:
+        raise ConfigurationError(
+            f"ERROR: {yaml_file}",
+            original_error=e,
+            error_code="CFG_ERR_001"
+        )
+
 
 def validate_config(config: Dict[str, Any]) -> ColbuilderConfig:
+    """Validate configuration dictionary and create config object."""
     try:
         return ColbuilderConfig(**config)
-    except ValidationError as e:
-        raise ValueError(f"Configuration validation failed: {e}")
+    except Exception as e:
+        raise ConfigurationError(
+            "Configuration validation failed",
+            original_error=e,
+            error_code="CFG_ERR_001"
+        )

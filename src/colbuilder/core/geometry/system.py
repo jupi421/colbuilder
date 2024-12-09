@@ -250,16 +250,17 @@ class System:
         except Exception as e:
             LOG.warning(f"Failed to remove directory {directory_path}: {str(e)}")
 
-    def write_pdb(self, pdb_out: Union[str, Path], fibril_length: float):
+    def write_pdb(self, pdb_out: Union[str, Path], fibril_length: float, cleanup: bool = True):
         """
-        Write the system to a PDB file and cleanup temporary files.
-
+        Write the system to a PDB file and optionally cleanup temporary files.
         Parameters
         ----------
         pdb_out : Union[str, Path]
             Output path for the PDB file.
         fibril_length : float
             Length of the fibril in nanometers.
+        cleanup : bool, optional
+            Whether to remove temporary directories after writing. Defaults to True.
         """
         pdb_out_path = Path(pdb_out)
         type_directories = set()
@@ -284,8 +285,11 @@ class System:
                                     LOG.warning(f"Caps PDB file not found: {caps_pdb}")
                                     continue
                                 pdb_model = open(caps_pdb, 'r').readlines()
-                                f.writelines(line for line in pdb_model 
-                                        if line.startswith(self.is_line) or line.startswith('TER'))
+                                for line in pdb_model:
+                                    if line.startswith(self.is_line) or line.startswith('TER'):
+                                        if line.startswith('HETATM'):
+                                            line = 'ATOM  ' + line[6:]
+                                        f.write(line)
                     else:
                         caps_pdb = Path(model_type) / f"{int(model.id)}.caps.pdb"
                         if not caps_pdb.exists():
@@ -294,17 +298,21 @@ class System:
                         try:
                             with open(caps_pdb, 'r') as model_file:
                                 pdb_model = model_file.readlines()
-                                f.writelines(line for line in pdb_model 
-                                        if line.startswith(self.is_line) or line.startswith('TER'))
+                                for line in pdb_model:
+                                    if line.startswith(self.is_line) or line.startswith('TER'):
+                                        if line.startswith('HETATM'):
+                                            line = 'ATOM  ' + line[6:]
+                                        f.write(line)
                         except Exception as e:
                             LOG.error(f"Error reading caps PDB file {caps_pdb}: {str(e)}")
                             continue
                             
                 f.write("END")
                 
-            LOG.debug("Cleaning up temporary type directories")
-            for type_dir in type_directories:
-                self.safe_remove_directory(type_dir)
+                if cleanup:
+                    LOG.debug("Cleaning up temporary type directories")
+                    for type_dir in type_directories:
+                        self.safe_remove_directory(type_dir)
                 
         except Exception as e:
             LOG.error(f"Error writing PDB file {pdb_out_path}: {str(e)}")

@@ -149,6 +149,8 @@ class Caps:
         with open(pdb, 'r') as f_in, open(output_file, 'w') as f_out:
             for line in f_in:
                 if line[0:6] in self.is_line and line[0:3] != 'TER':
+                    if line.startswith('HETATM'):
+                        line = 'ATOM  ' + line[6:]
                     f_out.write(line)
                     if (line[17:20] == 'NME' and line[12:16] == '3HH3') or (line[17:20] == 'ALA' and line[13:16] == 'OXT'):
                         f_out.write('TER \n')

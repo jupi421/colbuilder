@@ -4,7 +4,7 @@
   C  OS         1     0.1323   376560.0 ; new99
   C  H4         1     0.1080   307105.6 ; new99
   C  H5         1     0.1080   307105.6 ; new99
-  CA OH         1     0.1364   376560.0 ; new99,DOP
+  CA OH         1     0.1364   376560.0 ; new99
   CM OS         1     0.1240   401664.0 ; new99
   Cl CT         1     0.1766   194137.6 ; new99
   Br CT         1     0.1944   133051.2 ; new99
@@ -24,12 +24,12 @@
   C  NC         1    0.13580   382417.6 ; 7,(1986),230; CYT
   C  O          1    0.12290   476976.0 ; 7,(1986),230; AA,CYT,GUA,THY,URA
   C  O2         1    0.12500   548940.8 ; 7,(1986),230; GLU,ASP
-  C  OH         1    0.13640   376560.0 ; 7,(1986),230; TYR, DOP
+  C  OH         1    0.13640   376560.0 ; 7,(1986),230; TYR
   CA CA         1    0.14000   392459.2 ; 7,(1986),230; BENZENE,PHE,TRP,TYR
   CA CB         1    0.14040   392459.2 ; 7,(1986),230; ADE,TRP
   CA CM         1    0.14330   357313.6 ; 7,(1986),230; CYT
   CA CT         1    0.15100   265265.6 ; 7,(1986),230; PHE,TYR
-  CA HA         1    0.10800   307105.6 ; ged from 340. bsd on C6H6 nmodes; PHE,TRP,TYR,DOP
+  CA HA         1    0.10800   307105.6 ; ged from 340. bsd on C6H6 nmodes; PHE,TRP,TYR
   CA H4         1    0.10800   307105.6 ; ged from 340. bsd on C6H6 nmodes; no assigned
   CA N2         1    0.13400   402500.8 ; 7,(1986),230; ARG,CYT,GUA
   CA NA         1    0.13810   357313.6 ; 7,(1986),230; GUA
@@ -181,7 +181,6 @@ O2  C   O2           1   126.000    669.440 ; AA GLU            (SCH JPC 79,2379
 O   C   OH           1   120.000    669.440 ; 
 CA  C   CA           1   120.000    527.184 ; changed from 85.0  bsd on C6H6 nmodes; AA tyr
 CA  C   OH           1   120.000    585.760 ; AA tyr
-C   CA  OH           1   120.000    585.760 ; added for DOPA same value as CA  C OH and CA CA OH 
 C   CA  CA           1   120.000    527.184 ; changed from 85.0  bsd on C6H6 nmodes
 CA  CA  CA           1   120.000    527.184 ; changed from 85.0  bsd on C6H6 nmodes
 CA  CA  CB           1   120.000    527.184 ; changed from 85.0  bsd on C6H6 nmodes
@@ -407,7 +406,6 @@ NC  CM  CA  N2       4      180.00     4.60240     2	; dac guess, 9/94
 CB  NC  CA  N2       4      180.00     4.60240     2	; dac, 10/94
 NA  NC  CA  N2       4      180.00     4.60240     2	; dac, 10/94
 CA  CA  C   OH       4      180.00     4.60240     2	; 
-C   CA  CA  OH       4      180.00     4.60240     2	; added for DOPA
 CT  CV  CC  NA       4      180.00     4.60240     2	; 
 CT  CW  CC  NB       4      180.00     4.60240     2	; 
 CT  CW  CC  NA       4      180.00     4.60240     2	; 
