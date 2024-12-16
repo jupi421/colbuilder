@@ -135,18 +135,28 @@ class ColbuilderConfig(BaseModel):
 
     def model_post_init(self, __context: Any) -> None:
         """Post initialization validation and processing."""
-        if self.fasta_file is None:
-            if self.species in self._species_map:
-                fasta_name = f"{self.species.replace('_', '')}.fasta"
-                self.fasta_file = str(self.HOMOLOGY_LIB_DIR / "fasta_sequences" / fasta_name)
-            else:
-                error_info = ConfigurationError.get_error_info("CFG_ERR_003")
-                custom_message = f"Must provide fasta_file when using custom species: {self.species}"
-                full_message = f"ERROR: {error_info.message}. {custom_message}"
+        # Only validate species and handle fasta_file if sequence_generator is True
+        if self.sequence_generator:
+            if self.fasta_file is None:
+                if self.species in self._species_map:
+                    fasta_name = f"{self.species.replace('_', '')}.fasta"
+                    self.fasta_file = str(self.HOMOLOGY_LIB_DIR / "fasta_sequences" / fasta_name)
+                else:
+                    error_info = ConfigurationError.get_error_info("CFG_ERR_003")
+                    custom_message = f"Must provide fasta_file when using custom species: {self.species}"
+                    full_message = f"ERROR: {error_info.message}. {custom_message}"
+                    raise ConfigurationError(
+                        message=full_message,
+                        error_code="CFG_ERR_003"
+                    )
+        # If sequence_generator is False, validate that PDB file is provided
+        elif not self.sequence_generator and self.species not in self._species_map:
+            if self.pdb_file is None:
                 raise ConfigurationError(
-                    message=full_message,
+                    "When using a custom species with sequence_generator=False, a PDB file must be provided",
                     error_code="CFG_ERR_003"
                 )
+        
         self.set_mode()
         
     @model_validator(mode='after')
@@ -208,6 +218,24 @@ class ColbuilderConfig(BaseModel):
                 error_code="CFG_ERR_006"
             )
         return value
+    @model_validator(mode='after')
+    def validate_species_requirements(self) -> 'ColbuilderConfig':
+        """Validate species and related requirements."""
+        # If sequence generator is True, species must be from predefined list or fasta_file must be provided
+        if self.sequence_generator:
+            if self.species not in self._species_map and self.fasta_file is None:
+                raise ConfigurationError(
+                    f"When sequence_generator is True, species must be one of {self._species_map} or fasta_file must be provided",
+                    error_code="CFG_ERR_003"
+                )
+        # If sequence generator is False and species is not from predefined list, PDB file must be provided
+        elif self.species not in self._species_map:
+            if self.pdb_file is None:
+                raise ConfigurationError(
+                    "When using a custom species with sequence_generator=False, a PDB file must be provided",
+                    error_code="CFG_ERR_003"
+                )
+        return self
 
     @field_validator('species', mode='before')
     def convert_species_to_lowercase(cls, value: str) -> str:
