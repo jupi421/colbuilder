@@ -519,7 +519,6 @@ class SequenceGenerator:
     async def _finalize_output(self, input_pdb: Path, file_prefix: str) -> Path:
         """Finalize output files and perform crosslink optimization if needed."""
         try:
-            # Create disoriented output filename with crosslink info if present
             if self.config.crosslink and self._crosslinks:
                 n_suffix = f"N_{self.config.n_term_type}" if self.config.n_term_type else "N_NONE"
                 c_suffix = f"C_{self.config.c_term_type}" if self.config.c_term_type else "C_NONE"
@@ -528,7 +527,6 @@ class SequenceGenerator:
             dis_output_name = f"{file_prefix}_disoriented.pdb"
             dis_output_path = self._temp_dir / dis_output_name
 
-            # Ensure directories exist
             if not self._temp_dir.exists():
                 self._temp_dir.mkdir(parents=True, exist_ok=True)
             
@@ -536,11 +534,9 @@ class SequenceGenerator:
             if not working_dir.exists():
                 working_dir.mkdir(parents=True, exist_ok=True)
 
-            # Copy input to disoriented
             shutil.copy2(input_pdb, dis_output_path)
             LOG.debug(f"Created disoriented output: {dis_output_path}")
 
-            # Setup final output path (without _disoriented suffix)
             final_name = f"{file_prefix}.pdb"
             working_dir_output = working_dir / final_name
 
@@ -556,7 +552,6 @@ class SequenceGenerator:
                     output_pdb=working_dir_output
                 )
                 
-                # Clean headers after optimization
                 update_pdb_header(working_dir_output, str(self.config.pdb_first_line))
                 
                 self._state.update({
@@ -566,11 +561,9 @@ class SequenceGenerator:
                 
             else:
                 LOG.info("No optimization needed, preparing final output")
-                # Copy to final destination and clean headers
                 shutil.copy2(dis_output_path, working_dir_output)
                 update_pdb_header(working_dir_output, str(self.config.pdb_first_line))
             
-            # Clean up temporary files
             try:
                 if dis_output_path.exists():
                     dis_output_path.unlink()
