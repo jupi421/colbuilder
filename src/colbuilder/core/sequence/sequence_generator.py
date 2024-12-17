@@ -120,56 +120,6 @@ class SequenceGenerator:
 
             self._temp_dir = None
 
-                
-    async def _load_crosslinks(self) -> None:
-        """
-        Load crosslink information from configuration.
-            
-        Raises:
-            SequenceGenerationError: If crosslink loading fails
-        """
-        try:
-            crosslinks_df = pd.read_csv(self.config.CROSSLINKS_FILE)
-            species_crosslinks = crosslinks_df[crosslinks_df['species'] == self.config.species]
-                
-            if species_crosslinks.empty:
-                raise SequenceGenerationError(
-                    f"No crosslinks found for species: {self.config.species}",
-                    error_code="SEQ_ERR_002",
-                    context={"species": self.config.species}
-                )
-                    
-            self._crosslinks = []
-                
-            n_crosslinks = extract_crosslinks_from_dataframe(
-                species_crosslinks,
-                "N",
-                self.config.n_term_type,
-                self.config.n_term_combination
-            )
-            self._crosslinks.extend(n_crosslinks)
-                
-            c_crosslinks = extract_crosslinks_from_dataframe(
-                species_crosslinks,
-                "C",
-                self.config.c_term_type,
-                self.config.c_term_combination
-            )
-            self._crosslinks.extend(c_crosslinks)
-                
-        except SequenceGenerationError:
-            raise
-        except Exception as e:
-            raise SequenceGenerationError(
-                "Error loading crosslinks",
-                original_error=e,
-                error_code="SEQ_ERR_002",
-                context={
-                    "crosslinks_file": str(self.config.CROSSLINKS_FILE),
-                    "species": self.config.species
-                }
-            )
-            
     async def _run_alignment(self, fasta_path: Path) -> Tuple[Path, Path]:
         """Run sequence alignment."""
         try:
@@ -349,7 +299,7 @@ class SequenceGenerator:
                         output_pdb = await self._apply_crosslinks(output_pdb, file_prefix)
                         LOG.debug(f"Crosslinks applied - Output: {output_pdb}")
                 
-                update_pdb_header(output_pdb, str(self.config.pdb_first_line))
+                #update_pdb_header(output_pdb, str(self.config.pdb_first_line))
                 
                 final_output = await self._finalize_output(output_pdb, file_prefix)
                 
@@ -408,18 +358,21 @@ class SequenceGenerator:
 
     async def _apply_crosslinks(self, input_pdb: Path, file_prefix: str) -> Path:
         """
-        Apply crosslinks to the PDB structure.
+        Apply crosslinks to the PDB structure if enabled.
         
         Args:
             input_pdb: Path to input PDB file
             file_prefix: Prefix for output files
             
         Returns:
-            Path to PDB file with crosslinks applied
+            Path to PDB file with crosslinks applied (or original if disabled)
             
         Raises:
             SequenceGenerationError: If crosslink application fails
         """
+        if not self.config.crosslink or not self._crosslinks:
+            return input_pdb
+            
         try:
             n_suffix = f"N_{self.config.n_term_type}" if self.config.n_term_type else "N_NONE"
             c_suffix = f"C_{self.config.c_term_type}" if self.config.c_term_type else "C_NONE"
@@ -430,23 +383,28 @@ class SequenceGenerator:
             n_crosslinks = [c for c in self._crosslinks if c.terminal_type == 'N']
             c_crosslinks = [c for c in self._crosslinks if c.terminal_type == 'C']
             
-            n_crosslink_data = None if not n_crosslinks else {
-                'P1': n_crosslinks[0].position1.position_str,
-                'R1': n_crosslinks[0].position1.residue_type,
-                'A1': n_crosslinks[0].position1.atom_name,
-                'P2': n_crosslinks[0].position2.position_str,
-                'R2': n_crosslinks[0].position2.residue_type,
-                'A2': n_crosslinks[0].position2.atom_name
-            }
+            def get_crosslink_data(crosslink):
+                data = {
+                    'P1': crosslink.position1.position_str,
+                    'R1': crosslink.position1.residue_type,
+                    'A1': crosslink.position1.atom_name,
+                    'P2': crosslink.position2.position_str,
+                    'R2': crosslink.position2.residue_type,
+                    'A2': crosslink.position2.atom_name
+                }
+                if hasattr(crosslink, 'position3') and crosslink.position3 is not None:
+                    data.update({
+                        'P3': crosslink.position3.position_str,
+                        'R3': crosslink.position3.residue_type,
+                        'A3': crosslink.position3.atom_name
+                    })
+                return data
             
-            c_crosslink_data = None if not c_crosslinks else {
-                'P1': c_crosslinks[0].position1.position_str,
-                'R1': c_crosslinks[0].position1.residue_type,
-                'A1': c_crosslinks[0].position1.atom_name,
-                'P2': c_crosslinks[0].position2.position_str,
-                'R2': c_crosslinks[0].position2.residue_type,
-                'A2': c_crosslinks[0].position2.atom_name
-            }
+            n_crosslink_data = None if not n_crosslinks else get_crosslink_data(n_crosslinks[0])
+            c_crosslink_data = None if not c_crosslinks else get_crosslink_data(c_crosslinks[0])
+            
+            LOG.debug(f"N-terminal crosslink data: {n_crosslink_data}")
+            LOG.debug(f"C-terminal crosslink data: {c_crosslink_data}")
             
             result_path = Path(apply_crosslinks(
                 str(input_pdb),
@@ -465,32 +423,128 @@ class SequenceGenerator:
                 
             return result_path
             
+        except AttributeError as e:
+            LOG.error(f"Invalid crosslink data structure: {str(e)}")
+            raise SequenceGenerationError(
+                "Invalid crosslink data structure",
+                original_error=e,
+                error_code="SEQ_ERR_002",
+                context={
+                    "n_crosslinks": str(n_crosslinks) if 'n_crosslinks' in locals() else None,
+                    "c_crosslinks": str(c_crosslinks) if 'c_crosslinks' in locals() else None
+                }
+            )
         except SequenceGenerationError:
             raise
         except Exception as e:
+            LOG.error(f"Error applying crosslinks: {str(e)}")
             raise SequenceGenerationError(
                 "Error applying crosslinks",
                 original_error=e,
                 error_code="SEQ_ERR_002",
                 context={
                     "input_pdb": str(input_pdb),
-                    "file_prefix": file_prefix
+                    "file_prefix": file_prefix,
+                    "n_terminal_type": self.config.n_term_type,
+                    "c_terminal_type": self.config.c_term_type
+                }
+            )
+
+    async def _load_crosslinks(self) -> None:
+        """
+        Load crosslink information from configuration.
+        Only called when crosslinks are enabled.
+            
+        Raises:
+            SequenceGenerationError: If crosslink loading fails
+        """
+        if not self.config.crosslink:
+            return
+            
+        try:
+            crosslinks_df = pd.read_csv(self.config.CROSSLINKS_FILE)
+            species_crosslinks = crosslinks_df[crosslinks_df['species'] == self.config.species]
+                
+            if species_crosslinks.empty:
+                raise SequenceGenerationError(
+                    f"No crosslinks found for species: {self.config.species}",
+                    error_code="SEQ_ERR_002",
+                    context={"species": self.config.species}
+                )
+                    
+            self._crosslinks = []
+                
+            if self.config.n_term_type:
+                LOG.debug(f"Loading N-terminal crosslinks of type: {self.config.n_term_type}")
+                n_crosslinks = extract_crosslinks_from_dataframe(
+                    species_crosslinks,
+                    "N",
+                    self.config.n_term_type,
+                    self.config.n_term_combination
+                )
+                if n_crosslinks:
+                    self._crosslinks.extend(n_crosslinks)
+                    LOG.debug(f"Loaded {len(n_crosslinks)} N-terminal crosslinks")
+                
+            if self.config.c_term_type:
+                LOG.debug(f"Loading C-terminal crosslinks of type: {self.config.c_term_type}")
+                c_crosslinks = extract_crosslinks_from_dataframe(
+                    species_crosslinks,
+                    "C",
+                    self.config.c_term_type,
+                    self.config.c_term_combination
+                )
+                if c_crosslinks:
+                    self._crosslinks.extend(c_crosslinks)
+                    LOG.debug(f"Loaded {len(c_crosslinks)} C-terminal crosslinks")
+                
+            if not self._crosslinks:
+                LOG.warning("No crosslinks were loaded despite crosslinks being enabled")
+                
+        except SequenceGenerationError:
+            raise
+        except Exception as e:
+            raise SequenceGenerationError(
+                "Error loading crosslinks",
+                original_error=e,
+                error_code="SEQ_ERR_002",
+                context={
+                    "crosslinks_file": str(self.config.CROSSLINKS_FILE),
+                    "species": self.config.species,
+                    "n_term_type": self.config.n_term_type,
+                    "c_term_type": self.config.c_term_type
                 }
             )
             
     async def _finalize_output(self, input_pdb: Path, file_prefix: str) -> Path:
         """Finalize output files and perform crosslink optimization if needed."""
         try:
-            dis_output_name = input_pdb.stem.replace('_temp', '_disoriented') + input_pdb.suffix
-            dis_output_path = self._temp_dir / dis_output_name
-            dis_output_path.write_bytes(input_pdb.read_bytes())
-            
-            final_output_name = input_pdb.stem.replace('_temp', '') + input_pdb.suffix
-            temp_final_output = self._temp_dir / final_output_name  # Temporary location
-            working_dir_output = Path(self.config.working_directory) / final_output_name  # Final location
-            
+            # Create disoriented output filename with crosslink info if present
             if self.config.crosslink and self._crosslinks:
+                n_suffix = f"N_{self.config.n_term_type}" if self.config.n_term_type else "N_NONE"
+                c_suffix = f"C_{self.config.c_term_type}" if self.config.c_term_type else "C_NONE"
+                file_prefix = f"{file_prefix}_{n_suffix}_{c_suffix}"
                 
+            dis_output_name = f"{file_prefix}_disoriented.pdb"
+            dis_output_path = self._temp_dir / dis_output_name
+
+            # Ensure directories exist
+            if not self._temp_dir.exists():
+                self._temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            working_dir = Path(self.config.working_directory)
+            if not working_dir.exists():
+                working_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy input to disoriented
+            shutil.copy2(input_pdb, dis_output_path)
+            LOG.debug(f"Created disoriented output: {dis_output_path}")
+
+            # Setup final output path (without _disoriented suffix)
+            final_name = f"{file_prefix}.pdb"
+            working_dir_output = working_dir / final_name
+
+            if self.config.crosslink and self._crosslinks:
                 LOG.info(f"Step 4/{self.steps} Optimizing crosslink positions")
                 optimizer = CrosslinkOptimizer(
                     crosslink_pairs=self._crosslinks,
@@ -499,10 +553,11 @@ class SequenceGenerator:
                 
                 final_distance, final_output = await optimizer.optimize(
                     input_pdb=dis_output_path,
-                    output_pdb=temp_final_output
+                    output_pdb=working_dir_output
                 )
                 
-                working_dir_output.write_bytes(final_output.read_bytes())
+                # Clean headers after optimization
+                update_pdb_header(working_dir_output, str(self.config.pdb_first_line))
                 
                 self._state.update({
                     'optimization_distance': final_distance,
@@ -511,19 +566,21 @@ class SequenceGenerator:
                 
             else:
                 LOG.info("No optimization needed, preparing final output")
-                temp_final_output.write_bytes(dis_output_path.read_bytes())
-                working_dir_output.write_bytes(temp_final_output.read_bytes())
+                # Copy to final destination and clean headers
+                shutil.copy2(dis_output_path, working_dir_output)
+                update_pdb_header(working_dir_output, str(self.config.pdb_first_line))
             
-            update_pdb_header(working_dir_output, str(self.config.pdb_first_line))
-            
+            # Clean up temporary files
             try:
-                dis_output_path.unlink()
+                if dis_output_path.exists():
+                    dis_output_path.unlink()
+                    LOG.debug(f"Cleaned up temporary file: {dis_output_path}")
             except Exception as e:
                 LOG.warning(f"Failed to delete temporary file {dis_output_path}: {str(e)}")
-            
+
             if not working_dir_output.exists():
                 raise SequenceGenerationError(
-                    "Failed to create final output file",
+                    "Final output file not created",
                     error_code="SEQ_ERR_004",
                     context={"final_output": str(working_dir_output)}
                 )
@@ -540,7 +597,9 @@ class SequenceGenerator:
                 context={
                     "input_pdb": str(input_pdb),
                     "file_prefix": file_prefix,
-                    "state": self._state
+                    "state": self._state,
+                    "temp_dir": str(self._temp_dir),
+                    "working_dir": str(self.config.working_directory)
                 }
             )
             
