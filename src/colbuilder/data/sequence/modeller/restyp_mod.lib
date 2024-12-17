@@ -136,3 +136,9 @@ ATOM   | LYX                 | l |   | LYX  | pyd, lyx
 ATOM   | LXX                 | j |   | LXX  | dpd, lxx
 ATOM   | LXY                 | l |   | LXY  | pyl, lxy
 ATOM   | LYY                 | j |   | LYY  | dpl, lyy
+ATOM   | LZD                 | £ |   | LZD  | MOLD, lzd
+ATOM   | LZS                 | % |   | LZS  | MOLD, lzs
+ATOM   | LGX                 | ~ |   | LGX  | Glucosepane, lgx
+ATOM   | AGS                 | * |   | AGS  | Glucosepane, ags
+ATOM   | LPS                 | q |   | LPS  | Pentosidine, lps
+ATOM   | APD                 | ! |   | APD  | Pentosidine, apd

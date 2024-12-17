@@ -33,18 +33,24 @@ class GeometryService:
             Optional[System]: Generated system or None
         """
         try:
+            # If we're doing mixing but not geometry generation, create a basic system
+            if self.config.mix_bool and not self.config.geometry_generator:
+                from .crystal import Crystal
+                system = System()
+                crystal = Crystal(pdb=str(self.config.files_mix[0]))
+                system.crystal = crystal
+                return await self.mixer_service.mix(system, self.config)
+            
+            # Original geometry generation flow
             if not self.config.geometry_generator:
                 LOG.info('Set -geometry flag to generate microfibrillar structure PDB file')
                 return None
-
+                
             system = await self.crystal_service.build(self.config)
-
             if self.config.mix_bool:
                 system = await self.mixer_service.mix(system, self.config)
-
             if self.config.replace_bool:
                 system = await self.replacer_service.replace(system, self.config)
-
             return system
 
         except GeometryGenerationError:
@@ -53,9 +59,10 @@ class GeometryService:
             raise GeometryGenerationError(
                 message="Unexpected error in geometry generation",
                 original_error=e,
-                error_code="GEO_ERR_001",
+                error_code="GEO_ERR_001", 
                 context={"config": self.config.model_dump()}
             )
+
 
 async def build_geometry(config: ColbuilderConfig) -> Optional[System]:
     """Build geometry from configuration."""

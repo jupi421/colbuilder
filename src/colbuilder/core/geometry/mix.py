@@ -36,24 +36,59 @@ class Mix:
         self.connect_mix: Dict[float, str] = connect_mix or {}
     
     def add_mix(self, ratio_mix: Optional[Dict[str, int]] = None, system: Optional[Any] = None) -> Any:
-        """
-        Add or update the mix ratio and system, and assign types to models.
-
-        Args:
-            ratio_mix (Optional[Dict[str, int]]): New ratio mix to update.
-            system (Optional[Any]): New system object to update.
-
-        Returns:
-            Any: The updated system object.
-        """
+        """Add or update the mix ratio and system."""
         if ratio_mix:
             self.ratio_mix = ratio_mix
         if system:
             self.system = system
+
+        # Get all models with connections
+        models_to_process = []
         for idx in self.system.get_models():
             model = self.system.get_model(model_id=idx)
             if model.connect is not None:
-                model.type = self.get_mix(ratio_mix=list(self.ratio_mix.values()))
+                models_to_process.append(model)
+
+        # Calculate numbers of each type needed
+        total_models = len(models_to_process)
+        type_counts = {k: int((v/100.0) * total_models) for k, v in self.ratio_mix.items()}
+        
+        LOG.debug(f"Total models: {total_models}")
+        LOG.debug(f"Type counts needed: {type_counts}")
+
+        # Process models in connected groups
+        processed = set()
+        for model in models_to_process:
+            if model.id in processed:
+                continue
+
+            # Get all connected models
+            connected_group = {model.id}
+            to_check = list(model.connect) if model.connect else []
+            while to_check:
+                current = to_check.pop(0)
+                if current not in connected_group:
+                    connected_group.add(current)
+                    current_model = self.system.get_model(model_id=current)
+                    if current_model.connect:
+                        to_check.extend(c for c in current_model.connect if c not in connected_group)
+
+            # Choose type for this group based on available counts
+            available_types = [t for t, c in type_counts.items() if c > 0]
+            if available_types:
+                chosen_type = max(available_types, key=lambda t: type_counts[t])
+                type_counts[chosen_type] -= len(connected_group)
+            else:
+                # If we've used all counts, distribute remaining evenly
+                chosen_type = np.random.choice(list(self.ratio_mix.keys()))
+
+            # Assign type to all models in group
+            for model_id in connected_group:
+                self.system.get_model(model_id=model_id).type = chosen_type
+                processed.add(model_id)
+
+            LOG.debug(f"Assigned type {chosen_type} to group of {len(connected_group)} models")
+
         return self.system
 
     def get_mix(self, ratio_mix: Optional[List[int]] = None) -> str:

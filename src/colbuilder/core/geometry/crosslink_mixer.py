@@ -1,543 +1,282 @@
-"""
-Colbuilder Mixer Module
-
-This module provides services for mixing different geometry types in the system.
-It supports mixing based on ratios or connect files.
-
-Key Features:
-    - Ratio-based mixing
-    - Connect file-based mixing
-    - System validation
-    - PDB file processing
-    - Resource management
-"""
-
+from __future__ import annotations
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Union, Any, Tuple
 import shutil
-import os
 from colorama import Fore, Style
+import os
 
-from ..utils.exceptions import GeometryGenerationError
-from ..utils.logger import setup_logger
-from ..utils.config import ColbuilderConfig
-
-from .crystal import Crystal
-from .system import System
-from .mix import Mix
-from .chimera import Chimera
-from .caps import Caps
+from colbuilder.core.geometry.crystal import Crystal
+from colbuilder.core.geometry.system import System
+from colbuilder.core.geometry.chimera import Chimera
+from colbuilder.core.geometry.connect import Connect
+from colbuilder.core.geometry.caps import Caps
+from colbuilder.core.geometry.crystalcontacts import CrystalContacts
+from colbuilder.core.geometry.mix import Mix
+from colbuilder.core.geometry.optimize import Optimizer
+from colbuilder.core.utils.config import ColbuilderConfig
+from colbuilder.core.utils.logger import setup_logger
+from colbuilder.core.utils.dec import timeit
+from colbuilder.core.utils.exceptions import ColbuilderError
 
 LOG = setup_logger(__name__)
 
 class CrosslinkMixer:
-    """
-    Service for mixing geometry types in the system.
-    
-    This class manages the process of combining different geometries
-    based on mixing ratios or connection files.
-    """
+    """Class for mixing different crosslink types in collagen systems."""
     
     def __init__(self):
-        """Initialize the mixer service."""
-        self.steps = 2
-
-    async def mix(self, system: System, config: ColbuilderConfig) -> System:
-        """
-        Mix different geometry types in the system.
+        LOG.info("info: Initializing CrosslinkMixer")
+        self.path_wd: Optional[Path] = None
+        self.fibril_length: Optional[float] = None
+        self.contact_distance: Optional[float] = None
+        self.crystalcontacts_file: str = 'crystalcontacts_from_colbuilder'
+        LOG.info("info: CrosslinkMixer initialized successfully")
+    
+    @staticmethod
+    def _ensure_pdb_extension(filename: str) -> str:
+        """Ensure filename has .pdb extension."""
+        if not filename.endswith('.pdb'):
+            return filename + '.pdb'
+        return filename
+    
+    @staticmethod
+    def _build_system(crystal: Crystal, crystalcontacts: CrystalContacts) -> System:
+        """Build a system from crystal and crystal contacts."""
+        LOG.info("Building system of models")
+        system = System(crystal=crystal, crystalcontacts=crystalcontacts)
         
-        Args:
-            system: System to mix
-            config: Configuration settings
-            
-        Returns:
-            System: Mixed system
-            
-        Raises:
-            GeometryGenerationError: If mixing fails
-        """
-        try:
-            if config.ratio_mix and not config.connect_file:
-                return await self._mix_with_ratio(system, config)
-            elif not config.ratio_mix and config.connect_file:
-                return await self._mix_with_connect_file(system, config)
-            else:
-                raise GeometryGenerationError(
-                    message="Invalid mixing configuration",
-                    error_code="GEO_ERR_003",
-                    context={
-                        "ratio_mix": str(config.ratio_mix),
-                        "connect_file": str(config.connect_file)
-                        if config.connect_file else None
-                    }
-                )
-            
-        except GeometryGenerationError:
-            raise
-        except Exception as e:
-            raise GeometryGenerationError(
-                message="Failed to mix system",
-                original_error=e,
-                error_code="GEO_ERR_003",
-                context={"config": config.model_dump()}
+        transformation = system.crystalcontacts.read_t_matrix()
+        unit_cell: Dict[float, Any] = {
+            k: system.crystal.get_s_matrix(t_matrix=transformation[k])
+            for k in transformation
+        }
+        
+        from colbuilder.core.geometry.model import Model
+        for key_m in transformation:
+            model = Model(
+                id=key_m,
+                transformation=transformation[key_m],
+                unit_cell=unit_cell[key_m],
+                pdb_file=crystal.pdb_file
             )
-            
-    async def _mix_with_ratio(self, system: System, config: ColbuilderConfig) -> System:
-        """
-        Mix system using ratio configuration.
+            system.add_model(model=model)
         
-        Args:
-            system: System to mix
-            config: Configuration settings
+        LOG.info(f"Built system with {len(system.get_models())} models")
+        return system
+    
+    def _build_from_contactdistance(
+        self,
+        path_wd: Path,
+        pdb_file: str,
+        contact_distance: float,
+        solution_space: List[float],
+        crystalcontacts_file: Optional[str],
+        chimera: Chimera,
+        crystal: Crystal
+    ) -> Tuple[System, CrystalContacts, Connect]:
+        """Build system from contact distance."""
+        path_pdb_file = path_wd / pdb_file
+        connect_file = 'connect_from_colbuilder'
+        
+        LOG.info(f'     Getting CrystalContacts for contact distance {contact_distance} Ang')
+        chimera.matrixget(
+            pdb=str(path_pdb_file),
+            contact_distance=contact_distance,
+            crystalcontacts=self.crystalcontacts_file
+        )
+        
+        LOG.info(f'     Writing {self.crystalcontacts_file}')
+        crystalcontacts = CrystalContacts(self.crystalcontacts_file)
+        
+        LOG.info(f'     Building system')
+        system = self._build_system(crystal=crystal, crystalcontacts=crystalcontacts)
+        
+        LOG.info(f'     Connecting system')
+        system, connect = self._connect_system(system=system, connect_file=connect_file)
+        
+        has_crosslinks = any(
+            hasattr(system.get_model(model_id=model_id), 'crosslink') and
+            system.get_model(model_id=model_id).crosslink
+            for model_id in system.get_models()
+        )
+        
+        if has_crosslinks:
+            LOG.info(f'     Optimizing system')
+            optimizer = Optimizer(system=system, solution_space=solution_space)
+            system = optimizer.run_optimize(system=system, connect=connect)
+            system, connect = self._connect_system(system=system, connect_file=connect_file)
+            crystalcontacts.crystalcontacts_file = self.crystalcontacts_file + '_opt'
+        else:
+            LOG.info(f'     Skipping optimization for non-crosslinked system')
+        
+        return system, crystalcontacts, connect
+    
+    @staticmethod
+    def _connect_system(system: System, connect_file: Optional[str] = None) -> Tuple[System, Connect]:
+        """Connect models in the system."""
+        LOG.info("Identifying crosslink connections")
+        connect = Connect(system=system, connect_file=connect_file)
+        system_connect = connect.run_connect(system=system)
+        
+        for key_m in system_connect:
+            system.get_model(model_id=key_m).add_connect(
+                connect_id=key_m,
+                connect=system_connect[key_m]
+            )
+        
+        LOG.info("Crosslink connections identified")
+        return system, connect
+    
+    @staticmethod
+    def _cap_system(system: System, crosslink_type: str) -> Caps:
+        """Add caps to the system."""
+        LOG.info("Capping models in the system with terminal groups")
+        caps = Caps(system=system)
+        
+        for idx in system.get_models():
+            pdb_id = int(idx)
+            pdb_file = f"{pdb_id}.pdb"
+            if not os.path.exists(pdb_file):
+                LOG.warning(f"PDB file {pdb_file} not found. Model IDs: {list(system.get_models())}")
+                continue
+            caps.read_residues(pdb_id=pdb_id)
+            caps.add_caps(pdb_id=pdb_id, crosslink_type=crosslink_type)
             
-        Returns:
-            System: Mixed system
-            
-        Raises:
-            GeometryGenerationError: If ratio mixing fails
-        """
+        LOG.info("Caps added to models")
+        return caps
+    
+    def _matrixset_system(self, system: System) -> System:
+        """Update system after cutting to specified length."""
+        LOG.info(f"Setting system after cutting fibril")
+        
+        id_file = Path(f"{self.crystalcontacts_file}_opt_id.txt")
+        LOG.info(f"Looking for ID file: {id_file}")
+        
+        if not id_file.exists():
+            raise FileNotFoundError(f"Crystal contacts ID file not found: {id_file}")
+        
         try:
+            with open(id_file, 'r') as f:
+                contacts = [float(i.split(' ')[1]) for i in f.readlines()]
+        except Exception as e:
+            LOG.error(f"Error reading crystal contacts ID file: {str(e)}")
+            raise
+        
+        initial_models = len(system.get_models())
+        for model in list(system.get_models()):
+            if model not in contacts:
+                system.delete_model(model_id=model)
+            elif system.get_model(model_id=model).connect is not None:
+                for connect in list(system.get_model(model_id=model).connect):
+                    if connect not in contacts:
+                        system.get_model(model_id=model).delete_connect(connect_id=connect)
+        
+        LOG.info(f"System cut from {initial_models} to {len(system.get_models())} models")
+        return system
+
+    async def mix(self, system: Optional[System], config: ColbuilderConfig) -> System:
+        """Main method to mix different crosslink types."""
+        LOG.info("info: Starting mix method")
+        try:
+            self.path_wd = Path(config.working_directory)
+            self.fibril_length = config.fibril_length
+            self.contact_distance = config.contact_distance
+            
+            # Set up mixing parameters first
             mix_setup = config.ratio_mix
-            pdb_files = [Path(pdb) for pdb in config.files_mix]
+            mix_pdb = dict(zip(mix_setup.keys(), config.files_mix))
             
-            if not pdb_files:
-                raise GeometryGenerationError(
-                    message="No PDB files provided for mixing",
-                    error_code="GEO_ERR_003",
-                    context={"files_mix": str(config.files_mix)}
+            LOG.info(f'Step 1/2 Generating mix setup')
+            
+            # Check if we need to initialize system
+            if system.get_size() == 0:
+                first_pdb = str(config.files_mix[0])
+                if first_pdb.endswith('.pdb'):
+                    first_pdb = first_pdb[:-4]
+                
+                LOG.info(f"No system provided, building initial system from {first_pdb}")
+                crystal = Crystal(first_pdb)
+                crystal.translate_crystal(pdb=first_pdb, translate=[0, 0, 4000])
+                
+                chimera = Chimera(config, str(self.path_wd / first_pdb))
+                
+                # Build initial system
+                system, crystalcontacts, connect = self._build_from_contactdistance(
+                    self.path_wd,
+                    first_pdb,
+                    self.contact_distance,
+                    config.solution_space,
+                    None,
+                    chimera,
+                    crystal
                 )
+                
+                # Write crystalcontacts file
+                LOG.info(f'Writing {crystalcontacts.crystalcontacts_file}')
+                crystalcontacts.write_crystalcontacts(
+                    system=system, 
+                    crystalcontacts_file=crystalcontacts.crystalcontacts_file
+                )
+                
+                LOG.info(f"Initial system built, proceeding with mixing")
+            else:
+                LOG.info("Using provided system")
             
-            mix_pdb = dict(zip(mix_setup.keys(), pdb_files))
             system_size = system.get_size()
             connect_file = Path('connect_from_colbuilder')
             
-            LOG.info(f'Step 1/{self.steps} Generating mix setup')
-            await self._process_mix_components(mix_pdb, system, system_size, config)
+            LOG.info(f"System size: {system_size}")
+            LOG.info(f"Crystalcontacts file: {system.crystalcontacts.crystalcontacts_file}")
             
-            LOG.info(f'Step 2/{self.steps} Mixing systems')
-            try:
-                mixer = Mix(ratio_mix=mix_setup, system=system)
-                system = mixer.add_mix(system=system)
-            except Exception as e:
-                raise GeometryGenerationError(
-                    message="Failed to mix system components",
-                    original_error=e,
-                    error_code="GEO_ERR_003",
-                    context={"ratio_mix": str(mix_setup)}
+            for key in list(mix_setup.keys()):
+                Crystal(pdb=str(mix_pdb[key])).translate_crystal(
+                    pdb=str(mix_pdb[key]),
+                    translate=[0, 0, 4000]
                 )
-            
-            await self._finalize_mixing(system, connect_file, config)
-            return system
-            
-        except GeometryGenerationError:
-            raise
-        except Exception as e:
-            raise GeometryGenerationError(
-                message="Failed to mix system with ratios",
-                original_error=e,
-                error_code="GEO_ERR_003",
-                context={
-                    "ratio_mix": str(config.ratio_mix),
-                    "pdb_files": [str(p) for p in pdb_files]
-                }
-            )
-
-    async def _process_mix_components(
-        self,
-        mix_pdb: Dict[str, Path],
-        system: System,
-        system_size: Any,
-        config: ColbuilderConfig
-    ) -> None:
-        """
-        Process individual mixing components.
-        
-        Args:
-            mix_pdb: Dictionary mapping mix types to PDB files
-            system: Current system
-            system_size: Size of the system
-            config: Configuration settings
-            
-        Raises:
-            GeometryGenerationError: If component processing fails
-        """
-        for mix_type, pdb_path in mix_pdb.items():
-            try:
-                await self._process_single_component(
-                    mix_type,
-                    pdb_path,
-                    system,
-                    system_size,
-                    config
-                )
-            except Exception as e:
-                raise GeometryGenerationError(
-                    message=f"Failed to process mix component {mix_type}",
-                    original_error=e,
-                    error_code="GEO_ERR_003",
-                    context={
-                        "mix_type": mix_type,
-                        "pdb_path": str(pdb_path)
-                    }
+                chimera = Chimera(config, str(self.path_wd / mix_pdb[key]))
+                
+                LOG.info(f' System {key}:')
+                LOG.info(f'     Generating system from {mix_pdb[key]} {Fore.BLUE}...{Style.RESET_ALL}')
+                
+                chimera.matrixset(
+                    pdb=str(mix_pdb[key]),
+                    crystalcontacts=str(system.crystalcontacts.crystalcontacts_file),
+                    system_size=system_size,
+                    fibril_length=self.fibril_length
                 )
                 
-    async def _process_single_component(
-        self,
-        mix_type: str,
-        pdb_path: Path,
-        system: System,
-        system_size: Any,
-        config: ColbuilderConfig
-    ) -> None:
-        """
-        Process a single mixing component.
-        
-        Args:
-            mix_type: Type of mix component
-            pdb_path: Path to PDB file
-            system: Current system
-            system_size: Size of the system
-            config: Configuration settings
-            
-        Raises:
-            GeometryGenerationError: If processing fails
-        """
-        try:
-            crystal = Crystal(pdb=str(pdb_path))
-            crystal.translate_crystal(
-                pdb=str(pdb_path),
-                translate=[0, 0, 4000]
-            )
-            
-            chimera = Chimera(
-                config,
-                str(Path(config.working_directory) / pdb_path)
-            )
-            
-            LOG.info(f' System {mix_type}:')
-            LOG.info(
-                f'     Generating system from {pdb_path} '
-                f'{Fore.BLUE}...{Style.RESET_ALL}'
-            )
-            
-            await self._generate_component_matrix(
-                chimera,
-                pdb_path,
-                system,
-                system_size,
-                config
-            )
-            
-            await self._add_component_caps(mix_type, system, config)
-            
-        except Exception as e:
-            raise GeometryGenerationError(
-                message=f"Failed to process component {mix_type}",
-                original_error=e,
-                error_code="GEO_ERR_003",
-                context={
-                    "mix_type": mix_type,
-                    "pdb_path": str(pdb_path),
-                    "system_size": system_size
-                }
-            )
-
-    async def _generate_component_matrix(
-        self,
-        chimera: Chimera,
-        pdb_path: Path,
-        system: System,
-        system_size: Any,
-        config: ColbuilderConfig
-    ) -> None:
-        """
-        Generate matrix for a mixing component.
-        
-        Args:
-            chimera: Chimera instance
-            pdb_path: Path to PDB file
-            system: Current system
-            system_size: Size of the system
-            config: Configuration settings
-            
-        Raises:
-            GeometryGenerationError: If matrix generation fails
-        """
-        try:
-            chimera.matrixset(
-                pdb=str(pdb_path),
-                crystalcontacts=str(system.crystalcontacts.crystalcontacts_file),
-                system_size=system_size,
-                fibril_length=config.fibril_length
-            )
-            
-            LOG.info(f"     Cutting system to {config.fibril_length} nm")
-            await self._cut_component_system(
-                system,
-                system.crystalcontacts.crystalcontacts_file
-            )
-            
-        except Exception as e:
-            raise GeometryGenerationError(
-                message="Failed to generate component matrix",
-                original_error=e,
-                error_code="GEO_ERR_003",
-                context={
-                    "pdb_path": str(pdb_path),
-                    "system_size": system_size,
-                    "fibril_length": config.fibril_length
-                }
-            )
-
-    async def _cut_component_system(
-        self,
-        system: System,
-        crystalcontacts_file: str
-    ) -> System:
-        """
-        Cut component system to specified length.
-        
-        Args:
-            system: System to cut
-            crystalcontacts_file: Crystal contacts file path
-            
-        Returns:
-            System: Cut system
-            
-        Raises:
-            GeometryGenerationError: If cutting fails
-        """
-        try:
-            crystalcontacts_path = Path(crystalcontacts_file)
-            
-            if crystalcontacts_path.suffix == '.txt':
-                crystalcontacts_path = crystalcontacts_path.with_suffix('')
+                LOG.info(f'     Cutting system to {self.fibril_length} nm')
+                system = self._matrixset_system(system)
                 
-            id_file = crystalcontacts_path.with_name(
-                f"{crystalcontacts_path.name}_id.txt"
-            )
+                LOG.info(f'     Adding caps')
+                dir_path = self.path_wd / key
+                if dir_path.exists():
+                    shutil.rmtree(dir_path)
+                dir_path.mkdir(exist_ok=True)
+                self._cap_system(system, key)
             
-            if not id_file.exists():
-                raise GeometryGenerationError(
-                    message="Crystal contacts ID file not found",
-                    error_code="GEO_ERR_003",
-                    context={"id_file": str(id_file)}
-                )
+            LOG.info(f'Step 2/2 Mixing systems')
+            mix_ = Mix(ratio_mix=mix_setup, system=system)
+            system = mix_.add_mix(system=system)
             
-            try:
-                with open(id_file, 'r') as f:
-                    contacts = [float(i.split(' ')[1]) for i in f.readlines()]
-            except Exception as e:
-                raise GeometryGenerationError(
-                    message="Failed to read crystal contacts ID file",
-                    original_error=e,
-                    error_code="GEO_ERR_003",
-                    context={"id_file": str(id_file)}
-                )
-
-            for model_id in list(system.get_models()):
-                if model_id not in contacts:
-                    system.delete_model(model_id=model_id)
-                elif system.get_model(model_id=model_id).connect is not None:
-                    for connect_id in list(system.get_model(model_id=model_id).connect):
-                        if connect_id not in contacts:
-                            system.get_model(model_id=model_id).delete_connect(
-                                connect_id=connect_id
-                            )
-            
+            connect_file_path = Path('connect_from_colbuilder.txt')
+            LOG.info(f'Writing connect file {connect_file_path}')
+            Connect(system=system).write_connect(system=system, connect_file=connect_file_path)
+        
+            pdb_out_path = Path(config.output) if config.output else Path(f'{config.output}.pdb')
+            system.write_pdb(pdb_out=pdb_out_path, fibril_length=self.fibril_length)
+        
             return system
             
-        except GeometryGenerationError:
-            raise
         except Exception as e:
-            raise GeometryGenerationError(
-                message="Failed to cut component system",
-                original_error=e,
-                error_code="GEO_ERR_003",
-                context={"crystalcontacts_file": str(crystalcontacts_file)}
-            )
-
-    async def _add_component_caps(
-        self,
-        mix_type: str,
-        system: System,
-        config: ColbuilderConfig
-    ) -> None:
-        """
-        Add caps to component system.
-        
-        Args:
-            mix_type: Type of mix component
-            system: System to cap
-            config: Configuration settings
-            
-        Raises:
-            GeometryGenerationError: If capping fails
-        """
-        try:
-            LOG.info("     Adding caps")
-            dir_path = Path(config.working_directory) / mix_type
-            
-            if dir_path.exists():
-                shutil.rmtree(dir_path)
-            dir_path.mkdir(exist_ok=True)
-            
-            caps = Caps(system=system)
-            caps.add_caps(system=system, crosslink_type=mix_type)
-            
-        except Exception as e:
-            raise GeometryGenerationError(
-                message="Failed to add component caps",
-                original_error=e,
-                error_code="GEO_ERR_003",
-                context={
-                    "mix_type": mix_type,
-                    "dir_path": str(dir_path)
-                }
-            )
-            
-    async def _mix_with_connect_file(
-        self,
-        system: System,
-        config: ColbuilderConfig
-    ) -> System:
-        """
-        Mix system using connect file.
-        
-        Args:
-            system: System to mix
-            config: Configuration settings
-            
-        Returns:
-            System: Mixed system
-            
-        Raises:
-            GeometryGenerationError: If connect file mixing fails
-        """
-        try:
-            pdb_files = [Path(pdb) for pdb in config.files_mix]
-            
-            for pdb_path in pdb_files[1:]:
-                try:
-                    Crystal(pdb=str(pdb_path)).translate_crystal(
-                        pdb=str(pdb_path),
-                        translate=[0, 0, 4000]
-                    )
-                except Exception as e:
-                    raise GeometryGenerationError(
-                        message=f"Failed to translate crystal for {pdb_path}",
-                        original_error=e,
-                        error_code="GEO_ERR_003",
-                        context={"pdb_path": str(pdb_path)}
-                    )
-                    
-            connect_file = (
-                Path(config.connect_file) if config.connect_file else None
-            )
-            
-            LOG.info(
-                f'{Fore.YELLOW}NOTE: Make sure each crosslink-type in '
-                f'{connect_file} (D,T,DT,TD) is provided{Style.RESET_ALL}'
-            )
-            
+            LOG.info(f"info: Exception in mix: {str(e)}")
+            LOG.info(f"info: Exception type: {type(e)}")
             try:
-                mixer = Mix(
-                    system=system,
-                    connect_mix=str(connect_file) if connect_file else None
-                )
-                system = mixer.get_mix_from_connect_file(
-                    connect_file=str(connect_file) if connect_file else None
-                )
-            except Exception as e:
-                raise GeometryGenerationError(
-                    message="Failed to mix using connect file",
-                    original_error=e,
-                    error_code="GEO_ERR_003",
-                    context={"connect_file": str(connect_file)}
-                )
-            
-            await self._finalize_mixing(system, connect_file, config)
-            return system
-            
-        except GeometryGenerationError:
+                os.chdir(self.path_wd)
+            except:
+                pass
+            LOG.info("Full state at error:")
+            LOG.info(f"Has system: {system is not None}")
+            if system:
+                LOG.info(f"System size: {system.get_size()}")
+                LOG.info(f"Has crystalcontacts: {hasattr(system, 'crystalcontacts')}")
             raise
-        except Exception as e:
-            raise GeometryGenerationError(
-                message="Failed to mix system with connect file",
-                original_error=e,
-                error_code="GEO_ERR_003",
-                context={
-                    "connect_file": str(config.connect_file),
-                    "pdb_files": [str(p) for p in pdb_files]
-                }
-            )
-            
-    async def _finalize_mixing(
-        self,
-        system: System,
-        connect_file: Optional[Path],
-        config: ColbuilderConfig
-    ) -> None:
-        """
-        Finalize the mixing process.
-        
-        Args:
-            system: Mixed system
-            connect_file: Optional connect file path
-            config: Configuration settings
-            
-        Raises:
-            GeometryGenerationError: If finalization fails
-        """
-        try:
-            connect_file_path = (
-                Path(connect_file) if connect_file
-                else Path('connect_from_colbuilder.txt')
-            )
-            
-            try:
-                LOG.debug(f'Writing connect file {connect_file_path}')
-                from .connect import Connect
-                Connect(system=system).write_connect(
-                    system=system,
-                    connect_file=connect_file_path
-                )
-            except Exception as e:
-                raise GeometryGenerationError(
-                    message="Failed to write connect file",
-                    original_error=e,
-                    error_code="GEO_ERR_003",
-                    context={"connect_file": str(connect_file_path)}
-                )
-            
-            try:
-                pdb_out_path = (
-                    Path(config.output) if config.output
-                    else Path(f'{config.output}.pdb')
-                )
-                system.write_pdb(
-                    pdb_out=pdb_out_path,
-                    fibril_length=config.fibril_length
-                )
-            except Exception as e:
-                raise GeometryGenerationError(
-                    message="Failed to write output PDB file",
-                    original_error=e,
-                    error_code="GEO_ERR_003",
-                    context={
-                        "output_file": str(pdb_out_path),
-                        "fibril_length": config.fibril_length
-                    }
-                )
-            
-            LOG.info(f'{Fore.BLUE}Mixing geometry process completed{Style.RESET_ALL}')
-            
-        except GeometryGenerationError:
-            raise
-        except Exception as e:
-            raise GeometryGenerationError(
-                message="Failed to finalize mixing",
-                original_error=e,
-                error_code="GEO_ERR_003",
-                context={"connect_file": str(connect_file) if connect_file else None}
-            )

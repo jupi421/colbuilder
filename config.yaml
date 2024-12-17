@@ -1,7 +1,7 @@
 # Operation Mode
 mode: null
 config_file: null
-sequence_generator: false
+sequence_generator: true
 geometry_generator: true
 topology_generator: true
 debug: false
@@ -25,9 +25,9 @@ n_term_combination: "9.C - 947.A"
 c_term_combination: "1047.C - 104.C"
 
 # Geometry Parameters
-pdb_file: homosapiens_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
+pdb_file: null #homosapiens_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
 contact_distance: 20
-fibril_length: 40
+fibril_length: 70
 crystalcontacts_file: null
 connect_file: null
 crystalcontacts_optimize: false # Note: This is automatically true when generating geometry from contact_distance, but has to be manually set to true to be performed otherwise.

@@ -327,29 +327,11 @@ async def run_geometry_generation(ctx: BuildContext) -> None:
 
 @timeit
 async def run_mix_geometry(ctx: BuildContext) -> None:
-    """
-    Mix geometry components.
-    
-    This function handles the mixing of different geometry types,
-    including ratio parsing and system modification.
-    
-    Args:
-        ctx: Build context containing configuration and state
-        
-    Raises:
-        GeometryGenerationError: If mixing fails
-        ColbuilderError: If system is not initialized
-    """
+    """Mix geometry components."""
     try:
+        # Initialize a new system if one doesn't exist
         if not ctx.system:
-            raise ColbuilderError(
-                detail=ColbuilderErrorDetail(
-                    message="System not initialized for mixing",
-                    category=ErrorCategory.GEOMETRY,
-                    severity=ErrorSeverity.ERROR,
-                    context={"operation": "mix_geometry"}
-                )
-            )
+            ctx.system = System()  # Create empty system for mixing
             
         geometry_module = await import_module('colbuilder.core.geometry.main_geometry')
         
@@ -508,24 +490,25 @@ async def run_operations(ctx: BuildContext) -> None:
                 f"Final PDB (triple helix): {ctx.sequence_result[1]}{Style.RESET_ALL}"
             )
 
-        # Geometry Generation
+        # Geometry Generation or Mixing (can be independent now)
         if OperationMode.GEOMETRY in ctx.config.mode:
             LOG.section("Generating collagen fibril...")
             LOG.subsection("Geometry Generation")
             await run_geometry_generation(ctx)
             LOG.info(f"{Fore.BLUE}Geometry generation completed.{Style.RESET_ALL}")
 
-        # Mixing Operation
+        # Mixing Operation (can now run independently)
         if OperationMode.MIX in ctx.config.mode:
+            LOG.section("Mixing geometry...")
             LOG.subsection("Mixing Geometry")
             await run_mix_geometry(ctx)
+            LOG.info(f"{Fore.BLUE}Mixing completed.{Style.RESET_ALL}")
 
         # Replacement Operation
         if OperationMode.REPLACE in ctx.config.mode:
             LOG.subsection("Replacing Geometry")
             await run_replace_geometry(ctx)
 
-        # Topology Generation
         if OperationMode.TOPOLOGY in ctx.config.mode:
             LOG.section("Generating topology...")
             await run_topology_generation(ctx)

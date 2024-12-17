@@ -87,5 +87,14 @@ def read_crosslink(pdb_file: Union[str, Path]) -> List[Crosslink]:
                     position=[float(line[29:38]), float(line[38:46]), float(line[46:56])],
                     type='D'
                 ))
+            elif ((line[17:20] == ('LGX' or 'LPS') and line[13:15] == 'CE') or
+                  (line[17:20] == ('AGS' or 'APD') and line[13:15] == 'NZ')):
+                crosslinks.append(Crosslink(
+                    resid=line[22:26].strip(),
+                    resname=line[17:20],
+                    chain=line[21],
+                    position=[float(line[29:38]), float(line[38:46]), float(line[46:56])],
+                    type='D'
+                ))
    
     return crosslinks
