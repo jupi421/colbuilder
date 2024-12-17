@@ -24,12 +24,12 @@ class CrosslinkMixer:
     """Class for mixing different crosslink types in collagen systems."""
     
     def __init__(self):
-        LOG.info("info: Initializing CrosslinkMixer")
+        LOG.debug("debug: Initializing CrosslinkMixer")
         self.path_wd: Optional[Path] = None
         self.fibril_length: Optional[float] = None
         self.contact_distance: Optional[float] = None
         self.crystalcontacts_file: str = 'crystalcontacts_from_colbuilder'
-        LOG.info("info: CrosslinkMixer initialized successfully")
+        LOG.debug("debug: CrosslinkMixer initialized successfully")
     
     @staticmethod
     def _ensure_pdb_extension(filename: str) -> str:
@@ -41,7 +41,7 @@ class CrosslinkMixer:
     @staticmethod
     def _build_system(crystal: Crystal, crystalcontacts: CrystalContacts) -> System:
         """Build a system from crystal and crystal contacts."""
-        LOG.info("Building system of models")
+        LOG.debug("Building system of models")
         system = System(crystal=crystal, crystalcontacts=crystalcontacts)
         
         transformation = system.crystalcontacts.read_t_matrix()
@@ -60,7 +60,7 @@ class CrosslinkMixer:
             )
             system.add_model(model=model)
         
-        LOG.info(f"Built system with {len(system.get_models())} models")
+        LOG.debug(f"Built system with {len(system.get_models())} models")
         return system
     
     def _build_from_contactdistance(
@@ -77,20 +77,20 @@ class CrosslinkMixer:
         path_pdb_file = path_wd / pdb_file
         connect_file = 'connect_from_colbuilder'
         
-        LOG.info(f'     Getting CrystalContacts for contact distance {contact_distance} Ang')
+        LOG.debug(f'     Getting CrystalContacts for contact distance {contact_distance} Ang')
         chimera.matrixget(
             pdb=str(path_pdb_file),
             contact_distance=contact_distance,
             crystalcontacts=self.crystalcontacts_file
         )
         
-        LOG.info(f'     Writing {self.crystalcontacts_file}')
+        LOG.debug(f'     Writing {self.crystalcontacts_file}')
         crystalcontacts = CrystalContacts(self.crystalcontacts_file)
         
-        LOG.info(f'     Building system')
+        LOG.debug(f'     Building system')
         system = self._build_system(crystal=crystal, crystalcontacts=crystalcontacts)
         
-        LOG.info(f'     Connecting system')
+        LOG.debug(f'     Connecting system')
         system, connect = self._connect_system(system=system, connect_file=connect_file)
         
         has_crosslinks = any(
@@ -100,20 +100,20 @@ class CrosslinkMixer:
         )
         
         if has_crosslinks:
-            LOG.info(f'     Optimizing system')
+            LOG.debug(f'     Optimizing system')
             optimizer = Optimizer(system=system, solution_space=solution_space)
             system = optimizer.run_optimize(system=system, connect=connect)
             system, connect = self._connect_system(system=system, connect_file=connect_file)
             crystalcontacts.crystalcontacts_file = self.crystalcontacts_file + '_opt'
         else:
-            LOG.info(f'     Skipping optimization for non-crosslinked system')
+            LOG.debug(f'     Skipping optimization for non-crosslinked system')
         
         return system, crystalcontacts, connect
     
     @staticmethod
     def _connect_system(system: System, connect_file: Optional[str] = None) -> Tuple[System, Connect]:
         """Connect models in the system."""
-        LOG.info("Identifying crosslink connections")
+        LOG.debug("Identifying crosslink connections")
         connect = Connect(system=system, connect_file=connect_file)
         system_connect = connect.run_connect(system=system)
         
@@ -123,13 +123,13 @@ class CrosslinkMixer:
                 connect=system_connect[key_m]
             )
         
-        LOG.info("Crosslink connections identified")
+        LOG.debug("Crosslink connections identified")
         return system, connect
     
     @staticmethod
     def _cap_system(system: System, crosslink_type: str) -> Caps:
         """Add caps to the system."""
-        LOG.info("Capping models in the system with terminal groups")
+        LOG.debug("Capping models in the system with terminal groups")
         caps = Caps(system=system)
         
         for idx in system.get_models():
@@ -141,15 +141,15 @@ class CrosslinkMixer:
             caps.read_residues(pdb_id=pdb_id)
             caps.add_caps(pdb_id=pdb_id, crosslink_type=crosslink_type)
             
-        LOG.info("Caps added to models")
+        LOG.debug("Caps added to models")
         return caps
     
     def _matrixset_system(self, system: System) -> System:
         """Update system after cutting to specified length."""
-        LOG.info(f"Setting system after cutting fibril")
+        LOG.debug(f"Setting system after cutting fibril")
         
         id_file = Path(f"{self.crystalcontacts_file}_opt_id.txt")
-        LOG.info(f"Looking for ID file: {id_file}")
+        LOG.debug(f"Looking for ID file: {id_file}")
         
         if not id_file.exists():
             raise FileNotFoundError(f"Crystal contacts ID file not found: {id_file}")
@@ -170,12 +170,12 @@ class CrosslinkMixer:
                     if connect not in contacts:
                         system.get_model(model_id=model).delete_connect(connect_id=connect)
         
-        LOG.info(f"System cut from {initial_models} to {len(system.get_models())} models")
+        LOG.debug(f"System cut from {initial_models} to {len(system.get_models())} models")
         return system
 
     async def mix(self, system: Optional[System], config: ColbuilderConfig) -> System:
         """Main method to mix different crosslink types."""
-        LOG.info("info: Starting mix method")
+        LOG.info("Starting mix method")
         try:
             self.path_wd = Path(config.working_directory)
             self.fibril_length = config.fibril_length
@@ -193,7 +193,7 @@ class CrosslinkMixer:
                 if first_pdb.endswith('.pdb'):
                     first_pdb = first_pdb[:-4]
                 
-                LOG.info(f"No system provided, building initial system from {first_pdb}")
+                LOG.debug(f"No system provided, building initial system from {first_pdb}")
                 crystal = Crystal(first_pdb)
                 crystal.translate_crystal(pdb=first_pdb, translate=[0, 0, 4000])
                 
@@ -211,21 +211,21 @@ class CrosslinkMixer:
                 )
                 
                 # Write crystalcontacts file
-                LOG.info(f'Writing {crystalcontacts.crystalcontacts_file}')
+                LOG.debug(f'Writing {crystalcontacts.crystalcontacts_file}')
                 crystalcontacts.write_crystalcontacts(
                     system=system, 
                     crystalcontacts_file=crystalcontacts.crystalcontacts_file
                 )
                 
-                LOG.info(f"Initial system built, proceeding with mixing")
+                LOG.debug(f"Initial system built, proceeding with mixing")
             else:
-                LOG.info("Using provided system")
+                LOG.debug("Using provided system")
             
             system_size = system.get_size()
             connect_file = Path('connect_from_colbuilder')
             
-            LOG.info(f"System size: {system_size}")
-            LOG.info(f"Crystalcontacts file: {system.crystalcontacts.crystalcontacts_file}")
+            LOG.debug(f"System size: {system_size}")
+            LOG.debug(f"Crystalcontacts file: {system.crystalcontacts.crystalcontacts_file}")
             
             for key in list(mix_setup.keys()):
                 Crystal(pdb=str(mix_pdb[key])).translate_crystal(
@@ -259,7 +259,7 @@ class CrosslinkMixer:
             system = mix_.add_mix(system=system)
             
             connect_file_path = Path('connect_from_colbuilder.txt')
-            LOG.info(f'Writing connect file {connect_file_path}')
+            LOG.debug(f'Writing connect file {connect_file_path}')
             Connect(system=system).write_connect(system=system, connect_file=connect_file_path)
         
             pdb_out_path = Path(config.output) if config.output else Path(f'{config.output}.pdb')
@@ -268,15 +268,15 @@ class CrosslinkMixer:
             return system
             
         except Exception as e:
-            LOG.info(f"info: Exception in mix: {str(e)}")
-            LOG.info(f"info: Exception type: {type(e)}")
+            LOG.debug(f"debug: Exception in mix: {str(e)}")
+            LOG.debug(f"debug: Exception type: {type(e)}")
             try:
                 os.chdir(self.path_wd)
             except:
                 pass
-            LOG.info("Full state at error:")
-            LOG.info(f"Has system: {system is not None}")
+            LOG.debug("Full state at error:")
+            LOG.debug(f"Has system: {system is not None}")
             if system:
-                LOG.info(f"System size: {system.get_size()}")
-                LOG.info(f"Has crystalcontacts: {hasattr(system, 'crystalcontacts')}")
+                LOG.debug(f"System size: {system.get_size()}")
+                LOG.debug(f"Has crystalcontacts: {hasattr(system, 'crystalcontacts')}")
             raise
