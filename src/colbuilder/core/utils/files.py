@@ -112,35 +112,51 @@ class ProgressTracker:
         self.current_step += 1
         LOG.info(f"Step {self.current_step}/{self.total_steps}: {message}")
 
-def update_pdb_header(file_path: Path, header: str) -> None:
+def update_pdb_header(pdb_file: Path, first_line: str = '') -> None:
     """
-    Add a new header to a PDB file and remove REMARK lines.
+    Update PDB file header, removing duplicates and unnecessary lines.
     
     Args:
-        file_path: Path to the PDB file
-        header: New header to add
-        
-    Raises:
-        SequenceGenerationError: If file operations fail
+        pdb_file: Path to PDB file
+        first_line: Optional first line to add to the file
     """
     try:
-        with managed_resources("PDB Header Update"):  
-            with open(file_path, "r") as f:
-                lines = f.readlines()
+        with open(pdb_file, 'r') as f:
+            lines = f.readlines()
+
+        cryst_lines = []
+        atom_lines = []
+        in_atom_section = False
+        
+        for line in lines:
+            if line.startswith('CRYST1'):
+                cryst_lines.append(line)
+            elif line.startswith('ATOM'):
+                in_atom_section = True
+                atom_lines.append(line)
+            elif in_atom_section:
+                atom_lines.append(line)
+        
+        output_lines = []
+        
+        if first_line and not first_line.isspace() and len(first_line) > 0:
+            output_lines.append(first_line + '\n')
+        
+        if cryst_lines:
+            output_lines.append(cryst_lines[0])
             
-            lines.insert(0, header + '\n')
-            lines = [line for line in lines if not line.startswith("REMARK")]
+        output_lines.extend(atom_lines)
+        
+        with open(pdb_file, 'w') as f:
+            f.writelines(output_lines)
             
-            with open(file_path, "w") as f:
-                f.writelines(lines)
-                
-    except IOError as e:
+    except Exception as e:
+        LOG.error(f"Error updating PDB header: {str(e)}")
         raise SequenceGenerationError(
-            message="Failed to update PDB header",
-            original_error=e,
-            error_code="SEQ_ERR_001",
+            "Failed to update PDB header",
+            error_code="SEQ_ERR_004",
             context={
-                "file_path": str(file_path),
-                "operation": "update_header"
+                "pdb_file": str(pdb_file),
+                "error": str(e)
             }
         )
