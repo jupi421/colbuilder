@@ -104,3 +104,5 @@ ENV/
 D/
 colbuilder_paper_output/
 *.sh
+config.yaml
+glucosepane/

@@ -1,7 +1,7 @@
 # Operation Mode
 mode: null
 config_file: null
-sequence_generator: true
+sequence_generator: false
 geometry_generator: true
 topology_generator: true
 debug: false
@@ -9,7 +9,7 @@ debug: false
 working_directory: "./"
 
 # Input Configuration
-species: "homo_sapiens"  # Available options:
+species: "rattus_norvegicus"  # Available options:
                         # Mammals (Primates): homo_sapiens, pan_troglodytes, pongo_abelii, callithrix_jacchus, otolemur_garnettii
                         # Mammals (Rodents): mus_musculus, rattus_norvegicus
                         # Mammals (Other): bos_taurus, canis_lupus, ailuropoda_melanoleuca, mustela_putorius, myotis_lucifugus, loxodonta_africana
@@ -21,13 +21,13 @@ fasta_file: null # Provide custom fasta file if not choosing an available specie
 crosslink: true
 n_term_type: "HLKNL"    # Options: "HLKNL", "NONE"
 c_term_type: "HLKNL"    # Options: "HLKNL", "NONE"
-n_term_combination: "9.C - 947.A"
-c_term_combination: "1047.C - 104.C"
+n_term_combination: "9.C - 946.A"
+c_term_combination: "1046.A - 98.B"
 
 # Geometry Parameters
-pdb_file: null #homosapiens_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
+pdb_file: rattusnorvegicus_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
 contact_distance: 20
-fibril_length: 70
+fibril_length: 40
 crystalcontacts_file: null
 connect_file: null
 crystalcontacts_optimize: false # Note: This is automatically true when generating geometry from contact_distance, but has to be manually set to true to be performed otherwise.
@@ -46,4 +46,4 @@ ratio_replace: 30       # Percentage of crosslinks to replace
 replace_file: null      # File with crosslinks to be replaced
 
 # Topology Options
-force_field: "amber99"  # Options: "amber99", "martini"
+force_field: "martini3"  # Options: "amber99", "martini"

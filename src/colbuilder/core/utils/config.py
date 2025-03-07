@@ -7,6 +7,9 @@ from typing import Dict, List, Optional, Set, Tuple, Union, Literal, Any
 from pydantic import BaseModel, Field, field_validator, computed_field, model_validator, ValidationInfo
 import yaml
 import re
+import os
+import subprocess
+import json
 from functools import lru_cache
 
 from .validators import BioformatValidator
@@ -81,7 +84,11 @@ class ColbuilderConfig(BaseModel):
     # Topology generation mode
     topology_generator: bool = Field(default=False, description="Generate topology files")
     force_field: Optional[str] = Field(None, description="Force field to be used")
-    
+    martinize2_command: Optional[str] = Field(None, description="Detected Martinize2 command")
+    martinize2_env: Optional[str] = Field(None, description="Detected Martinize2 environment")
+    use_conda_run: bool = Field(default=False, description="Whether to use conda run for Martinize2")
+    go_epsilon: float = Field(default=9.414, description="GO epsilon value for Martini3-CG parametrization (default: 9.414)")
+
     # Path Configuration
     PROJECT_ROOT: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parent.parent.parent
@@ -211,7 +218,7 @@ class ColbuilderConfig(BaseModel):
     @field_validator('force_field')
     def validate_force_field(cls, value: Optional[str]) -> Optional[str]:
         """Validate force field value."""
-        valid_fields = {"amber99", "martini"}
+        valid_fields = {"amber99", "martini3"}
         if value is not None and value not in valid_fields:
             raise ConfigurationError(
                 f"Force field must be one of {valid_fields}, got {value}",
@@ -395,6 +402,47 @@ class ColbuilderConfig(BaseModel):
                 )
 
         return self
+    
+    def get_conda_env_path(self) -> Optional[str]:
+        """
+        Get the full path to the conda environment for martinize2.
+        
+        Returns:
+            Optional[str]: Full path to the conda environment or None if not found
+        """
+        if not self.martinize2_env:
+            return None
+            
+        try:
+            # Run conda info command to get environment paths
+            result = subprocess.run(
+                ["conda", "info", "--envs", "--json"],
+                capture_output=True, text=True, check=True
+            )
+            env_data = json.loads(result.stdout)
+            
+            # Look for the specified environment in the paths
+            for env_path in env_data["envs"]:
+                if os.path.basename(env_path) == self.martinize2_env:
+                    LOG.debug(f"Found conda environment path: {env_path}")
+                    return env_path
+            
+            # Try alternative method using CONDA_PREFIX
+            if "CONDA_PREFIX" in os.environ:
+                base_path = os.environ["CONDA_PREFIX"]
+                # Go up one level if we're in an environment already
+                if os.path.basename(base_path) not in ["anaconda3", "miniconda3"]:
+                    base_path = os.path.dirname(base_path)
+                candidate_path = os.path.join(os.path.dirname(base_path), "envs", self.martinize2_env)
+                if os.path.exists(candidate_path):
+                    LOG.debug(f"Found conda environment path via CONDA_PREFIX: {candidate_path}")
+                    return candidate_path
+            
+            LOG.warning(f"Could not find conda environment path for: {self.martinize2_env}")
+            return None
+        except Exception as e:
+            LOG.error(f"Error determining conda environment path: {e}")
+            return None
 
     def update(self, new_config: Dict[str, Any]):
         """Update configuration with new values."""
@@ -461,7 +509,6 @@ def validate_input_files(config: ColbuilderConfig) -> None:
 
 _config_instance = None
 
-
 def get_config(**kwargs) -> ColbuilderConfig:
     """Get or create the configuration singleton."""
     global _config_instance
@@ -470,6 +517,21 @@ def get_config(**kwargs) -> ColbuilderConfig:
             _config_instance = ColbuilderConfig(**kwargs)
             _config_instance.validate_paths()
             validate_input_files(_config_instance)
+            
+            # Detect Martinize2 if topology generation is enabled
+            if _config_instance.topology_generator:
+                try:
+                    from colbuilder.core.utils.martinize_finder import find_martinize2_executable
+                    executable_path, use_conda, conda_env = find_martinize2_executable()
+                    _config_instance.martinize2_command = executable_path
+                    _config_instance.martinize2_env = conda_env
+                    _config_instance.use_conda_run = use_conda
+                    LOG.info(f"Detected Martinize2: {executable_path}" + 
+                            (f" (using conda environment: {conda_env})" if use_conda else ""))
+                except Exception as e:
+                    LOG.warning(f"Failed to detect Martinize2: {str(e)}")
+                    LOG.warning("Topology generation may fail if Martinize2 is not available")
+                    
         except ConfigurationError:
             raise
         except Exception as e:
