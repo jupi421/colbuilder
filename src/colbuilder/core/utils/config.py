@@ -526,7 +526,7 @@ def get_config(**kwargs) -> ColbuilderConfig:
                     _config_instance.martinize2_command = executable_path
                     _config_instance.martinize2_env = conda_env
                     _config_instance.use_conda_run = use_conda
-                    LOG.info(f"Detected Martinize2: {executable_path}" + 
+                    LOG.debug(f"Detected Martinize2: {executable_path}" + 
                             (f" (using conda environment: {conda_env})" if use_conda else ""))
                 except Exception as e:
                     LOG.warning(f"Failed to detect Martinize2: {str(e)}")

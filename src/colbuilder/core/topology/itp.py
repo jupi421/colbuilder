@@ -552,7 +552,7 @@ class Itp:
                 for exclusion in self.final_exclusions:
                     f.write(" ".join(str(i) for i in exclusion))
                 
-            LOG.info(f"Successfully wrote merged topology to {output_path}")
+            LOG.debug(f"     Successfully wrote merged topology to {output_path}")
             
         except PermissionError:
             LOG.error(f"Permission denied when writing to topology file: {output_path}")
@@ -582,7 +582,7 @@ class Itp:
                             f.write(f"{item} ")
                     f.write('\n')
                     
-            LOG.info(f"Successfully wrote Go-exclusions to {output_path}")
+            LOG.debug(f"     Successfully wrote Go-exclusions to {output_path}")
             
         except PermissionError:
             LOG.error(f"Permission denied when writing to exclusion file: {output_path}")

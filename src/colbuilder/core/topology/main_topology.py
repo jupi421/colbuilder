@@ -99,6 +99,7 @@ def organize_topology_files(topology_dir: Path, species: str) -> None:
         Species name for naming convention
     """
     try:
+        shutil.copy2(Path().glob("collagen_fibril_*.top"), topology_dir)
         for itp_file in Path().glob("*.itp"):
             shutil.copy2(itp_file, topology_dir / itp_file.name)
             os.remove(itp_file)  

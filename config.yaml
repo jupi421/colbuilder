@@ -1,7 +1,7 @@
 # Operation Mode
 mode: null
 config_file: null
-sequence_generator: false
+sequence_generator: true
 geometry_generator: true
 topology_generator: true
 debug: false
@@ -25,7 +25,7 @@ n_term_combination: "9.C - 946.A"
 c_term_combination: "1046.A - 98.B"
 
 # Geometry Parameters
-pdb_file: rattusnorvegicus_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
+pdb_file: null # rattusnorvegicus_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
 contact_distance: 20
 fibril_length: 40
 crystalcontacts_file: null
@@ -46,4 +46,4 @@ ratio_replace: 30       # Percentage of crosslinks to replace
 replace_file: null      # File with crosslinks to be replaced
 
 # Topology Options
-force_field: "martini3"  # Options: "amber99", "martini"
+force_field: "amber99"  # Options: "amber99", "martini3"

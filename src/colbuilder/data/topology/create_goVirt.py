@@ -166,7 +166,7 @@ def read_data(struct_pdb: str, file_contacts: str, file_BB: str, file_OV: str, f
         IOError: If file operations fail.
         ValueError: If data format is incorrect.
     """
-    LOG.info(f"Reading structure from {struct_pdb} and contacts from {file_contacts}")
+    LOG.debug(f"Reading structure from {struct_pdb} and contacts from {file_contacts}")
     
     try:
         # Extract overlap contacts
@@ -403,12 +403,12 @@ def write_files(file_pref: str, sym_pairs: List[List[float]], missAt: int, indBB
         IOError: If file operations fail.
         subprocess.CalledProcessError: If shell commands fail.
     """
-    LOG.info(f"Writing Go-like model files with prefix '{file_pref}'")
+    LOG.debug(f"Writing Go-like model files with prefix '{file_pref}'")
     
     try:
         # Write table of non-bonded parameters
         table_file = f'{file_pref}_go-table.itp'
-        LOG.info(f"Writing non-bonded parameters to {table_file}")
+        LOG.debug(f"Writing non-bonded parameters to {table_file}")
         
         with open(table_file, 'w') as f:
             f.write('[ nonbond_params ] \n')
@@ -437,7 +437,7 @@ def write_files(file_pref: str, sym_pairs: List[List[float]], missAt: int, indBB
         
         # Write atom types for virtual sites
         sites_file = f'{file_pref}_go-sites.itp'
-        LOG.info(f"Writing virtual site definitions to {sites_file}")
+        LOG.debug(f"Writing virtual site definitions to {sites_file}")
         
         with open(sites_file, 'w') as f:
             f.write('[ atomtypes ] \n')
@@ -453,7 +453,7 @@ def write_files(file_pref: str, sym_pairs: List[List[float]], missAt: int, indBB
         
         # Write exclusions
         excl_file = f'{file_pref}_go-excl.itp'
-        LOG.info(f"Writing exclusions to {excl_file}")
+        LOG.debug(f"Writing exclusions to {excl_file}")
         
         with open(excl_file, 'w') as f:
             f.write(';[ exclusions ] \n')
@@ -464,7 +464,7 @@ def write_files(file_pref: str, sym_pairs: List[List[float]], missAt: int, indBB
         
         # Write harmonic bonds
         harm_file = f'{file_pref}_go-harm.itp'
-        LOG.info(f"Writing harmonic bonds to {harm_file}")
+        LOG.debug(f"Writing harmonic bonds to {harm_file}")
         
         with open(harm_file, 'w') as f:
             f.write('; Go bonds as harmonic bonds between the virtual particles: \n')
@@ -498,7 +498,7 @@ def write_files(file_pref: str, sym_pairs: List[List[float]], missAt: int, indBB
             if lonely_beads > 0:
                 LOG.debug(f"Added {lonely_beads} dummy bonds for lonely beads (for visualization)")
 
-        LOG.info("Successfully wrote all Go-like model files!")
+        LOG.debug("Successfully wrote all Go-like model files!")
         
     except IOError as e:
         LOG.error(f"IOError while writing files: {e}")
@@ -520,10 +520,10 @@ def main() -> None:
     try:
         args = parse_arguments()
         
-        LOG.info(f"Starting Go-like model generation for {args.moltype}")
-        LOG.info(f"Using structure file: {args.structure}")
-        LOG.info(f"Using contacts file: {args.contacts}")
-        LOG.info(f"Go-model parameters: eps={args.go_eps} kJ/mol, cutoffs={args.cutoff_short}-{args.cutoff_long} nm")
+        LOG.debug(f"Starting Go-like model generation for {args.moltype}")
+        LOG.debug(f"Using structure file: {args.structure}")
+        LOG.debug(f"Using contacts file: {args.contacts}")
+        LOG.debug(f"Go-model parameters: eps={args.go_eps} kJ/mol, cutoffs={args.cutoff_short}-{args.cutoff_long} nm")
         
         # Get default settings
         file_BB, file_OV, file_rCSU, header_lines, seqDist, cols, missRes, missAt, c6c12 = get_settings()
@@ -552,7 +552,7 @@ def main() -> None:
                 os.remove(temp_file)
                 LOG.debug(f"Removed temporary file: {temp_file}")
         
-        LOG.info("Go-like model generation completed successfully!")
+        LOG.debug("Go-like model generation completed successfully!")
         
     except Exception as e:
         LOG.error(f"Go-like model generation failed: {e}")

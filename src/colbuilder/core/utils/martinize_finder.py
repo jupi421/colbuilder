@@ -161,7 +161,7 @@ def find_martinize2_executable() -> Tuple[str, bool, Optional[str]]:
     
     direct_path = shutil.which('martinize2')
     if direct_path:
-        LOG.info(f"Found martinize2 in PATH: {direct_path}")
+        LOG.debug(f"Found martinize2 in PATH: {direct_path}")
         return direct_path, False, None
     
     env_name, env_path = get_active_conda_env()

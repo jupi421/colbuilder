@@ -474,7 +474,7 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
     steps = 4
     cnt_model = 0
     
-    topology_dir = Path(f"collagen_fibril_{config.species}_topology_files")
+    topology_dir = Path(f"{config.species}_topology_files")
     topology_dir.mkdir(exist_ok=True)
     
     source_ff_dir = config.FORCE_FIELD_DIR
@@ -599,13 +599,14 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
         LOG.debug(f"Using Martinize2 command: {config.martinize2_command}" + 
                 (f" with conda environment: {config.martinize2_env}" if config.use_conda_run else ""))
         
+        LOG.info(f'{Fore.BLUE}-- Build coarse-grained topology:{Style.RESET_ALL}')
         for model_id in system.get_models():
             model = system.get_model(model_id=model_id)
             if model is None or model.connect is None:
                 LOG.warning(f"Skipping model {model_id}: No connections found")
                 continue
                 
-            LOG.info(f'{Fore.BLUE}-- Build coarse-grained topology: {int(100 * cnt_model / connect_size)}%{Style.RESET_ALL}')
+            LOG.info(f' {Fore.BLUE}{int(100 * cnt_model / connect_size)}%{Style.RESET_ALL}', end='')
             
             try:
                 for connect_id in model.connect:
@@ -708,7 +709,7 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
         LOG.info(f'Step 4/{steps} Creating system PDB and topology')
         try:
             system_pdb = martini.get_system_pdb(size=cnt_model)
-            martini.write_pdb(pdb=system_pdb, file=f"collagen_fibril_{config.species}.pdb")
+            martini.write_pdb(pdb=system_pdb, file=f"collagen_fibril_CG_{config.species}.pdb")
         except Exception as e:
             raise TopologyGenerationError(
                 message='Failed to create system PDB file',
@@ -721,18 +722,6 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
             # Write topology directly to final file name
             final_topology_file = f"collagen_fibril_{config.species}.top"
             martini.write_system_topology(topology_file=final_topology_file, size=cnt_model)
-            
-            try:
-                for itp_file in Path().glob("*.itp"):
-                    shutil.copy2(itp_file, topology_dir / itp_file.name)
-                
-                top_file = Path(final_topology_file)
-                if top_file.exists():
-                    shutil.copy2(top_file, topology_dir / top_file.name)
-                    
-                LOG.info(f"{Fore.BLUE}Topology files written at: {topology_dir}{Style.RESET_ALL}")
-            except Exception as e:
-                LOG.warning(f"Error organizing topology files: {str(e)}")
                 
         except Exception as e:
             raise TopologyGenerationError(
