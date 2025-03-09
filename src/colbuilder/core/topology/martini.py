@@ -602,7 +602,6 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
         
         LOG.info(f'{Fore.BLUE}-- Build coarse-grained topology:{Style.RESET_ALL}')
 
-        # Get models list before loop for tqdm
         models_list = [model_id for model_id in system.get_models()]
         for model_id in tqdm(models_list, desc="Building topology", unit="%"):
             model = system.get_model(model_id=model_id)
@@ -684,8 +683,6 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                     except Exception as e:
                         LOG.error(f"Error processing connect {connect_id} for model {model_id}: {str(e)}")
                         continue
-
-                
                 
                 merged_pdb = martini.merge_pdbs(model_id=model_id, cnt_model=cnt_model)
                 if merged_pdb:
