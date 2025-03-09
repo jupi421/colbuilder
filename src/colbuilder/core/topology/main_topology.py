@@ -26,7 +26,7 @@ from colbuilder.core.utils.logger import setup_logger
 LOG = setup_logger(__name__)
 
 REQUIRED_FF_FILES = ['residuetypes.dat', 'specbond.dat']
-TEMP_FILES_TO_CLEAN = ['*.itp', '*.CG.pdb', '*.merge.pdb', 'create_goVirt.py', 'tmp.pdb', '*.top', 'map.*', 'contactmap']
+TEMP_FILES_TO_CLEAN = ['*.itp', '*.CG.pdb', '*.merge.pdb', 'create_goVirt.py', 'tmp.pdb', '*.top', 'map.*', 'contactmap', 'amber99*', '*.dat']
 
 
 def cleanup_temporary_files(ff_name: str, temp_patterns: Set[str]) -> None:
@@ -99,10 +99,15 @@ def organize_topology_files(topology_dir: Path, species: str) -> None:
         Species name for naming convention
     """
     try:
-        shutil.copy2(Path().glob("collagen_fibril_*.top"), topology_dir)
+        # Copy topology files
+        for top_file in Path().glob(f"collagen_fibril_*.top"):
+            shutil.copy2(top_file, topology_dir / top_file.name)
+            
+        # Copy and remove ITP files
         for itp_file in Path().glob("*.itp"):
             shutil.copy2(itp_file, topology_dir / itp_file.name)
             os.remove(itp_file)  
+            
         LOG.info(f"{Fore.BLUE}Topology files written at: {topology_dir}{Style.RESET_ALL}")
     except Exception as e:
         LOG.warning(f"Error organizing topology files: {str(e)}")
@@ -141,6 +146,7 @@ async def build_topology(system: System, config: ColbuilderConfig) -> Any:
             ff = f"{force_field}sb-star-ildnp"
             LOG.subsection(f'Building topology based on the {force_field} force field')
             await build_amber99(system=system, config=config)
+            
         elif force_field == 'martini3':
             ff = f"{force_field}"
             LOG.subsection(f'Building topology based on the {force_field} force field')

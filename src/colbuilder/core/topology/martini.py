@@ -8,6 +8,7 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, Union
 import asyncio
+from tqdm import tqdm
 from colbuilder.core.topology.itp import Itp
 from colorama import Fore, Style
 
@@ -600,13 +601,14 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                 (f" with conda environment: {config.martinize2_env}" if config.use_conda_run else ""))
         
         LOG.info(f'{Fore.BLUE}-- Build coarse-grained topology:{Style.RESET_ALL}')
-        for model_id in system.get_models():
+
+        # Get models list before loop for tqdm
+        models_list = [model_id for model_id in system.get_models()]
+        for model_id in tqdm(models_list, desc="Building topology", unit="%"):
             model = system.get_model(model_id=model_id)
             if model is None or model.connect is None:
                 LOG.warning(f"Skipping model {model_id}: No connections found")
                 continue
-                
-            LOG.info(f' {Fore.BLUE}{int(100 * cnt_model / connect_size)}%{Style.RESET_ALL}', end='')
             
             try:
                 for connect_id in model.connect:
@@ -682,6 +684,8 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                     except Exception as e:
                         LOG.error(f"Error processing connect {connect_id} for model {model_id}: {str(e)}")
                         continue
+
+                
                 
                 merged_pdb = martini.merge_pdbs(model_id=model_id, cnt_model=cnt_model)
                 if merged_pdb:
@@ -739,11 +743,12 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
         LOG.info(f"{Fore.BLUE}Martini topology generated successfully for {len(processed_models)} models.{Style.RESET_ALL}")
         return martini
 
-    except TopologyGenerationError:
-        raise
     except Exception as e:
+        LOG.error(f"Uncaught exception in Martini topology generation: {str(e)}")
+        import traceback
+        LOG.error(f"Traceback: {traceback.format_exc()}")
         raise TopologyGenerationError(
-            message="Unexpected error in Martini topology generation",
+            message=f"Unexpected error in Martini topology generation: {str(e)}",
             original_error=e,
             error_code="TOP_MART_001",
             context={"force_field": ff}

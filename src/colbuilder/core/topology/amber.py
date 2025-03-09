@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 import asyncio
 from colorama import Fore, Style
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Dict, Union, Tuple
 
 from colbuilder.core.geometry.system import System
 from colbuilder.core.utils.dec import timeit
@@ -27,39 +27,52 @@ class Amber:
     This class provides functionality to merge PDB files, write ITP (Include Topology) files,
     create topology files, and generate GRO (Gromos87) files for use with the AMBER99 force field.
 
-    Attributes:
-        system: The molecular system being processed.
-        ff (str): The force field name, with '.ff' appended.
-        is_line (tuple): Tuple of strings representing valid line starts in PDB files.
+    Attributes
+    ----------
+    system : Any
+        The molecular system being processed.
+    ff : str
+        The force field name, with '.ff' appended.
+    is_line : tuple
+        Tuple of strings representing valid line starts in PDB files.
     """
 
-    def __init__(self, system=None, ff=None):
+    def __init__(self, system: Any = None, ff: Optional[str] = None):
         """
         Initialize the Amber object.
 
-        Args:
-            system: The molecular system to process.
-            ff (str): The force field name (without '.ff').
+        Parameters
+        ----------
+        system : Any
+            The molecular system to process.
+        ff : Optional[str]
+            The force field name (without '.ff').
         """
         self.system = system
         self.ff = ff + '.ff'
         self.is_line = ('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
     
-    def merge_pdbs(self, connect_id=None):
+    def merge_pdbs(self, connect_id: Optional[int] = None) -> Optional[str]:
         """
         Merge PDB files according to the connect_id in the system.
 
         This method combines multiple PDB files associated with a given connect_id
         into a single merged PDB file.
 
-        Args:
-            connect_id: The identifier for the connection in the system.
+        Parameters
+        ----------
+        connect_id : Optional[int]
+            The identifier for the connection in the system.
 
-        Returns:
-            str or None: The type of the model if successful, None otherwise.
+        Returns
+        -------
+        Optional[str]
+            The type of the model if successful, None otherwise.
 
-        Raises:
-            FileNotFoundError: If an input PDB file is not found.
+        Raises
+        ------
+        FileNotFoundError
+            If an input PDB file is not found.
         """
         LOG.debug(f"Merging PDFs for connect_id: {connect_id}")
         model = self.system.get_model(model_id=connect_id)
@@ -99,19 +112,24 @@ class Amber:
 
         return type_
     
-    def write_itp(self, itp_file=None):
+    def write_itp(self, itp_file: Optional[str] = None) -> None:
         """
         Read an ITP file, clean it, and write a new version.
 
         This method processes an input topology file, removes water topology,
         and writes a cleaned version with only the necessary molecule information.
 
-        Args:
-            itp_file (str): Path to the input topology file.
+        Parameters
+        ----------
+        itp_file : Optional[str]
+            Path to the input topology file.
 
-        Raises:
-            FileNotFoundError: If the input ITP file is not found.
-            PermissionError: If there's no write permission for the output file.
+        Raises
+        ------
+        FileNotFoundError
+            If the input ITP file is not found.
+        PermissionError
+            If there's no write permission for the output file.
         """
         LOG.debug(f"Writing ITP file: {itp_file}")
         try:
@@ -140,21 +158,29 @@ class Amber:
             LOG.error(f"Permission denied when writing to file: {output_file}")
             raise
     
-    def write_topology(self, system=None, topology_file=None, processed_models=None):
+    def write_topology(self, system: Optional[Any] = None, topology_file: Optional[str] = None, 
+                     processed_models: Optional[List[int]] = None) -> None:
         """
         Write a topology file for AMBER99-ILDNP-STAR force field.
 
         This method generates a comprehensive topology file including
         force field parameters, molecule topologies, and system composition.
 
-        Args:
-            system: The molecular system (not used in the current implementation).
-            topology_file (str): Path to the output topology file.
-            processed_models (list): List of processed model identifiers.
+        Parameters
+        ----------
+        system : Optional[Any]
+            The molecular system (not used in the current implementation).
+        topology_file : Optional[str]
+            Path to the output topology file.
+        processed_models : Optional[List[int]]
+            List of processed model identifiers.
 
-        Raises:
-            ValueError: If no processed models are provided.
-            PermissionError: If there's no write permission for the output file.
+        Raises
+        ------
+        ValueError
+            If no processed models are provided.
+        PermissionError
+            If there's no write permission for the output file.
         """
         if not processed_models:
             LOG.error("No processed models to write topology")
@@ -180,22 +206,31 @@ class Amber:
             LOG.error(f"Permission denied when writing to file: {topology_file}")
             raise
 
-    def write_gro(self, system=None, gro_file=None, processed_models=None):
+    def write_gro(self, system: Optional[Any] = None, gro_file: Optional[str] = None, 
+                processed_models: Optional[List[int]] = None) -> None:
         """
         Write a GRO (Gromos87) file for the processed models.
 
         This method combines information from individual GRO files of processed models
         into a single GRO file, updating the total atom count.
 
-        Args:
-            system: The molecular system (not used in the current implementation).
-            gro_file (str): Path to the output GRO file.
-            processed_models (list): List of processed model identifiers.
+        Parameters
+        ----------
+        system : Optional[Any]
+            The molecular system (not used in the current implementation).
+        gro_file : Optional[str]
+            Path to the output GRO file.
+        processed_models : Optional[List[int]]
+            List of processed model identifiers.
 
-        Raises:
-            ValueError: If no processed models are provided.
-            FileNotFoundError: If an input GRO file for a model is not found.
-            PermissionError: If there's no write permission for the output file.
+        Raises
+        ------
+        ValueError
+            If no processed models are provided.
+        FileNotFoundError
+            If an input GRO file for a model is not found.
+        PermissionError
+            If there's no write permission for the output file.
         """
         if not processed_models:
             LOG.error("No processed models to write GRO file")
@@ -236,75 +271,27 @@ class Amber:
             raise
 
 
-def cleanup_temporary_files(ff_name: str, temp_files: set) -> None:
-    """
-    Clean up temporary files and copied force field directory.
-    
-    Args:
-        ff_name (str): Force field directory name
-        temp_files (set): Set of temporary file names to remove
-    """
-    try:
-        for file in temp_files:
-            if os.path.exists(file):
-                os.remove(file)
-                LOG.debug(f"Removed temporary file: {file}")
-
-        copied_ff_dir = Path(ff_name)
-        if copied_ff_dir.exists():
-            shutil.rmtree(copied_ff_dir)
-            LOG.debug(f"Removed copied force field directory: {copied_ff_dir}")
-
-    except Exception as e:
-        LOG.warning(f"Error during cleanup: {str(e)}")
-
-
-def setup_topology_directory(system_name: str) -> Path:
-    """
-    Create and return path to topology directory.
-    
-    Args:
-        system_name (str): Base name for the topology directory
-        
-    Returns:
-        Path: Path to the created directory
-    """
-    topology_dir = Path(f"{system_name}_topology_files")
-    topology_dir.mkdir(exist_ok=True)
-    return topology_dir
-
-
-def organize_topology_files(topology_dir: Path, species: str) -> None:
-    """
-    Move topology files to the final directory.
-    
-    Args:
-        topology_dir: Path to topology directory
-        species: Species name for naming convention
-    """
-    try:
-        for itp_file in Path().glob("*.itp"):
-            shutil.copy2(itp_file, topology_dir / itp_file.name)
-            os.remove(itp_file)  
-        LOG.info(f"{Fore.BLUE}Topology files written at: {topology_dir}{Style.RESET_ALL}")
-    except Exception as e:
-        LOG.warning(f"Error organizing topology files: {str(e)}")
-
-
 @timeit
 async def build_amber99(system: System, config: ColbuilderConfig) -> Amber:
     """
     Build an AMBER99 topology for the given molecular system.
 
-    Args:
-        system (System): The molecular system to process.
-        config (ColbuilderConfig): Configuration object containing settings.
+    Parameters
+    ----------
+    system : System
+        The molecular system to process.
+    config : ColbuilderConfig 
+        Configuration object containing settings.
 
-    Returns:
-        Amber: An Amber object representing the processed system.
+    Returns
+    -------
+    Amber
+        An Amber object representing the processed system.
 
-    Raises:
-        TopologyGenerationError: If topology generation fails.
+    Raises
+    ------
+    TopologyGenerationError
+        If topology generation fails.
     """
     ff = f"{config.force_field}sb-star-ildnp"
     ff_name = f"{ff}.ff"
@@ -313,7 +300,6 @@ async def build_amber99(system: System, config: ColbuilderConfig) -> Amber:
     amber = Amber(system=system, ff=ff)
     steps = 3
     temp_files = set()
-    topology_dir = setup_topology_directory(f"collagen_fibril_{config.species}")
 
     try:
         if not copied_ff_dir.exists():
@@ -429,8 +415,6 @@ async def build_amber99(system: System, config: ColbuilderConfig) -> Amber:
                 processed_models=processed_models
             )
 
-            organize_topology_files(topology_dir, config.species)
-
         except Exception as e:
             raise TopologyGenerationError(
                 message='Failed to write final topology files',
@@ -438,8 +422,16 @@ async def build_amber99(system: System, config: ColbuilderConfig) -> Amber:
                 error_code="TOP_ERR_007",
                 context={"output": config.species}
             )
-
+            
+        LOG.info(f"{Fore.BLUE}Amber99 topology generated successfully for {len(processed_models)} models.{Style.RESET_ALL}")
         return amber
-
-    finally:
-        cleanup_temporary_files(ff_name, temp_files)
+    
+    except TopologyGenerationError:
+        raise
+    except Exception as e:
+        raise TopologyGenerationError(
+            message="Unexpected error in Amber topology generation",
+            original_error=e,
+            error_code="TOP_ERR_001",
+            context={"force_field": ff}
+        )
