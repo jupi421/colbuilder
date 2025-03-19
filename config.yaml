@@ -1,7 +1,7 @@
 # Operation Mode
 mode: null
 config_file: null
-sequence_generator: false
+sequence_generator: true
 geometry_generator: true
 topology_generator: true
 debug: false
@@ -25,7 +25,7 @@ n_term_combination: "9.C - 946.A"
 c_term_combination: "1046.A - 98.B"
 
 # Geometry Parameters
-pdb_file: rattusnorvegicus_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
+pdb_file: null # rattusnorvegicus_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
 contact_distance: 20
 fibril_length: 40
 crystalcontacts_file: null
@@ -41,9 +41,9 @@ files_mix:              # Required if mix_bool is true
   - "human-T.pdb"       # Trivalent
 
 # Replacement Options (for less crosslinks)
-replace_bool: false
-ratio_replace: 30       # Percentage of crosslinks to replace
-replace_file: null      # File with crosslinks to be replaced
+replace_bool: true  # Set to true to enable replacement of crosslinks
+ratio_replace: 30   # Percentage of crosslinks to replace with standard amino acids (0-100)
+replace_file: null  # "rattus_norvegicus.pdb"   # Optional: Path to a file containing specific crosslinks to replace
 
 # Topology Options
-force_field: "martini3"  # Options: "amber99", "martini3"
+force_field: "amber99"  # Options: "amber99", "martini3"

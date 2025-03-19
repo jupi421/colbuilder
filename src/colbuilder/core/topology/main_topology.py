@@ -26,7 +26,7 @@ from colbuilder.core.utils.logger import setup_logger
 LOG = setup_logger(__name__)
 
 REQUIRED_FF_FILES = ['residuetypes.dat', 'specbond.dat']
-TEMP_FILES_TO_CLEAN = ['*.itp', '*.CG.pdb', '*.merge.pdb', 'create_goVirt.py', 'tmp.pdb', '*.top', 'map.*', 'contactmap', 'amber99*', '*.dat']
+TEMP_FILES_TO_CLEAN = ['*.itp', '*.CG.pdb', '*.merge.pdb', 'create_goVirt.py', 'tmp.pdb', '*.top', 'map.*', 'contactmap', 'amber99*', '*.dat', 'D', 'T', 'NC']
 
 
 def cleanup_temporary_files(ff_name: str, temp_patterns: Set[str]) -> None:

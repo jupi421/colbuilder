@@ -25,6 +25,7 @@ Dependencies:
 """
 
 import sys
+import os
 import time
 import asyncio
 from contextlib import asynccontextmanager
@@ -361,10 +362,11 @@ async def run_mix_geometry(ctx: BuildContext) -> None:
 @timeit
 async def run_replace_geometry(ctx: BuildContext) -> None:
     """
-    Replace geometry elements.
+    Replace crosslinks in the system with standard amino acids.
     
-    This function handles the replacement of geometric elements,
-    including validation of replacement ratios.
+    This function handles the replacement of crosslinks with standard amino acids
+    according to a user-defined percentage, using either the system's
+    built-in replacement algorithm or an external replacement file.
     
     Args:
         ctx: Build context containing configuration and state
@@ -374,23 +376,13 @@ async def run_replace_geometry(ctx: BuildContext) -> None:
         ColbuilderError: If system is not initialized
     """
     try:
-        if not ctx.system:
-            raise ColbuilderError(
-                detail=ColbuilderErrorDetail(
-                    message="System not initialized for replacement",
-                    category=ErrorCategory.GEOMETRY,
-                    severity=ErrorSeverity.ERROR,
-                    context={"operation": "replace_geometry"}
-                )
-            )
-            
-        if not 0 <= ctx.config.ratio_replace <= 100:
-            raise GeometryGenerationError(
-                message="Replacement ratio must be between 0 and 100",
-                error_code="GEO_ERR_004",
-                context={"ratio_replace": ctx.config.ratio_replace}
-            )
-            
+        LOG.info(f"Running crosslink replacement with ratio: {ctx.config.ratio_replace}%")
+        
+        # Wait to ensure all files are written before replacement
+        import time
+        time.sleep(1)
+        
+        # Import and use the replacement module
         geometry_module = await import_module('colbuilder.core.geometry.main_geometry')
         ctx.system = await geometry_module.replace_geometry(ctx.system, ctx.config)
         
@@ -398,15 +390,16 @@ async def run_replace_geometry(ctx: BuildContext) -> None:
         raise
     except Exception as e:
         raise GeometryGenerationError(
-            message="Failed to replace geometry",
+            message="Failed to replace crosslinks",
             original_error=e,
             error_code="GEO_ERR_004",
             context={
                 "config": ctx.config.model_dump(),
-                "ratio_replace": ctx.config.ratio_replace
+                "error_message": str(e),
+                "traceback": traceback.format_exc()
             }
         )
-        
+
 @timeit
 async def run_topology_generation(ctx: BuildContext) -> None:
     """
@@ -490,25 +483,28 @@ async def run_operations(ctx: BuildContext) -> None:
                 f"Final PDB (triple helix): {ctx.sequence_result[1]}{Style.RESET_ALL}"
             )
 
-        # Geometry Generation or Mixing (can be independent now)
+        # Geometry Generation
         if OperationMode.GEOMETRY in ctx.config.mode:
             LOG.section("Generating collagen fibril...")
             LOG.subsection("Geometry Generation")
             await run_geometry_generation(ctx)
             LOG.info(f"{Fore.BLUE}Geometry generation completed.{Style.RESET_ALL}")
 
-        # Mixing Operation (can now run independently)
-        if OperationMode.MIX in ctx.config.mode:
+        # Mixing Operation (can run independently)
+        if OperationMode.MIX in ctx.config.mode and OperationMode.GEOMETRY not in ctx.config.mode:
             LOG.section("Mixing geometry...")
             LOG.subsection("Mixing Geometry")
             await run_mix_geometry(ctx)
             LOG.info(f"{Fore.BLUE}Mixing completed.{Style.RESET_ALL}")
-
-        # Replacement Operation
-        if OperationMode.REPLACE in ctx.config.mode:
+        
+        # Replacement Operation (only run as standalone if GEOMETRY is not enabled)
+        if OperationMode.REPLACE in ctx.config.mode and OperationMode.GEOMETRY not in ctx.config.mode:
+            LOG.section("Replacing crosslinks...")
             LOG.subsection("Replacing Geometry")
             await run_replace_geometry(ctx)
+            LOG.info(f"{Fore.BLUE}Replacement completed.{Style.RESET_ALL}")
 
+        # Topology Generation
         if OperationMode.TOPOLOGY in ctx.config.mode:
             LOG.section("Generating topology...")
             await run_topology_generation(ctx)
@@ -595,7 +591,8 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
 
     if cfg.config_file:
         LOG.info(f"Config File: {cfg.config_file}")
-    LOG.info(f"Input File: {cfg.pdb_file}")
+    if not (cfg.mix_bool or cfg.replace_bool):
+        LOG.info(f"Input File: {cfg.pdb_file}")
     LOG.info(f"Output File: {cfg.output}.pdb")
     LOG.info(f"Working Directory: {cfg.working_directory}")
 

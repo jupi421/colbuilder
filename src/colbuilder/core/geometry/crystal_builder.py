@@ -156,7 +156,8 @@ class CrystalBuilder:
             system.write_pdb(
                 pdb_out=Path(config.output),
                 fibril_length=config.fibril_length,
-                cleanup=not config.topology_generator  
+                cleanup=False
+                # cleanup=not (config.topology_generator or config.replace_bool)
             )
             
             return system
@@ -535,34 +536,4 @@ class CrystalBuilder:
                 original_error=e,
                 error_code="GEO_ERR_002",
                 context={"solution_space": solution_space}
-            )
-
-    async def _write_final_structure(self, system: System, config: ColbuilderConfig) -> None:
-        """
-        Write final system structure to PDB file.
-        
-        Args:
-            system: System to write
-            config: Configuration settings
-            
-        Raises:
-            GeometryGenerationError: If writing fails
-        """
-        try:
-            pdb_out = Path(config.output) if config.output else Path(f'{config.output}.pdb')
-            
-            system.write_pdb(
-                pdb_out=pdb_out,
-                fibril_length=config.fibril_length
-            )
-            
-        except Exception as e:
-            raise GeometryGenerationError(
-                message="Failed to write final structure",
-                original_error=e,
-                error_code="GEO_ERR_005",
-                context={
-                    "output_file": str(pdb_out),
-                    "fibril_length": config.fibril_length
-                }
             )

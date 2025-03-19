@@ -116,19 +116,45 @@ class Chimera(object):
         return result
 
     def swapaa(self, replace: str, system_type: str) -> subprocess.CompletedProcess:
-            """
-            Call Chimera via Python 2.7 script from terminal to swap amino acids.
-
-            Args:
-                replace (str): Path to the file containing amino acid replacement instructions.
-                system_type (str): Type of the system.
-
-            Returns:
-                subprocess.CompletedProcess: Result of the subprocess run.
-            """
-            swapaa_script = os.path.join(self.directory, 'swapaa.py')
-            cmd = f"chimera --nogui --silent --script \"{swapaa_script} {replace} {system_type}\""
-            LOG.debug(f"Running Chimera command: {cmd}")
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            LOG.debug(f"Chimera command completed with return code: {result.returncode}")
+        """
+        Call Chimera via Python 2.7 script from terminal to swap amino acids.
+    
+        Args:
+            replace (str): Path to the file containing amino acid replacement instructions (without .txt extension).
+            system_type (str): Type of the system (directory name).
+    
+        Returns:
+            subprocess.CompletedProcess: Result of the subprocess run.
+        """
+        swapaa_script = os.path.join(self.chimera_dir, 'swapaa.py')
+        
+        # Ensure the script exists
+        if not os.path.exists(swapaa_script):
+            LOG.error(f"Chimera swapaa script not found: {swapaa_script}")
+            raise FileNotFoundError(f"Chimera swapaa script not found: {swapaa_script}")
+        
+        # Construct the command - our swapaa.py expects two arguments: replace_file and system_type
+        # Use proper quoting for the script and arguments
+        cmd = f"chimera --nogui --silent --script \"{swapaa_script} {replace} {system_type}\""
+        
+        LOG.info(f"Running Chimera command: {cmd}")
+        
+        try:
+            result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            
+            LOG.info(f"Chimera command completed with return code: {result.returncode}")
+            if result.stdout:
+                LOG.info(f"Chimera stdout: {result.stdout}")
+            if result.stderr:
+                LOG.info(f"Chimera stderr: {result.stderr}")
+            
             return result
+        except Exception as e:
+            LOG.error(f"Error executing Chimera command: {str(e)}")
+            # Return a failed result
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=1,
+                stdout=b"",
+                stderr=str(e).encode() if hasattr(str(e), 'encode') else str(e)
+            )

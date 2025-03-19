@@ -310,17 +310,27 @@ class ColbuilderConfig(BaseModel):
             self.PAR_MOD_LIB_PATH,
             self.CROSSLINKS_FILE,
             self.FORCE_FIELD_DIR,
+            self.CHIMERA_SCRIPTS_DIR,
+        ]
+        
+        # Only check paths that are specified
+        optional_paths = [
             self.pdb_file,
             self.crystalcontacts_file,
             self.connect_file,
             self.replace_file,
         ]
+        
         for path in input_paths:
             if isinstance(path, Path) and path is not None and not path.exists():
                 raise ConfigurationError(
                     f"Required input file or directory not found: {path}",
                     error_code="CFG_ERR_002"
                 )
+                
+        for path in optional_paths:
+            if isinstance(path, Path) and path is not None and not path.exists():
+                LOG.warning(f"Optional input file not found: {path}")
 
     @field_validator('ratio_mix', mode='before')
     def validate_ratio_mix(cls, v: Union[str, Dict[str, int]], info: ValidationInfo) -> Dict[str, int]:
@@ -401,6 +411,44 @@ class ColbuilderConfig(BaseModel):
                     error_code="CFG_ERR_006"
                 )
 
+        return self
+    
+    @model_validator(mode='after')
+    def validate_replace_config(self) -> 'ColbuilderConfig':
+        """Validate replacement configuration."""
+        if self.replace_bool:
+            if self.ratio_replace is None and self.replace_file is None:
+                raise ConfigurationError(
+                    "Either ratio_replace or replace_file must be specified when replace_bool is True",
+                    error_code="CFG_ERR_006"
+                )
+            if self.ratio_replace is not None:
+                if not isinstance(self.ratio_replace, (int, float)):
+                    raise ConfigurationError(
+                        "ratio_replace must be a numeric value",
+                        error_code="CFG_ERR_006"
+                    )
+                if self.ratio_replace < 0 or self.ratio_replace > 100:
+                    raise ConfigurationError(
+                        f"ratio_replace must be between 0 and 100, got {self.ratio_replace}",
+                        error_code="CFG_ERR_006"
+                    )
+            if self.replace_file is not None and not isinstance(self.replace_file, Path):
+                self.replace_file = Path(self.replace_file)
+            
+            # Ensure the CHIMERA_SCRIPTS_DIR exists and contains swapaa.py
+            chimera_scripts_path = self.CHIMERA_SCRIPTS_DIR
+            if not chimera_scripts_path.exists():
+                raise ConfigurationError(
+                    f"CHIMERA_SCRIPTS_DIR not found: {chimera_scripts_path}",
+                    error_code="CFG_ERR_002"
+                )
+                
+            swapaa_script = chimera_scripts_path / "swapaa.py"
+            if not swapaa_script.exists():
+                LOG.warning(f"swapaa.py script not found in {chimera_scripts_path}. "
+                            f"This script is required for crosslink replacement.")
+        
         return self
     
     def get_conda_env_path(self) -> Optional[str]:

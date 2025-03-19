@@ -1,55 +1,79 @@
-#!/usr/bin/env python2.7
-# -*- coding: utf-8 -*-
-
+#!/usr/bin/env python
 """
-This script is used with UCSF Chimera to swap amino acids in a protein structure.
-It's part of the ColBuilder package and located in the chimera_scripts directory.
-It should be called from the main ColBuilder code or through UCSF Chimera.
+Chimera script to replace specified residues with lysine.
+
+This script is called by the GeometryReplacer to swap amino acids in a PDB file.
+Python 2.7 compatible version for use with Chimera.
 """
 
 import sys
 import os
-import logging
 from chimera import runCommand as rc
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-def main(file, system_type):
+def main():
     """
-    Main function to swap amino acids in a protein structure.
-
-    Args:
-        file (str): Path to the file containing amino acid replacement instructions.
-        system_type (str): Type of the system.
+    Process replacement instructions and execute Chimera commands.
+    
+    Expected arguments:
+    1. Base filename of the replacement instructions file (without extension)
+    2. System type directory
     """
-    try:
-        logger.debug("Replacement file: %s", file)
-        logger.debug("System type: %s", system_type)
-
-        with open(file + '.txt', 'r') as f:
-            for line in f:
-                replace = [m for m in line.split(' ') if m]
-                if len(replace) < 4:
-                    logger.warning("Skipping invalid line: %s", line.strip())
-                    continue
-
-                logger.debug("Processing: %s", replace)
-                rc("open %s/%s" % (system_type, replace[0]))
-                rc("swapaa LYS #0:%s.%s" % (replace[2], replace[3].replace('\n', '').lower()))
-                rc("write #0 %s/%s" % (system_type, replace[0]))
-                rc("del #0")
-
-        logger.debug("Amino acid swapping completed successfully")
-    except Exception as e:
-        logger.exception("An error occurred during swapaa execution:")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        logger.error("Usage: chimera --nogui --silent --script")
-        logger.error("\"path/to/swapaa.py replacement_file system_type\"")
+    if len(sys.argv) < 3:
+        print("Error: Missing required arguments.")
+        print("Usage: chimera --nogui --script swapaa.py replacement_file system_type")
         sys.exit(1)
     
-    main(sys.argv[1], sys.argv[2])
+    # Get command line arguments
+    file = str(sys.argv[1])
+    system_type = str(sys.argv[2])
+    
+    # Add extension if not present
+    if not file.endswith('.txt'):
+        file = file + '.txt'
+    
+    # Check if file exists
+    if not os.path.exists(file):
+        print("Error: Replacement file not found: {0}".format(file))
+        sys.exit(1)
+    
+    # Process each line of the replacement file
+    with open(file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Parse replacement instruction
+            replace = [m for m in line.split(' ') if m]
+            
+            if len(replace) < 4:
+                print("Warning: Invalid replacement instruction: {0}".format(line))
+                continue
+                
+            pdb_file = replace[0]
+            # residue_type = replace[1]  # Currently not used, always replacing with LYS
+            residue_id = replace[2]
+            chain_id = replace[3].replace('\n', '').lower()
+            
+            # Construct path to PDB file
+            pdb_path = os.path.join(system_type, pdb_file)
+            
+            # Open PDB file
+            print("Opening {0}".format(pdb_path))
+            rc("open {0}".format(pdb_path))
+            
+            # Replace residue with lysine
+            print("Replacing residue {0}.{1} with LYS".format(residue_id, chain_id))
+            rc("swapaa LYS #0:{0}.{1}".format(residue_id, chain_id))
+            
+            # Write modified structure back to file
+            print("Writing updated structure to {0}".format(pdb_path))
+            rc("write #0 {0}".format(pdb_path))
+            
+            # Delete model to prepare for next iteration
+            rc("del #0")
+    
+    print("Replacement operations completed successfully")
+
+if __name__ == "__main__":
+    main()
