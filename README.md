@@ -32,7 +32,7 @@
     - [Creating a Basic Human Collagen Microfibril](#creating-a-basic-human-collagen-microfibril)
     - [Generating a Crosslinked Bovine Microfibril](#generating-a-crosslinked-bovine-microfibril)
     - [Creating a Mixed Crosslinked (80% Divalent + 20% Trivalent) Human Collagen Microfibril](#creating-a-mixed-crosslinked-80-divalent--20-trivalent-human-collagen-microfibril)
-    - [Generating Topology Files for MD Simulation](#generating-topology-files-for-md-simulation)
+    - [Generating a Coarse-Grained Topology File for MD Simulation](#generating-a-coarse-grained-topology-file-for-md-simulation)
 - [📚 Documentation](#-documentation)
 - [🤝 Contributing](#-contributing)
 - [📚 Publications \& Citation](#-publications--citation)
@@ -270,7 +270,7 @@ files_mix:
 colbuilder --config_file config_mixed_crosslinks.yaml
 ```
 
-#### Generating Topology Files for MD Simulation
+#### Generating a Coarse-Grained Topology File for MD Simulation
 
 ```yaml
 # config_topology.yaml
@@ -279,7 +279,7 @@ sequence_generator: false
 geometry_generator: true
 topology_generator: true
 pdb_file: "path/to/template_collagen_molecule.pdb"
-force_field: "amber99"
+force_field: "martini3"
 ```
 
 ```bash
@@ -314,7 +314,3 @@ ColBuilder is developed and maintained by the Gräter group at the Max Planck In
 ---
 
 For questions, feedback, or support, please [open an issue](https://github.com/graeter-group/colbuilder/issues) on our GitHub repository.
-
-<p align="center">
-    <img src="https://github.com/user-attachments/assets/ea9609dc-9b11-4335-8d9d-a4d1bc9298cb" width="300" alt="ColBuilder Logo">
-</p>
