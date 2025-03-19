@@ -3,13 +3,9 @@
     <h1>ColBuilder</h1>
     <p>Generate atomistic models of collagen microfibrils from single collagen molecules</p>
     
-    <img src="https://github.com/user-attachments/assets/d4be1965-248d-4cae-9c09-a7303573d988" width="700" alt="ColBuilder Workflow">
+    <img src="![colbuilder-schematic-orange](https://github.com/user-attachments/assets/65a7b6c3-9277-4f0d-a38e-893acfeb9df7)
+" width="700" alt="ColBuilder Workflow">
     
-    <p>
-        <a href="https://anaconda.org/conda-forge/colbuilder"><img src="https://img.shields.io/badge/conda-forge-orange.svg" alt="conda-forge"></a>
-        <a href="https://github.com/graeter-group/colbuilder/tree/main/docs"><img src="https://img.shields.io/badge/docs-brightgreen.svg" alt="Documentation"></a>
-        <a href="http://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="license"></a>
-    </p>
 </div>
 
 ## 📋 Table of Contents
