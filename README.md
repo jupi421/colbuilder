@@ -183,8 +183,8 @@ species: "homo_sapiens"      # Species for collagen sequence
 # Sequence Settings
 fasta_file: null             # Custom FASTA file path (if null, auto-generated based on species)
 crosslink: true              # Enable crosslinking in the model
-n_term_type: "HLKNL"         # N-terminal crosslink type (Options: "DPD", "DPL", "HLKNL", "LKNL", "PYD", "PYL", "deHHLNL", and "deHLNL", "NONE") 
-c_term_type: "HLKNL"         # C-terminal crosslink type (Options: "DPD", "DPL", "HLKNL", "LKNL", "PYD", "PYL", "deHHLNL", and "deHLNL", "NONE")
+n_term_type: "HLKNL"         # N-terminal crosslink type (Options: "DPD", "DPL", "HLKNL", "LKNL", "PYD", "PYL", "deHHLNL", "deHLNL", "NONE") 
+c_term_type: "HLKNL"         # C-terminal crosslink type (Options: "DPD", "DPL", "HLKNL", "LKNL", "PYD", "PYL", "deHHLNL", "deHLNL", "NONE")
 n_term_combination: "9.C - 947.A"    # N-terminal residue combination
 c_term_combination: "1047.C - 104.C" # C-terminal residue combination
 
@@ -198,7 +198,7 @@ crystalcontacts_optimize: false  # Optimize crystal contacts during generation
 
 # Mixing Options (for mixed crosslinked microfibril)
 mix_bool: false              # Enable mixing of different crosslink types
-ratio_mix: "D:70 T:30"       # Format: "Type:percentage Type:percentage"
+ratio_mix: "A:70 B:30"       # Format: "Type:percentage Type:percentage"
 files_mix:                   # Required if mix_bool is true
  - "collagen-molecule-crosslinkA.pdb" # PDB file of collagen molecule with type A crosslinks
  - "collagen-molecule-crosslinkB.pdb" # PDB file of collagen molecule with type B crosslinks
@@ -293,6 +293,7 @@ For detailed API documentation, advanced usage examples, and theoretical backgro
 - [User Guide](https://github.com/graeter-group/colbuilder/tree/main/docs/user_guide.md)
 - [API Reference](https://github.com/graeter-group/colbuilder/tree/main/docs/api_reference.md)
 - [Configuration Reference](https://github.com/graeter-group/colbuilder/tree/main/docs/configuration.md)
+- [Data Dictionary](https://github.com/graeter-group/colbuilder/tree/main/docs/data_dictionary.md)
 - [Example Gallery](https://github.com/graeter-group/colbuilder/tree/main/docs/examples)
 
 ## 🤝 Contributing
@@ -302,6 +303,8 @@ We welcome contributions to ColBuilder! Please see our [contributing guidelines]
 ## 📚 Publications & Citation
 
 If you use ColBuilder in your research, please cite our paper:
+
+https://www.biorxiv.org/content/10.1101/2024.12.10.627782v1
 
 A BibTeX entry is provided in the [CITATION.cff](https://github.com/graeter-group/colbuilder/tree/main/CITATION.cff) file.
 
