@@ -3,7 +3,7 @@
     <h1>ColBuilder</h1>
     <p>Generate atomistic models of collagen microfibrils from single collagen molecules</p>
     
-    <img src="![colbuilder-schematic-orange](https://github.com/user-attachments/assets/65a7b6c3-9277-4f0d-a38e-893acfeb9df7)" width="700" alt="ColBuilder Workflow">
+    <img src="https://github.com/user-attachments/assets/65a7b6c3-9277-4f0d-a38e-893acfeb9df7" width="700" alt="ColBuilder Workflow">
     
 </div>
 
