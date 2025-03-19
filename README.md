@@ -303,9 +303,7 @@ We welcome contributions to ColBuilder! Please see our [contributing guidelines]
 
 If you use ColBuilder in your research, please cite our paper:
 
-[Citation details will be added upon publication]
-
-A BibTeX entry will be provided in the [CITATION.cff](https://github.com/graeter-group/colbuilder/tree/main/CITATION.cff) file.
+A BibTeX entry is provided in the [CITATION.cff](https://github.com/graeter-group/colbuilder/tree/main/CITATION.cff) file.
 
 ## 🙏 Acknowledgements
 
