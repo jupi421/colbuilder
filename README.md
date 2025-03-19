@@ -1,10 +1,7 @@
-
 <div align="center">
     <h1>ColBuilder</h1>
     <p>Generate atomistic models of collagen microfibrils from single collagen molecules</p>
-    
-    <img src="https://github.com/user-attachments/assets/65a7b6c3-9277-4f0d-a38e-893acfeb9df7" width="700" alt="ColBuilder Workflow">
-    
+    <img src="https://github.com/user-attachments/assets/e09bda5a-04e4-46ad-b03f-3bcb3346a52f" alt="colbuilder-schematic-orange-compressed" width="80%">
 </div>
 
 ## 📋 Table of Contents
