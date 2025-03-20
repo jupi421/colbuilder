@@ -222,13 +222,13 @@ geometry_generator: true
 crosslink: true
 n_term_type: "PYD"
 c_term_type: "PYD"
-n_term_combination: "9.C - 947.A"
-c_term_combination: "1047.C - 104.C"
+n_term_combination: "9.C	-	5.B	-	942.B"
+c_term_combination: "1046.C	- 1046.A	- 103.C" 
 fibril_length: 80.0
 contact_distance: 20
 ```
 
-### Mixed Crosslinked Microfibril
+### Mixed Crosslinked Microfibril (80% Divalent + 20% Trivalent crosslink)
 
 ```yaml
 species: "homo_sapiens"
