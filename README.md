@@ -183,9 +183,9 @@ c_term_combination: "1047.C - 104.C" # C-terminal residue combination
 # Geometry Parameters
 pdb_file: null               # Input PDB file (set to null if sequence_generator is true)
 contact_distance: 20         # Distance threshold for contacts (Å)
-fibril_length: 60.0          # Length of the generated fibril (nm)
-crystalcontacts_file: null   # File with crystal contacts (Optional)
-connect_file: null           # File with connection information (Optional)
+fibril_length: 70.0          # Length of the generated fibril (nm)
+crystalcontacts_file: null   # File with crystal contacts 
+connect_file: null           # File with connection information
 crystalcontacts_optimize: false  # Optimize crystal contacts during generation
 
 # Mixing Options (for mixed crosslinked microfibril)
@@ -216,8 +216,8 @@ species: "homo_sapiens"
 sequence_generator: true
 geometry_generator: true
 crosslink: false
-fibril_length: 60.0
-contact_distance: 20
+fibril_length: 40.0
+contact_distance: 25
 ```
 
 ```bash
@@ -237,7 +237,7 @@ c_term_type: "HLKNL"
 n_term_combination: "9.C - 946.A"    
 c_term_combination: "1046.C - 103.C" 
 fibril_length: 80.0
-contact_distance: 20
+contact_distance: 15
 ```
 
 ```bash
@@ -267,7 +267,7 @@ colbuilder --config_file config_mixed_crosslinks.yaml
 ```yaml
 # config_topology.yaml
 species: "homo_sapiens"
-sequence_generator: false
+sequence_generator: false`
 geometry_generator: true
 topology_generator: true
 pdb_file: "path/to/template_collagen_molecule.pdb"
@@ -283,8 +283,8 @@ colbuilder --config_file config_topology.yaml
 For detailed API documentation, advanced usage examples, and theoretical background:
 
 - [User Guide](https://github.com/graeter-group/colbuilder/tree/main/docs/user_guide.md)
-- [API Reference](https://github.com/graeter-group/colbuilder/tree/main/docs/api_reference.md)
 - [Configuration Reference](https://github.com/graeter-group/colbuilder/tree/main/docs/configuration.md)
+- [Data Reference](https://github.com/graeter-group/colbuilder/tree/main/docs/data.md)
 - [Data Dictionary](https://github.com/graeter-group/colbuilder/tree/main/docs/data_dictionary.md)
 - [Example Gallery](https://github.com/graeter-group/colbuilder/tree/main/docs/examples)
 
