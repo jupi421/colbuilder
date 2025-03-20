@@ -21,11 +21,10 @@ ColBuilder is a specialized tool for generating atomistic models of collagen mic
 ### What is ColBuilder?
 
 ColBuilder enables researchers to:
-- Generate atomistic models of collagen microfibrils with precise control
+- Generate atomistic models of collagen microfibrils with precise control over their geometric features
 - Customize collagen structures with different crosslink types and configurations
 - Create models for various species (human, bovine, rodent, and more)
 - Prepare structures for molecular dynamics simulations
-- Study collagen at multiple scales of organization
 
 ### Pipeline Overview
 
@@ -222,24 +221,6 @@ contact_distance: 20
 colbuilder --config_file config_geometry.yaml
 ```
 
-### 4. Only Topology Generation
-
-This workflow generates topology files from an existing microfibril PDB:
-
-```yaml
-# config_topology.yaml
-species: "homo_sapiens"
-sequence_generator: false
-geometry_generator: false
-topology_generator: true
-pdb_file: "path/to/microfibril.pdb"
-force_field: "amber99"
-```
-
-```bash
-colbuilder --config_file config_topology.yaml
-```
-
 ## Configuration Options
 
 ColBuilder is highly configurable through its YAML configuration file. The following sections detail the available options.
@@ -347,9 +328,11 @@ For species not in the predefined list, provide a custom FASTA file:
 species: "custom_species"
 fasta_file: "path/to/custom_sequence.fasta"
 sequence_generator: true
-crosslink: true
+crosslink: false
 # Other parameters as needed
 ```
+
+Crosslinks definition for custom_species must be added to the file in src/colbuilder/data/sequence/crosslinks.csv
 
 ## Customizing Collagen Structures
 
@@ -357,14 +340,14 @@ crosslink: true
 
 ColBuilder supports various crosslink types found in collagen:
 
-- **HLKNL**: Hydroxylysino-5-ketonorleucine (immature crosslink)
-- **LKNL**: Lysino-5-ketonorleucine (immature crosslink)
-- **PYD**: Pyridinoline (mature crosslink)
-- **DPD**: Deoxypyridinoline (mature crosslink)
-- **PYL**: Pyrrole crosslink
-- **DPL**: Divalent crosslink with pyrrole structure
-- **deHHLNL**: Dehydro-hydroxylysino-norleucine
-- **deHLNL**: Dehydro-lysino-norleucine
+- **HLKNL**: Hydroxylysino-5-ketonorleucine (divalent crosslink)
+- **LKNL**: Lysino-5-ketonorleucine (divalent)
+- **PYD**: Pyridinoline (trivalent)
+- **DPD**: Deoxypyridinoline (trivalent)
+- **PYL**: Pyrrole crosslink (trivalent)
+- **DPL**: (trivalent)
+- **deHHLNL**: Dehydro-hydroxylysino-norleucine (divalent)
+- **deHLNL**: Dehydro-lysino-norleucine (divalent)
 - **NOCROSS**: No crosslinking
 - **Glucosepane**: Advanced glycation end-product crosslink (specific species)
 
@@ -396,11 +379,11 @@ To create a heterogeneous microfibril with different crosslink types:
 mix_bool: true
 ratio_mix: "D:70 T:30"      # 70% type D, 30% type T
 files_mix:
- - "human-D.pdb"            # PDB with type D crosslinks
- - "human-T.pdb"            # PDB with type T crosslinks
+ - "human-D.pdb"            # triple helix PDB with type D crosslinks
+ - "human-T.pdb"            # triple helix PDB with type T crosslinks
 ```
 
-This feature allows modeling of more realistic collagen structures with a mixture of crosslink types.
+This feature allows modeling of collagen structures with a mixture of crosslink types.
 
 ### Replacing Crosslinks
 
@@ -408,14 +391,8 @@ To model partially crosslinked collagen (replacing some crosslinks with standard
 
 ```yaml
 replace_bool: true
-ratio_replace: 30           # Replace 30% of crosslinks with lysines
-```
-
-Alternatively, you can specify exactly which crosslinks to replace:
-
-```yaml
-replace_bool: true
-replace_file: "replace.txt" # File specifying which crosslinks to replace
+ratio_replace: 30                   # Replace 30% of crosslinks with lysines
+replace_file: "original_fibril.pdb" # PDB with original collagen microfibril structure
 ```
 
 ### Using Different Force Fields
@@ -499,30 +476,22 @@ To enable detailed logging:
 colbuilder --config_file config.yaml --debug
 ```
 
-This will provide more information about what's happening during execution.
+This will provide more information about what's happening during execution and save all intermediate files.
 
 ## Best Practices
 
 ### Performance Considerations
 
-- **Memory Usage**: Large fibrils require significant memory. Start with smaller fibril_length values (30-60 nm) before attempting larger structures.
-- **Processing Time**: Sequence generation with crosslink optimization is the most time-consuming step. Consider running this step separately and reusing the output for multiple geometry variations.
+- **Memory Usage**: Larger - especially in diameter - fibrils require significant memory. Start with smaller fibril_length values (contact_distance: 20-60 Ang) before attempting larger structures.
+- **Processing Time**: Sequence generation with crosslink optimization is one of the most time-consuming steps. Consider running this step separately and reusing the output for multiple geometry variations.
 
 ### Workflow Recommendations
 
-1. **Iterative Approach**: Start with sequence generation only, validate the output, then proceed to geometry generation, and finally topology generation.
+1. **Iterative Approach**: Start with sequence generation only, validate the output, then proceed to geometry and topology generation.
    
 2. **Validation at Each Step**: Visualize the output of each stage with molecular visualization software like PyMOL or VMD to ensure correctness.
 
 3. **Parameter Exploration**: Test different contact_distance values to find the optimal radial packing for your system.
-
-4. **Crosslink Balance**: For realistic models, use age-appropriate crosslink types (HLKNL/LKNL for young tissue, PYD/DPD for mature tissue) and consider using the mixing feature for heterogeneous crosslinking.
-
-### File Management
-
-- Organize output files by species and parameter sets
-- Include key parameters in directory names for easy reference
-- Keep track of configuration files used to generate specific structures
 
 ## Next Steps
 
@@ -533,7 +502,7 @@ After generating your collagen microfibril:
 Visualize your structures using molecular visualization software:
 
 ```bash
-pymol collagen_fibril_homo_sapiens.pdb
+vmd collagen_fibril_homo_sapiens.pdb
 ```
 
 ### Molecular Dynamics Simulations
@@ -561,4 +530,4 @@ ColBuilder can be extended to:
 - Investigate mechanical properties through simulations
 - Study interactions with other extracellular matrix components
 
-For more information, see the [API Reference](api-reference.md) and [Configuration Reference](configuration-reference.md).
+For more information, see the [Configuration Reference](configuration.md) and the [Data Dictionary](data_dictionary.md).
