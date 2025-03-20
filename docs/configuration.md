@@ -102,7 +102,7 @@ These parameters control basic input settings, particularly species selection.
 
 **Notes**:
 - The `species` parameter is used to select the appropriate sequence and crosslink information.
-- Rat collagen (rattus_norvegicus) is used as the default template for all species.
+- Rat collagen (rattus_norvegicus) is used as the default structural template for all species.
 
 ## Sequence Generation Parameters
 
