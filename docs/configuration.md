@@ -136,7 +136,7 @@ These parameters control the sequence generation stage (homology modeling).
 **Notes**:
 - If `fasta_file` is null, ColBuilder will use built-in sequence data for the specified species.
 - The `crosslink` parameter must be set to `true` for crosslinking to be applied.
-- The residue combinations specify which residues are involved in crosslinking and must match valid combinations for the chosen species.
+- The residue combinations specify which residues are involved in crosslinking and must match valid combinations for the chosen species. A complete list of the species and combinations currently available can be found [here](https://github.com/graeter-group/colbuilder/blob/main/src/colbuilder/data/sequence/crosslinks.csv).
 - Residue combinations follow the format: `[Residue Number].[Chain] - [Residue Number].[Chain]` or `[Residue Number].[Chain] - [Residue Number].[Chain] - [Residue Number].[Chain]` for trivalent crosslinks.
 
 ## Geometry Generation Parameters
