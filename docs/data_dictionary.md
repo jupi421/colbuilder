@@ -41,6 +41,8 @@ The most commonly used parameters for ColBuilder configuration:
 | crosslink | Enable crosslinking | true | - |
 | n_term_type | N-terminal crosslink type | "HLKNL" | If crosslink=true |
 | c_term_type | C-terminal crosslink type | "HLKNL" | If crosslink=true |
+| n_term_combination | string | N-terminal residue combination | "9.C - 947.A" | If crosslink=true |
+| c_term_combination | string | C-terminal residue combination | "1047.C - 104.C" | If crosslink=true |
 | fibril_length | Length of microfibril (nm) | 60.0 | For geometry |
 | contact_distance | Contact distance (Å) | 20 | For geometry |
 | force_field | Force field for topology | "amber99" | For topology |
@@ -88,11 +90,11 @@ The most commonly used parameters for ColBuilder configuration:
 |-----------|------|-------------|--------------|---------|
 | geometry_generator | boolean | Enable geometry generation | true/false | false |
 | pdb_file | Path | Input PDB file (if sequence_generator=false) | Valid PDB file path | None |
-| contact_distance | float | Contact distance for microfibril (Å) | Positive number (typically 15-25) | None (required) |
-| fibril_length | float | Length of microfibril (nm) | 0 < value ≤ 334 | 334 |
+| contact_distance | float | Contact distance for microfibril (Å) | Positive number (typically 15-40) | None (required) |
+| fibril_length | float | Length of microfibril (nm) | 0 < value ≤ 334 | None (required)  |
 | crystalcontacts_file | Path | File with crystal contacts | Valid file path | None |
 | connect_file | Path | File with connection information | Valid file path | None |
-| crystalcontacts_optimize | boolean | Optimize crystal contacts | true/false | false |
+| crystalcontacts_optimize | boolean | Optimize crystal contacts | true/false | true |
 | solution_space | List/Tuple | Solution space dimensions [dx, dy, dz] | Three positive numbers | [1, 1, 1] |
 | pdb_first_line | string | Crystal contacts information | Valid PDB CRYST1 line | Default crystal parameters |
 
@@ -107,12 +109,12 @@ The most commonly used parameters for ColBuilder configuration:
 | files_mix | List of Paths | PDB files with different crosslink types | Valid PDB file paths | [] |
 | replace_bool | boolean | Replace crosslinks with lysines | true/false | false |
 | ratio_replace | float | Percentage of crosslinks to replace | 0-100 | None |
-| replace_file | Path | File with crosslinks to be replaced | Valid file path | None |
+| replace_file | Path | Input PDB file of fibril with crosslinks to be replaced | Valid file path | None |
 
 **Validation Rules**:
 - When mix_bool=true, ratio_mix and files_mix must be provided
 - Percentages in ratio_mix must sum to 100
-- When replace_bool=true, either ratio_replace or replace_file must be provided
+- When replace_bool=true, either geometry_generation=true or replace_file must be provided
 - ratio_replace must be between 0 and 100
 
 ### Topology Generation Parameters
@@ -193,9 +195,6 @@ The most commonly used parameters for ColBuilder configuration:
 - `build_topology()`: Main entry point for topology generation
 - `build_amber99()`: Builds amber99 topology
 - `build_martini3()`: Builds martini3 topology
-- `cleanup_temporary_files()`: Cleans up temporary files
-- `setup_topology_directory()`: Creates topology directory
-- `organize_topology_files()`: Organizes output files
 
 **Output Files**:
 - `{species}_topology_files/`: Directory containing topology files
