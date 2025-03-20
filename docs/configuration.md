@@ -174,8 +174,10 @@ These parameters control advanced features for creating mixed crosslinked microf
 **Notes**:
 - The `mix_bool` feature allows creation of heterogeneous crosslinked microfibrils, which more closely resemble natural collagen.
 - The `ratio_mix` parameter specifies the proportion of each crosslink type in the mixed microfibril.
+- The `files_mix` parameter specifies the path to the PDB files of two collagen molecules, each with a different crosslink type.
 - The `replace_bool` feature simulates partial crosslinking by replacing some crosslinks with unmodified lysine residues.
 - The `ratio_replace` parameter controls what percentage of crosslinks should be replaced.
+- The `replace_file` parameter specifies the path to the PDB file of a previously generated collagen microfibril.
 
 ## Topology Generation Parameters
 
