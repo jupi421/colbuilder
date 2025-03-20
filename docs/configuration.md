@@ -119,14 +119,14 @@ These parameters control the sequence generation stage (homology modeling).
 
 **Available Crosslink Types**:
 - **DPD**: Deoxypyridinoline (trivalent crosslink)
-- **DPL**: Divalent crosslink containing a pyrrole structure
-- **HLKNL**: Hydroxylysino-5-ketonorleucine (immature crosslink)
-- **LKNL**: Lysino-5-ketonorleucine (immature crosslink)
+- **DPL**: Deoxypyrrololine (trivalent)
+- **HLKNL**: Hydroxylysino-5-ketonorleucine (divalent)
+- **LKNL**: Lysino-5-ketonorleucine (divalent)
 - **NOCROSS**: No crosslinking
-- **PYD**: Pyridinoline (trivalent crosslink)
-- **PYL**: Pyrrole (trivalent crosslink)
-- **deHHLNL**: Dehydro-hydroxylysino-norleucine
-- **deHLNL**: Dehydro-lysino-norleucine
+- **PYD**: Pyridinoline (trivalent)
+- **PYL**: Pyrrole (trivalent)
+- **deHHLNL**: Dehydro-hydroxylysino-norleucine (divalent)
+- **deHLNL**: Dehydro-lysino-norleucine Mein Standort
 - **Glucosepane**: Advanced glycation end-product crosslink (C-terminal only, specific species)
 
 **Residue Combination Examples for Homo Sapiens with HLKNL**:
