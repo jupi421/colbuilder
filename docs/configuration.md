@@ -264,11 +264,11 @@ Understanding how parameters interact is important for successful use of ColBuil
 
 2. **Crosslinking Dependencies**:
    - If `crosslink` is true, you must specify valid `n_term_type`, `c_term_type`, `n_term_combination`, and `c_term_combination` values.
-   - The crosslink type and residue combinations must be compatible with the chosen species. You can see a list of the implemented crosslinks here (add link).
+   - The crosslink type and residue combinations must be compatible with the chosen species.
 
 3. **Mixing and Replacement Dependencies**:
    - If `mix_bool` is true, you must provide valid files in `files_mix` and a proper ratio in `ratio_mix`.
-   - If `replace_bool` is true, you must specify a valid percentage in `ratio_replace`.
+   - If `replace_bool` is true, you must specify a valid percentage in `ratio_replace`. If you are not also generating a geometry (i.e., `generate_geometry` is false), you must also provide the path to a PDB file of a previously generated collagen fibril in `replace_file`.
 
 4. **Geometry Generation Dependencies**:
    - If `crystalcontacts_optimize` is true, the geometry generation will take longer but may produce better-packed microfibrils.
