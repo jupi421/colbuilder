@@ -14,22 +14,7 @@ data/
 │   ├── fasta_sequences/
 │   │   ├── ailuropodamelanoleuca.fasta
 │   │   ├── bostaurus.fasta
-│   │   ├── callithrixjacchus.fasta
-│   │   ├── canislupus.fasta
-│   │   ├── daniorerio.fasta
-│   │   ├── homosapiens.fasta
-│   │   ├── loxodontaafricana.fasta
-│   │   ├── musmusculus.fasta
-│   │   ├── mustelaputorius.fasta
-│   │   ├── myotislucifugus.fasta
-│   │   ├── oreochromisniloticus.fasta
-│   │   ├── oryziaslatipes.fasta
-│   │   ├── otolemurgarnettii.fasta
-│   │   ├── pantroglodytes.fasta
-│   │   ├── pelodiscussinensis.fasta
-│   │   ├── pongoabelii.fasta
-│   │   ├── rattusnorvegicus.fasta
-│   │   ├── tetraodonnigroviridis.fasta
+|   │   ├── ...
 │   │   └── xiphophorusmaculatus.fasta
 │   └── modeller/
 │       ├── par_mod.lib
@@ -47,36 +32,8 @@ data/
     │   └── modifications.ff
     ├── amber99sb-star-ildnp.ff/
     │   ├── aminoacids.arn
-    │   ├── aminoacids.c.tdb
-    │   ├── aminoacids.hdb
-    │   ├── aminoacids.n.tdb
-    │   ├── aminoacids.r2b
     │   ├── aminoacids.rtp
-    │   ├── aminoacids.vsd
-    │   ├── atomtypes.atp
-    │   ├── dna.arn
-    │   ├── dna.hdb
-    │   ├── dna.r2b
-    │   ├── dna.rtp
-    │   ├── ffbonded.itp
-    │   ├── ffnonbonded.itp
-    │   ├── forcefield.doc
-    │   ├── forcefield.itp
-    │   ├── gbsa.itp
-    │   ├── ions.itp
-    │   ├── residuetypes.dat
-    │   ├── rna.arn
-    │   ├── rna.hdb
-    │   ├── rna.r2b
-    │   ├── rna.rtp
-    │   ├── spce.itp
-    │   ├── spc.itp
-    │   ├── specbond.dat
-    │   ├── tip3p.itp
-    │   ├── tip4pew.itp
-    │   ├── tip4p.itp
-    │   ├── tip5p.itp
-    │   ├── urea.itp
+    │   ├── ...
     │   └── watermodels.dat
     ├── contactmap/
     │   ├── chemical_map.c
@@ -99,41 +56,15 @@ data/
     │   └── small_molecule_martini3.ff
     └── martini300C-mapping/
         ├── ace.amber99.map
-        ├── ala.amber99.map
-        ├── arg.amber99.map
-        ├── ash.amber99.map
-        ├── asn.amber99.map
-        ├── asp.amber99.map
-        ├── cla.amber99.map
-        ├── cys.amber99.map
-        ├── glh.amber99.map
-        ├── gln.amber99.map
-        ├── glu.amber99.map
-        ├── gly.amber99.map
-        ├── hid.amber99.map
-        ├── hie.amber99.map
-        ├── hip.amber99.map
-        ├── his.amber99.map
+        ├── ...
         ├── hyp.amber99.map
-        ├── ile.amber99.map
         ├── l4y.amber99.map
         ├── l5y.amber99.map
-        ├── leu.amber99.map
         ├── ly2.amber99.map
         ├── ly3.amber99.map
-        ├── lyn.amber99.map
-        ├── lys.amber99.map
         ├── lyx.amber99.map
-        ├── met.amber99.map
-        ├── modifications.amber99.mapping
         ├── nme.amber99.map
-        ├── phe.amber99.map
-        ├── pro.amber99.map
-        ├── ser.amber99.map
-        ├── thr.amber99.map
-        ├── trp.amber99.map
-        ├── tyr.amber99.map
-        └── val.amber99.map
+        └── modifications.amber99.mapping
 ```
 
 ## Data File Descriptions
@@ -142,12 +73,12 @@ data/
 
 The `topology/` directory contains force field files and utilities essential for the topology generation stage of ColBuilder:
 
-#### Core Utility Files
+#### Utility Files
 
 - `__init__.py`: Python package initialization file
 - `create_goVirt.py`: Script for generating Go-like potentials for Martini models
-- `modifications.mapping`: Mapping information for residue modifications
-- `selectors.py`: Python utilities for atom and residue selection
+- `modifications.mapping`: Mapping information for residue modifications in Martini models
+- `selectors.py`: Python utilities for atom and residue selection in Martini models
 
 #### `amber99/`
 
@@ -212,22 +143,7 @@ These libraries enable MODELLER to handle collagen-specific residues and crossli
 
 #### `fasta_sequences/` - Species-Specific Sequences
 
-Pre-defined collagen sequences for various species:
-
-**Mammals (Primates)**: 
-- homo_sapiens, pan_troglodytes, pongo_abelii, callithrix_jacchus, otolemur_garnettii
-
-**Mammals (Rodents)**: 
-- mus_musculus, rattus_norvegicus
-
-**Mammals (Other)**: 
-- bos_taurus, canis_lupus, ailuropoda_melanoleuca, mustela_putorius, myotis_lucifugus, loxodonta_africana
-
-**Fish**: 
-- danio_rerio, oreochromis_niloticus, oryzias_latipes, tetraodon_nigroviridis, xiphophorus_maculatus
-
-**Reptiles**: 
-- pelodiscus_sinensis
+Pre-defined collagen sequences for various species: homo_sapiens, pan_troglodytes, pongo_abelii, callithrix_jacchus, otolemur_garnettii, mus_musculus, rattus_norvegicus, bos_taurus, canis_lupus, ailuropoda_melanoleuca, mustela_putorius, myotis_lucifugus, loxodonta_africana, danio_rerio, oreochromis_niloticus, oryzias_latipes, tetraodon_nigroviridis, xiphophorus_maculatus, pelodiscus_sinensis
 
 #### Other Essential Files
 
@@ -257,10 +173,7 @@ This process creates a collagen triple helix with appropriate crosslinks for the
 
 ### 2. Geometry Generation Stage
 
-The geometry generation stage primarily uses the output from sequence generation rather than files in this directory. However, for certain operations it may use:
-
-- `contactmap/contact_map` tool for generating contact maps between residues in the collagen structure
-- utilities from `selectors.py` for atom selection and manipulation
+The geometry generation stage primarily uses the output from sequence generation rather than files in this directory.
 
 ### 3. Topology Generation Stage
 
@@ -272,6 +185,7 @@ During topology generation, ColBuilder uses:
   - `martini300C-ff/` directory for Martini 3.0 force field parameters
   - `martini300C-mapping/` directory for mapping atomistic structures to coarse-grained models
   - `create_goVirt.py` for generating Go-like potentials in coarse-grained models
+  - utilities from `selectors.py` for atom selection and manipulation
 
 ## Customizing Data Files
 
@@ -304,16 +218,6 @@ Advanced users may modify these files to extend ColBuilder's capabilities:
 2. For coarse-grained simulations, modify files in `martini300C-ff/`
 3. Create a new force field directory following the GROMACS naming convention
 
-### Modifying Contact Map Generation
-
-1. Modify the source files in `contactmap/` directory
-2. Recompile using the provided makefile:
-   ```bash
-   cd src/colbuilder/data/topology/contactmap
-   make clean
-   make
-   ```
-
 **Warning**: Modifications require expertise in structural biology, force field parameterization, and understanding of the ColBuilder pipeline. Always back up original files before making changes.
 
 ## File Formats
@@ -327,8 +231,6 @@ Advanced users may modify these files to extend ColBuilder's capabilities:
 ## Additional Resources
 
 - [MODELLER Documentation](https://salilab.org/modeller/manual/)
-- [GROMACS Force Field Documentation](https://manual.gromacs.org/current/reference-manual/topologies/force-field-documentation.html)
+- [GROMACS Force Field Documentation](https://manual.gromacs.org/current/reference-manual/topologies/force-field-organization.html)
 - [PDB File Format Specification](https://www.wwpdb.org/documentation/file-format-content/format33/v3.3.html)
-- [Martini 3 Force Field Documentation](http://cgmartini.nl/index.php/martini3beta)
-- [Collagen Structure and Biology](https://www.ncbi.nlm.nih.gov/books/NBK21582/)
-- [Collagen Crosslinking Review](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133009/)
+- [Martini 3 Force Field Documentation](http://cgmartini.nl)
