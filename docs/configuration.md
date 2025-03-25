@@ -17,7 +17,7 @@
 
 ColBuilder uses a YAML configuration file to control all aspects of the pipeline. This document provides a comprehensive reference for all available configuration parameters, their meanings, and how they interact with each other.
 
-## Configuration File Forma
+## Configuration File Format
 
 Configuration files for ColBuilder are written in YAML format. A basic configuration file might look like this:
 
