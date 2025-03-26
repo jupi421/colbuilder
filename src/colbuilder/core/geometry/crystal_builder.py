@@ -22,6 +22,7 @@ from ..utils.exceptions import GeometryGenerationError
 from ..utils.logger import setup_logger
 from ..utils.config import ColbuilderConfig
 from ..utils.dec import timeit
+from ..utils.files import FileManager
 
 from .crystal import Crystal
 from .system import System
@@ -42,9 +43,14 @@ class CrystalBuilder:
     crystal systems, including initialization, optimization, and file handling.
     """
     
-    def __init__(self):
+    def __init__(self, file_manager: Optional[FileManager] = None):
         """Initialize the crystal builder."""
         self.steps = 7
+        self.file_manager = file_manager
+    
+    def set_file_manager(self, file_manager: FileManager) -> None:
+        """Set the file manager for consistent file handling."""
+        self.file_manager = file_manager
 
     @timeit
     def matrixset_system(self, system: System, crystalcontacts_file: Union[str, Path]) -> System:
@@ -95,6 +101,9 @@ class CrystalBuilder:
         
     async def build(self, config: ColbuilderConfig) -> System:
         """Build a crystal system from configuration."""
+        if not self.file_manager:
+            self.file_manager = FileManager(config)
+            
         try:
             LOG.info(f"Step 1/{self.steps} Initializing crystal")
             crystal = await self._initialize_crystal(config)
@@ -111,7 +120,10 @@ class CrystalBuilder:
             LOG.info(f"Step 4/{self.steps} Generating system matrix")
             LOG.info(f'{Fore.BLUE}Please wait, this may take some time ...{Style.RESET_ALL}')
             
-            chimera = Chimera(config, str(Path(config.working_directory) / config.pdb_file))
+            pdb_path = Path(config.pdb_file).resolve() if config.pdb_file else None
+            chimera_scripts_dir = self.file_manager.find_file('chimera_scripts')
+            
+            chimera = Chimera(config, str(pdb_path))
             chimera.matrixset(
                 pdb=str(config.pdb_file),
                 crystalcontacts=crystalcontacts.crystalcontacts_file,
@@ -126,8 +138,8 @@ class CrystalBuilder:
             
             LOG.info(f"Step 6/{self.steps} Adding caps")
             model_type = system.get_model(model_id=0.0).type
-            rm_dir = os.path.join(config.working_directory, model_type)
-            os.makedirs(rm_dir, exist_ok=True)
+            
+            type_dir = self.file_manager.get_type_dir(model_type)
             
             has_crosslinks = self._needs_optimization(system)
             if has_crosslinks:
@@ -153,11 +165,11 @@ class CrystalBuilder:
                     caps.add_caps(pdb_id=pdb_id, crosslink_type="NC")
             
             LOG.info(f"Step 7/{self.steps} Writing final structure")
+            output_path = self.file_manager.get_output_path(config.output, ".pdb")
             system.write_pdb(
-                pdb_out=Path(config.output),
+                pdb_out=output_path,
                 fibril_length=config.fibril_length,
                 cleanup=False
-                # cleanup=not (config.topology_generator or config.replace_bool)
             )
             
             return system
@@ -184,12 +196,25 @@ class CrystalBuilder:
             GeometryGenerationError: If initialization fails
         """
         try:
-            pdb_path = config.pdb_file
+            if not config.pdb_file:
+                raise GeometryGenerationError(
+                    message="PDB file not specified",
+                    error_code="GEO_ERR_005",
+                    context={"config": config.model_dump()}
+                )
+                
+            pdb_path = Path(config.pdb_file).resolve()
+            if not pdb_path.exists():
+                raise GeometryGenerationError(
+                    message=f"PDB file not found: {pdb_path}",
+                    error_code="GEO_ERR_005"
+                )
+                
             pdb_str = str(pdb_path)
             if pdb_str.endswith('.pdb'):
                 pdb_str = pdb_str[:-4]
                 
-            original_pdb = Path(config.working_directory) / f"{pdb_str}_original.pdb"
+            original_pdb = self.file_manager.get_output_path(f"{os.path.basename(pdb_str)}_original", ".pdb")
             try:
                 shutil.copy(f"{pdb_str}.pdb", original_pdb)
             except (shutil.Error, IOError) as e:

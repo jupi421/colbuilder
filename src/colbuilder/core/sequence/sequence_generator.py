@@ -32,6 +32,7 @@ from colbuilder.core.sequence.mutate_crosslinks import apply_crosslinks
 from colbuilder.core.sequence.optimize_crosslinks import optimize_structure
 
 from colbuilder.core.utils.config import ColbuilderConfig
+from colbuilder.core.utils.files import FileManager
 from colbuilder.core.utils.exceptions import SequenceGenerationError, SystemError
 from colbuilder.core.utils.logger import setup_logger
 
@@ -54,7 +55,7 @@ class SequenceGenerator:
         _state (Dict[str, Any]): Current generation state
     """
     
-    def __init__(self, config: ColbuilderConfig):
+    def __init__(self, config: ColbuilderConfig, file_manager: Optional[FileManager] = None):
         """
         Initialize the structure from sequence generator.
         
@@ -62,6 +63,7 @@ class SequenceGenerator:
             config: Configuration object for structure generation
         """
         self.config = config
+        self.file_manager = file_manager or FileManager(config)
         self._temp_dir: Optional[Path] = None
         self._crosslinks: List[CrosslinkPair] = []
         self._state: Dict[str, Any] = {}
@@ -82,14 +84,7 @@ class SequenceGenerator:
                     context={"working_directory": str(working_dir)}
                 )
 
-            temp_dir = (
-                working_dir / "temp_working_dir"
-                if self.config.debug
-                else Path(tempfile.mkdtemp(dir=working_dir))
-            )
-            temp_dir = temp_dir.resolve()  
-            temp_dir.mkdir(exist_ok=True)
-            self._temp_dir = temp_dir
+            temp_dir = self.file_manager.get_temp_path("sequence_gen", create_dir=True)
             os.chdir(temp_dir)
 
             yield
@@ -126,8 +121,8 @@ class SequenceGenerator:
             LOG.info(f"Step 1/{self.steps} Performing sequence alignment")
             
             fasta_path = fasta_path.resolve()
-            template_fasta = Path(self.config.TEMPLATE_FASTA_PATH).resolve()
-            template_pdb = Path(self.config.TEMPLATE_PDB_PATH).resolve()
+            template_fasta = self.file_manager.find_file('sequence/template.fasta').resolve()
+            template_pdb = self.file_manager.find_file('sequence/template.pdb').resolve()
             
             file_prefix = fasta_path.stem
             LOG.debug(f"Template FASTA: {template_fasta}")
@@ -203,10 +198,10 @@ class SequenceGenerator:
             LOG.info(f"Step 2/{self.steps} Generating structure with MODELLER")
             
             modeller_output = modeller_output.resolve()
-            template_pdb = Path(self.config.TEMPLATE_PDB_PATH).resolve()
-            restyp_lib = Path(self.config.RESTYP_LIB_PATH).resolve()
-            top_heav_lib = Path(self.config.TOP_HEAV_LIB_PATH).resolve()
-            par_mod_lib = Path(self.config.PAR_MOD_LIB_PATH).resolve()
+            template_pdb = self.file_manager.find_file('sequence/template.pdb').resolve()
+            restyp_lib = self.file_manager.find_file('sequence/modeller/restyp_mod.lib').resolve()
+            top_heav_lib = self.file_manager.find_file('sequence/modeller/top_heav_mod.lib').resolve()
+            par_mod_lib = self.file_manager.find_file('sequence/modeller/par_mod.lib').resolve()
             
             LOG.debug(f"Using libraries:")
             LOG.debug(f"  Template PDB: {template_pdb}")
@@ -284,10 +279,10 @@ class SequenceGenerator:
                     )
                 
                 file_prefix = fasta_file.stem
-                fasta_copy = self._temp_dir / fasta_file.name
-                fasta_copy.write_bytes(fasta_file.read_bytes())
+                temp_fasta = Path.cwd() / fasta_file.name
+                shutil.copy2(fasta_file, temp_fasta)
                 
-                msa_output, modeller_output = await self._run_alignment(fasta_copy)
+                msa_output, modeller_output = await self._run_alignment(temp_fasta)
                 LOG.debug(f"Alignment complete - MSA: {msa_output}, Modeller: {modeller_output}")
                 
                 output_pdb = await self._run_modelling(modeller_output, file_prefix)
@@ -303,41 +298,8 @@ class SequenceGenerator:
                 
                 final_output = await self._finalize_output(output_pdb, file_prefix)
                 
-                final_msa = original_dir / msa_output.name
-                final_pdb = original_dir / final_output.name
-
-                msa_output = msa_output.resolve()
-                final_output = final_output.resolve()
-                
-                try:
-                    shutil.copy2(msa_output, final_msa)
-                    shutil.copy2(final_output, final_pdb)
-                    
-                    if not final_msa.exists():
-                        raise SequenceGenerationError(
-                            "Failed to copy MSA file to working directory",
-                            error_code="SEQ_ERR_004",
-                            context={"source": str(msa_output), "destination": str(final_msa)}
-                        )
-                    if not final_pdb.exists():
-                        raise SequenceGenerationError(
-                            "Failed to copy PDB file to working directory",
-                            error_code="SEQ_ERR_004",
-                            context={"source": str(final_output), "destination": str(final_pdb)}
-                        )
-                        
-                except Exception as e:
-                    LOG.error(f"Error copying output files: {e}")
-                    raise SequenceGenerationError(
-                        "Failed to copy output files",
-                        error_code="SEQ_ERR_004",
-                        context={
-                            "msa_source": str(msa_output),
-                            "pdb_source": str(final_output),
-                            "working_dir": str(original_dir),
-                            "error": str(e)
-                        }
-                    )
+                final_msa = self.file_manager.copy_to_output(msa_output)
+                final_pdb = self.file_manager.copy_to_output(final_output)
 
                 return final_msa, final_pdb
                 
@@ -462,9 +424,11 @@ class SequenceGenerator:
             return
             
         try:
-            crosslinks_df = pd.read_csv(self.config.CROSSLINKS_FILE)
+            crosslinks_file = self.file_manager.find_file('sequence/crosslinks.csv')
+            
+            crosslinks_df = pd.read_csv(crosslinks_file)
             species_crosslinks = crosslinks_df[crosslinks_df['species'] == self.config.species]
-                
+            
             if species_crosslinks.empty:
                 raise SequenceGenerationError(
                     f"No crosslinks found for species: {self.config.species}",
@@ -525,34 +489,29 @@ class SequenceGenerator:
                 file_prefix = f"{file_prefix}_{n_suffix}_{c_suffix}"
                 
             dis_output_name = f"{file_prefix}_disoriented.pdb"
-            dis_output_path = self._temp_dir / dis_output_name
-
-            if not self._temp_dir.exists():
-                self._temp_dir.mkdir(parents=True, exist_ok=True)
-            
-            working_dir = Path(self.config.working_directory)
-            if not working_dir.exists():
-                working_dir.mkdir(parents=True, exist_ok=True)
+            dis_output_path = Path.cwd() / dis_output_name
 
             shutil.copy2(input_pdb, dis_output_path)
             LOG.debug(f"Created disoriented output: {dis_output_path}")
 
             final_name = f"{file_prefix}.pdb"
-            working_dir_output = working_dir / final_name
+            final_output_path = Path.cwd() / final_name
 
             if self.config.crosslink and self._crosslinks:
                 LOG.info(f"Step 4/{self.steps} Optimizing crosslink positions")
+                chimera_scripts_dir = self.file_manager.find_file('chimera_scripts')
+                
                 optimizer = CrosslinkOptimizer(
                     crosslink_pairs=self._crosslinks,
-                    chimera_scripts_dir=Path(self.config.CHIMERA_SCRIPTS_DIR)
+                    chimera_scripts_dir=chimera_scripts_dir
                 )
                 
                 final_distance, final_output = await optimizer.optimize(
                     input_pdb=dis_output_path,
-                    output_pdb=working_dir_output
+                    output_pdb=final_output_path
                 )
                 
-                update_pdb_header(working_dir_output, str(self.config.pdb_first_line))
+                update_pdb_header(final_output_path, str(self.config.pdb_first_line))
                 
                 self._state.update({
                     'optimization_distance': final_distance,
@@ -561,24 +520,24 @@ class SequenceGenerator:
                 
             else:
                 LOG.info("No optimization needed, preparing final output")
-                shutil.copy2(dis_output_path, working_dir_output)
-                update_pdb_header(working_dir_output, str(self.config.pdb_first_line))
+                shutil.copy2(dis_output_path, final_output_path)
+                update_pdb_header(final_output_path, str(self.config.pdb_first_line))
             
             try:
-                if dis_output_path.exists():
+                if dis_output_path.exists() and not self.config.debug:
                     dis_output_path.unlink()
                     LOG.debug(f"Cleaned up temporary file: {dis_output_path}")
             except Exception as e:
                 LOG.warning(f"Failed to delete temporary file {dis_output_path}: {str(e)}")
 
-            if not working_dir_output.exists():
+            if not final_output_path.exists():
                 raise SequenceGenerationError(
                     "Final output file not created",
                     error_code="SEQ_ERR_004",
-                    context={"final_output": str(working_dir_output)}
+                    context={"final_output": str(final_output_path)}
                 )
             
-            return working_dir_output
+            return final_output_path
             
         except SequenceGenerationError:
             raise
@@ -591,7 +550,7 @@ class SequenceGenerator:
                     "input_pdb": str(input_pdb),
                     "file_prefix": file_prefix,
                     "state": self._state,
-                    "temp_dir": str(self._temp_dir),
+                    "current_dir": str(Path.cwd()),
                     "working_dir": str(self.config.working_directory)
                 }
             )

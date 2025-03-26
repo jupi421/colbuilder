@@ -263,6 +263,14 @@ class System:
             Whether to remove temporary directories after writing. Defaults to True.
         """
         pdb_out_path = Path(pdb_out)
+        
+        if not pdb_out_path.is_absolute():
+            pdb_out_path = Path.cwd() / pdb_out_path
+            
+        pdb_out_path.parent.mkdir(exist_ok=True, parents=True)
+        if pdb_out_path.suffix != '.pdb':
+            pdb_out_path = pdb_out_path.with_suffix('.pdb')
+            
         type_directories = set()
         
         # To keep track of atoms by key (will keep only the latest version)

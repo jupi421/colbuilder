@@ -1,15 +1,15 @@
 # Operation Mode
 mode: null
 config_file: null
-sequence_generator: false
-geometry_generator: false
+sequence_generator: true
+geometry_generator: true
 topology_generator: false
 debug: false
 
 working_directory: "./"
 
 # Input Configuration
-species: "rattus_norvegicus"  # Available options:
+species: "homo_sapiens"  # Available options:
                         # Mammals (Primates): homo_sapiens, pan_troglodytes, pongo_abelii, callithrix_jacchus, otolemur_garnettii
                         # Mammals (Rodents): mus_musculus, rattus_norvegicus
                         # Mammals (Other): bos_taurus, canis_lupus, ailuropoda_melanoleuca, mustela_putorius, myotis_lucifugus, loxodonta_africana
@@ -19,10 +19,10 @@ species: "rattus_norvegicus"  # Available options:
 # Sequence Settings
 fasta_file: null # Provide custom fasta file if not choosing an available species. If null, will be auto-generated based on species.
 crosslink: true
-n_term_type: "PYD"    # Options: "HLKNL", "NONE"
-c_term_type: "PYD"    # Options: "HLKNL", "NONE"
-n_term_combination: "9.C - 5.B - 944.B"
-c_term_combination: "1046.C - 1046.A - 103.C"
+n_term_type: "HLKNL"    # Options: "HLKNL", "NONE"
+c_term_type: "HLKNL"    # Options: "HLKNL", "NONE"
+n_term_combination: "9.C - 947.A"
+c_term_combination: "1047.C - 104.C"
 
 # Geometry Parameters
 pdb_file: null #rattusnorvegicus_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
@@ -34,11 +34,11 @@ crystalcontacts_optimize: false # Note: This is automatically true when generati
 
 
 # Mixing Options (for mixed crosslinked microfibril)
-mix_bool: true
-ratio_mix: "D:70 T:30"  # Format: "Type:percentage Type:percentage"
+mix_bool: false
+ratio_mix: "D:80 T:20"  # Format: "Type:percentage Type:percentage"
 files_mix:              # Required if mix_bool is true
-  - "rat-D.pdb"       # Divalent
-  - "rat-T.pdb"       # Trivalent
+  - "human-D.pdb"       # Divalent
+  - "human-T.pdb"       # Trivalent
 
 # Replacement Options (for less crosslinks)
 replace_bool: false  # Set to true to enable replacement of crosslinks

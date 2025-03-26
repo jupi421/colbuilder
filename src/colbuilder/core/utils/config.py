@@ -32,6 +32,31 @@ class OperationMode(Flag):
     MIX = auto()
     REPLACE = auto()
 
+def resolve_relative_paths(config: Dict[str, Any], base_dir: Path) -> Dict[str, Any]:
+    """Resolve relative paths in config to be absolute based on the given base directory."""
+    path_keys = ['working_directory', 'fasta_file', 'pdb_file', 'crystalcontacts_file', 
+                'connect_file', 'replace_file']
+    
+    result = config.copy()
+    for key in path_keys:
+        if key in result and result[key] is not None and not isinstance(result[key], bool):
+            path_str = str(result[key])
+            # Skip empty strings
+            if not path_str.strip():
+                continue
+                
+            path = Path(path_str)
+            if not path.is_absolute():
+                result[key] = str((base_dir / path).resolve())
+    
+    # Handle list of paths in files_mix
+    if 'files_mix' in result and result['files_mix']:
+        result['files_mix'] = [
+            str((base_dir / Path(file_path)).resolve()) if not Path(file_path).is_absolute() else file_path
+            for file_path in result['files_mix']
+        ]
+    
+    return result
 class ColbuilderConfig(BaseModel):
     """Main configuration class for the Colbuilder pipeline."""
     
@@ -134,11 +159,50 @@ class ColbuilderConfig(BaseModel):
     }
 
     def __init__(self, **data):
+        if 'working_directory' in data:
+            data['working_directory'] = Path(data['working_directory']).resolve()
+        else:
+            data['working_directory'] = Path.cwd().resolve()
+            
         super().__init__(**data)
         self.ratio_mix = self._convert_ratio_mix(self.ratio_mix)
         self.solution_space = self._convert_to_tuple(self.solution_space)
         self.files_mix = tuple(self.files_mix)
         self.set_mode()
+    
+    def get_project_data_path(self, relative_path: str) -> Path:
+        """
+        Get the path to a project data file, checking multiple locations.
+        
+        Args:
+            relative_path: Path relative to the data directory
+            
+        Returns:
+            Resolved path to the file
+        """
+        working_dir_path = self.working_directory / os.path.basename(relative_path)
+        if working_dir_path.exists():
+            return working_dir_path
+            
+        data_path = self.DATA_DIR / relative_path
+        if data_path.exists():
+            return data_path
+            
+        return data_path
+
+    def get_output_path(self, basename: str, suffix: Optional[str] = None) -> Path:
+        """
+        Get a path for an output file in the working directory.
+        
+        Args:
+            basename: Base name for the file
+            suffix: Optional suffix to add (e.g., file extension)
+            
+        Returns:
+            Path object for the output file
+        """
+        full_name = f"{basename}{suffix if suffix else ''}"
+        return self.working_directory / full_name
 
     def model_post_init(self, __context: Any) -> None:
         """Post initialization validation and processing."""
@@ -323,10 +387,26 @@ class ColbuilderConfig(BaseModel):
         
         for path in input_paths:
             if isinstance(path, Path) and path is not None and not path.exists():
-                raise ConfigurationError(
-                    f"Required input file or directory not found: {path}",
-                    error_code="CFG_ERR_002"
-                )
+                # Try to find the file in alternative locations
+                basename = os.path.basename(path)
+                alternate_paths = [
+                    self.working_directory / basename,  # Working directory
+                    Path.cwd() / basename,  # Current directory
+                    Path.cwd() / "data" / basename  # Current directory's data folder
+                ]
+                
+                found = False
+                for alt_path in alternate_paths:
+                    if alt_path.exists():
+                        LOG.warning(f"Required input found in alternate location: {alt_path}")
+                        found = True
+                        break
+                        
+                if not found:
+                    raise ConfigurationError(
+                        f"Required input file or directory not found: {path}",
+                        error_code="CFG_ERR_002"
+                    )
                 
         for path in optional_paths:
             if isinstance(path, Path) and path is not None and not path.exists():
@@ -350,8 +430,6 @@ class ColbuilderConfig(BaseModel):
                 "Invalid ratio mix format. Expected 'Type:percentage Type:percentage'",
                 error_code="CFG_ERR_004"
             )
-
-    # Replace the existing validation functions with these updated ones
 
     @model_validator(mode='after')
     def validate_mix_config(self) -> 'ColbuilderConfig':
@@ -501,7 +579,6 @@ class ColbuilderConfig(BaseModel):
     class Config:
         """Pydantic configuration."""
         use_enum_values = True
-
 
 def validate_input_files(config: ColbuilderConfig) -> None:
     """Validate input files if they are provided and required."""

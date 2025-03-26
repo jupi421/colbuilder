@@ -42,15 +42,18 @@ from . import VERSION
 
 from colbuilder.core.utils.logger import setup_logger
 from colbuilder.core.utils.dec import timeit
+from colbuilder.core.utils.files import FileManager
 from colbuilder.core.utils.config import (
     ColbuilderConfig, 
     get_config, 
     OperationMode, 
-    load_yaml_config
+    load_yaml_config,
+    resolve_relative_paths
 )
 from colbuilder.core.utils.exceptions import (
     ColbuilderError,
     ColbuilderErrorDetail,
+    ConfigurationError,
     SystemError,
     SequenceGenerationError,
     GeometryGenerationError,
@@ -129,10 +132,12 @@ class BuildContext:
         config: Configuration settings
         system: Current system state
         sequence_result: Result of sequence generation
+        file_manager: File management utility
     """
     config: ColbuilderConfig
     system: Optional[System] = None
     sequence_result: Optional[Tuple[Path, Path]] = None
+    file_manager: Optional[FileManager] = None
 
 def print_version(ctx: click.Context, param: click.Parameter, value: bool) -> None:
     """
@@ -427,6 +432,10 @@ async def run_topology_generation(ctx: BuildContext) -> None:
             )
             
         topology_module = await import_module('colbuilder.core.topology.main_topology')
+        
+        if ctx.file_manager and hasattr(topology_module, 'set_file_manager'):
+            topology_module.set_file_manager(ctx.file_manager)
+            
         ctx.system = await topology_module.build_topology(ctx.system, ctx.config)
         
     except ValueError as e:
@@ -471,6 +480,9 @@ async def run_operations(ctx: BuildContext) -> None:
         ColbuilderError: If any operation fails
         SystemError: If an unexpected error occurs
     """
+    if not ctx.file_manager:
+        ctx.file_manager = FileManager(ctx.config)
+        
     try:
         # Sequence Generation
         if OperationMode.SEQUENCE in ctx.config.mode:
@@ -542,10 +554,29 @@ def setup_configuration(kwargs: Dict[str, Any]) -> ColbuilderConfig:
     """
     config_data = kwargs.copy()
 
+    # Make sure we have an absolute path for working_directory
+    if 'working_directory' in config_data:
+        config_data['working_directory'] = Path(config_data['working_directory']).resolve()
+    else:
+        config_data['working_directory'] = Path.cwd().resolve()
+    
+    # If config_file is provided, resolve it relative to the current directory
     if config_data.get('config_file'):
-        user_config = load_yaml_config(config_data['config_file'])
+        config_file_path = Path(config_data['config_file']).resolve()
+        if not config_file_path.exists():
+            raise ConfigurationError(
+                f"Configuration file not found: {config_file_path}",
+                error_code="CFG_ERR_001"
+            )
+            
+        user_config = load_yaml_config(config_file_path)
+        
+        # Resolve any relative paths in the loaded config relative to the config file's directory
+        user_config = resolve_relative_paths(user_config, config_file_path.parent)
+        
         config_data.update(user_config)
 
+    # Convert ratio_mix tuple to dictionary if necessary
     if isinstance(config_data.get('ratio_mix'), tuple):
         config_data['ratio_mix'] = {
             item[0]: item[1] for item in config_data['ratio_mix'] 
@@ -664,19 +695,26 @@ def main(**kwargs: Any) -> None:
     try:
         LOG.section("Configuration Setup")
         config = setup_configuration(kwargs)
+        
+        file_manager = FileManager(config)
+        ctx = BuildContext(config=config, file_manager=file_manager)
+        
         log_configuration_summary(config)
 
-        ctx = BuildContext(config=config)
         asyncio.run(run_operations(ctx))
 
         end_time = time.time()
         LOG.section("Process Complete")
         if config.geometry_generator:
-            LOG.info(f"{Fore.BLUE}Final PDB fibril: {config.output}.pdb{Style.RESET_ALL}")
+            final_pdb = config.get_output_path(config.output, suffix=".pdb")
+            LOG.info(f"{Fore.BLUE}Final PDB fibril: {final_pdb}{Style.RESET_ALL}")
         LOG.info(
             f"{Fore.BLUE}Colbuilder process completed successfully "
             f"in {end_time - start_time:.2f} seconds.{Style.RESET_ALL}"
         )
+        
+        # if ctx.file_manager:
+        #     ctx.file_manager.cleanup()
 
     except ColbuilderError as e:
         e.log_error()
