@@ -265,99 +265,112 @@ class System:
         pdb_out_path = Path(pdb_out)
         type_directories = set()
         
-        processed_lines = set()
+        # To keep track of atoms by key (will keep only the latest version)
+        atom_lines = {}  # key -> line
+        other_lines = []  # Non-atom lines like TER
         duplicate_count = 0
+        processed_caps_count = 0
         
         try:
-            with open(pdb_out_path.with_suffix('.pdb'), 'w') as f:
-                crystal_pdb = self.crystal.pdb_file.with_suffix('.pdb')
-                if not crystal_pdb.exists():
-                    LOG.warning(f"Crystal PDB file not found: {crystal_pdb}")
+            # First, collect the header line from crystal PDB
+            crystal_header = None
+            crystal_pdb = self.crystal.pdb_file.with_suffix('.pdb')
+            if crystal_pdb.exists():
+                with open(crystal_pdb, 'r') as crystal_file:
+                    crystal_header = crystal_file.readline()
+            
+            for model in self.system.values():
+                model_type = model.type or "NC" 
+                type_directories.add(model_type)
+                
+                if model.connect is not None:
+                    if len(model.connect) != 1 or fibril_length <= 300:
+                        for connect in model.connect:
+                            caps_pdb = Path(model_type) / f"{int(connect)}.caps.pdb"
+                            
+                            if not caps_pdb.exists():
+                                LOG.warning(f"Caps PDB file not found: {caps_pdb}")
+                                continue
+                                
+                            # Always process the file, even if we've seen it before
+                            processed_caps_count += 1
+                            LOG.debug(f"Processing caps file ({processed_caps_count}): {caps_pdb}")
+                            
+                            try:
+                                with open(caps_pdb, 'r') as caps_file:
+                                    for line in caps_file:
+                                        if line.startswith(self.is_line) or line.startswith('TER'):
+                                            if line.startswith('HETATM'):
+                                                line = 'ATOM  ' + line[6:]
+                                                
+                                            # For atom lines, store with key for later deduplication
+                                            if line.startswith(('ATOM', 'HETATM')):
+                                                atom_key = line[12:16].strip() + line[22:27].strip() + line[30:54].strip()
+                                                if atom_key in atom_lines:
+                                                    duplicate_count += 1
+                                                atom_lines[atom_key] = line  # Always keep latest
+                                            # For TER lines, always add them
+                                            elif line.startswith('TER'):
+                                                other_lines.append(line)
+                            except Exception as e:
+                                LOG.error(f"Error reading caps PDB file {caps_pdb}: {str(e)}")
+                                continue
                 else:
-                    f.write(open(crystal_pdb).readline())
-                
-                processed_caps_files = set()
-                
-                for model in self.system.values():
-                    model_type = model.type or "NC" 
-                    type_directories.add(model_type)
+                    caps_pdb = Path(model_type) / f"{int(model.id)}.caps.pdb"
                     
-                    if model.connect is not None:
-                        if len(model.connect) != 1 or fibril_length <= 300:
-                            for connect in model.connect:
-                                caps_pdb = Path(model_type) / f"{int(connect)}.caps.pdb"
-                                
-                                caps_key = str(caps_pdb.resolve())
-                                if caps_key in processed_caps_files:
-                                    LOG.debug(f"Skipping already processed caps file: {caps_pdb}")
-                                    continue
+                    if not caps_pdb.exists():
+                        LOG.warning(f"Caps PDB file not found: {caps_pdb}")
+                        continue
+                    
+                    # Always process the file, even if we've seen it before
+                    processed_caps_count += 1
+                    LOG.debug(f"Processing caps file ({processed_caps_count}): {caps_pdb}")
+                    
+                    try:
+                        with open(caps_pdb, 'r') as model_file:
+                            for line in model_file:
+                                if line.startswith(self.is_line) or line.startswith('TER'):
+                                    if line.startswith('HETATM'):
+                                        line = 'ATOM  ' + line[6:]
                                     
-                                processed_caps_files.add(caps_key)
-                                
-                                if not caps_pdb.exists():
-                                    LOG.warning(f"Caps PDB file not found: {caps_pdb}")
-                                    continue
-                                    
-                                try:
-                                    with open(caps_pdb, 'r') as caps_file:
-                                        for line in caps_file:
-                                            if line.startswith(self.is_line) or line.startswith('TER'):
-                                                if line.startswith('HETATM'):
-                                                    line = 'ATOM  ' + line[6:]
-                                                    
-                                                if line.startswith(('ATOM', 'HETATM')):
-                                                    atom_key = line[12:16].strip() + line[22:27].strip() + line[30:54].strip()
-                                                    if atom_key in processed_lines:
-                                                        duplicate_count += 1
-                                                        continue
-                                                    processed_lines.add(atom_key)
-                                                    
-                                                f.write(line)
-                                except Exception as e:
-                                    LOG.error(f"Error reading caps PDB file {caps_pdb}: {str(e)}")
-                                    continue
-                    else:
-                        caps_pdb = Path(model_type) / f"{int(model.id)}.caps.pdb"
-                        
-                        caps_key = str(caps_pdb.resolve())
-                        if caps_key in processed_caps_files:
-                            LOG.debug(f"Skipping already processed caps file: {caps_pdb}")
-                            continue
-                            
-                        processed_caps_files.add(caps_key)
-                        
-                        if not caps_pdb.exists():
-                            LOG.warning(f"Caps PDB file not found: {caps_pdb}")
-                            continue
-                        try:
-                            with open(caps_pdb, 'r') as model_file:
-                                for line in model_file:
-                                    if line.startswith(self.is_line) or line.startswith('TER'):
-                                        if line.startswith('HETATM'):
-                                            line = 'ATOM  ' + line[6:]
-                                        
-                                        if line.startswith(('ATOM', 'HETATM')):
-                                            atom_key = line[12:16].strip() + line[22:27].strip() + line[30:54].strip()
-                                            if atom_key in processed_lines:
-                                                duplicate_count += 1
-                                                continue
-                                            processed_lines.add(atom_key)
-                                            
-                                        f.write(line)
-                        except Exception as e:
-                            LOG.error(f"Error reading caps PDB file {caps_pdb}: {str(e)}")
-                            continue
-                            
+                                    # For atom lines, store with key for later deduplication
+                                    if line.startswith(('ATOM', 'HETATM')):
+                                        atom_key = line[12:16].strip() + line[22:27].strip() + line[30:54].strip()
+                                        if atom_key in atom_lines:
+                                            duplicate_count += 1
+                                        atom_lines[atom_key] = line  # Always keep latest
+                                    # For TER lines, always add them
+                                    elif line.startswith('TER'):
+                                        other_lines.append(line)
+                    except Exception as e:
+                        LOG.error(f"Error reading caps PDB file {caps_pdb}: {str(e)}")
+                        continue
+            
+            # Now write the file with only the latest version of each atom
+            with open(pdb_out_path.with_suffix('.pdb'), 'w') as f:
+                # Write the crystal header first if available
+                if crystal_header:
+                    f.write(crystal_header)
+                
+                # Write all atom lines (the latest version of each)
+                for line in atom_lines.values():
+                    f.write(line)
+                
+                # Write all TER lines
+                for line in other_lines:
+                    f.write(line)
+                    
+                # Write the END marker
                 f.write("END")
                 
-                if duplicate_count > 0:
-                    LOG.warning(f"Removed {duplicate_count} duplicate atom entries when writing {pdb_out_path}")
-                    
-                if cleanup:
-                    LOG.debug("Cleaning up temporary type directories")
-                    for type_dir in type_directories:
-                        self.safe_remove_directory(type_dir)
+            if duplicate_count > 0:
+                LOG.info(f"Replaced {duplicate_count} duplicate atom entries with newer versions when writing {pdb_out_path}")
                 
+            if cleanup:
+                LOG.debug("Cleaning up temporary type directories")
+                for type_dir in type_directories:
+                    self.safe_remove_directory(type_dir)
+            
         except Exception as e:
             LOG.error(f"Error writing PDB file {pdb_out_path}: {str(e)}")
             raise

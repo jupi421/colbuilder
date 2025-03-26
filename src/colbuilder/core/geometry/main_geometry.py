@@ -26,7 +26,8 @@ LOG = setup_logger(__name__)
 
 # Standard temporary files and directories created during processing
 STANDARD_TEMP_FILES = {"replace.txt"}
-STANDARD_TEMP_DIRS = {"NC", "NCP", "D", "T"}
+STANDARD_TEMP_DIRS = {}
+# STANDARD_TEMP_DIRS = {"NC", "NCP", "D", "T"}
 
 def cleanup_temp_files(
     temp_files: Optional[Set[str]] = None, 
@@ -221,11 +222,11 @@ class GeometryService:
             
             # Don't let System.write_pdb clean up when replacement is enabled
             # to avoid conflicts with our own cleanup
-            cleanup = not self.config.replace_bool
+            # cleanup = not self.config.replace_bool
             system.write_pdb(
                 pdb_out=self.config.output, 
                 fibril_length=self.config.fibril_length,
-                cleanup=cleanup
+                cleanup=False
             )
         
         return system
@@ -274,9 +275,9 @@ class GeometryService:
                 error_code="GEO_ERR_001", 
                 context={"config": self.config.model_dump()}
             )
-        finally:
-            if not self.config.topology_generator:
-                self._cleanup()
+        # finally:
+        #     if not self.config.topology_generator:
+        #         self._cleanup()
 
 async def build_geometry(config: ColbuilderConfig) -> Optional[System]:
     """
@@ -373,7 +374,7 @@ async def replace_geometry(system: System, config: ColbuilderConfig) -> Optional
             
             return system
     finally:
-        cleanup_temp_files(temp_files, temp_dirs)
+        cleanup_temp_files(temp_files)
 
 def _is_pdb_file(file_path: str) -> bool:
     """

@@ -351,6 +351,8 @@ class ColbuilderConfig(BaseModel):
                 error_code="CFG_ERR_004"
             )
 
+    # Replace the existing validation functions with these updated ones
+
     @model_validator(mode='after')
     def validate_mix_config(self) -> 'ColbuilderConfig':
         """Validate mixing configuration."""
@@ -367,35 +369,23 @@ class ColbuilderConfig(BaseModel):
                 )
 
         if self.n_term_combination:
-            if not re.match(r'^\d+\.[A-C]\s*-\s*\d+\.[A-C]$', self.n_term_combination):
+            pattern = r'^\d+\.[A-Z]\s*-\s*\d+\.[A-Z](?:\s*-\s*\d+\.[A-Z])?$'
+            if not re.match(pattern, self.n_term_combination, re.IGNORECASE):
                 raise ConfigurationError(
                     f"Invalid N-terminal combination format: {self.n_term_combination}. "
-                    "Expected format: 'ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '9.C - 947.A')",
-                    error_code="CFG_ERR_006"
-                )
-    
-        if self.c_term_combination:
-            if not re.match(r'^\d+\.[A-C]\s*-\s*\d+\.[A-C]$', self.c_term_combination):
-                raise ConfigurationError(
-                    f"Invalid C-terminal combination format: {self.c_term_combination}. "
-                    "Expected format: 'number.Chain - number.Chain' (e.g., '1047.C - 104.C')",
+                    "Expected format: 'ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '9.C - 947.A') "
+                    "or 'ResidueNumber.Chain - ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '9.C - 5.B - 944.B')",
                     error_code="CFG_ERR_006"
                 )
 
-        if self.replace_bool:
-            if self.ratio_replace is None:
+        if self.c_term_combination:
+            # Updated pattern to match both bivalent and trivalent formats
+            pattern = r'^\d+\.[A-Z]\s*-\s*\d+\.[A-Z](?:\s*-\s*\d+\.[A-Z])?$'
+            if not re.match(pattern, self.c_term_combination, re.IGNORECASE):
                 raise ConfigurationError(
-                    "ratio_replace must be specified when replace_bool is True",
-                    error_code="CFG_ERR_006"
-                )
-            if not isinstance(self.ratio_replace, (int, float)):
-                raise ConfigurationError(
-                    "ratio_replace must be a numeric value",
-                    error_code="CFG_ERR_006"
-                )
-            if self.ratio_replace < 0 or self.ratio_replace > 100:
-                raise ConfigurationError(
-                    f"ratio_replace must be between 0 and 100, got {self.ratio_replace}",
+                    f"Invalid C-terminal combination format: {self.c_term_combination}. "
+                    "Expected format: 'ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '1047.C - 104.C') "
+                    "or 'ResidueNumber.Chain - ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '1047.C - 5.B - 104.C')",
                     error_code="CFG_ERR_006"
                 )
 
