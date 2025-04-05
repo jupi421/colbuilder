@@ -1,19 +1,50 @@
 """
-Colbuilder Error Codes Module
+ColBuilder Error Codes Module
 
-This module defines all error codes and their associated information for the
-Colbuilder system. Each error type includes:
-- A unique code
-- A descriptive message
-- A list of suggestions for resolution
-- Optional documentation URL
+This module defines a centralized repository of error codes and their associated information 
+for the ColBuilder system. Each error code is categorized and includes a descriptive message, 
+suggestions for resolution, and optional links to documentation. This structured approach 
+enables consistent error handling, debugging, and user guidance throughout the pipeline.
 
-Error categories:
-- System (SYS): System-level errors
-- Configuration (CFG): Configuration and setup errors
-- Sequence (SEQ): Sequence generation errors
-- Geometry (GEO): Geometry generation errors
-- Topology (TOP): Topology generation errors
+Key Features:
+--------------
+1. **Error Code Structure**:
+   - Each error is represented by a unique code (e.g., `SYS_ERR_001`).
+   - Includes a human-readable message describing the error.
+   - Provides actionable suggestions to resolve the issue.
+   - Optionally links to relevant documentation for further guidance.
+
+2. **Error Categories**:
+   - **System (SYS)**: System-level errors (e.g., resource issues, dependency failures).
+   - **Configuration (CFG)**: Errors related to configuration and setup.
+   - **Sequence (SEQ)**: Errors during sequence generation and processing.
+   - **Geometry (GEO)**: Errors during geometry generation and manipulation.
+   - **Topology (TOP)**: Errors related to topology generation and force fields.
+
+3. **Error Information**:
+   - Encapsulated in the `ErrorInfo` named tuple, which includes:
+     - `code`: Unique error identifier.
+     - `message`: Description of the error.
+     - `suggestions`: List of potential solutions.
+     - `docs_url`: Optional link to relevant documentation.
+
+Usage:
+------
+This module is used throughout the ColBuilder pipeline to provide consistent error handling 
+and user feedback. Errors can be referenced by their unique codes and include detailed 
+information for debugging and resolution.
+
+Example:
+--------
+```python
+from colbuilder.core.utils.error_codes import SYSTEM_ERRORS, ErrorInfo
+
+# Access a specific error
+error = SYSTEM_ERRORS["SYS_ERR_001"]
+print(f"Error Code: {error.code}")
+print(f"Message: {error.message}")
+print(f"Suggestions: {', '.join(error.suggestions)}")
+```
 """
 
 from typing import Dict, List, NamedTuple, Optional

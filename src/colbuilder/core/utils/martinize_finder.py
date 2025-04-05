@@ -1,3 +1,54 @@
+"""
+This module provides utilities for managing and integrating the Martinize2 tool and custom force fields 
+into the ColBuilder pipeline. It includes functionality for locating the Martinize2 executable, 
+installing custom force fields and mappings, and constructing Conda-based commands for execution.
+
+Key Features:
+--------------
+1. **Conda Environment Detection**:
+   - Identify the active Conda environment and retrieve its name and path.
+   - Support for environments with Martinize2 installed.
+
+2. **Martinize2 Executable Finder**:
+   - Locate the Martinize2 executable in the system PATH or active Conda environment.
+   - Provide fallback to Conda-based execution if the executable is not directly found.
+
+3. **Custom Force Field Installation**:
+   - Install custom force fields (e.g., amber99, martini300C) and mappings into Vermouth's directories.
+   - Handle non-standard files like `modifications.mapping` and `selectors.py`.
+
+4. **Conda Command Construction**:
+   - Generate Conda-based commands for running Martinize2 with the active environment.
+
+Usage:
+------
+This module is designed to be used as part of the ColBuilder pipeline to integrate Martinize2 and 
+custom force fields. It can also be used independently to manage Martinize2-related configurations.
+
+Example:
+--------
+```python
+from colbuilder.core.utils.martinize_finder import (
+    find_martinize2_executable,
+    find_and_install_custom_force_field,
+    get_conda_command_with_path
+)
+
+# Find Martinize2 executable
+executable, use_conda, conda_env = find_martinize2_executable()
+print(f"Executable: {executable}, Use Conda: {use_conda}, Conda Env: {conda_env}")
+
+# Install custom force fields
+source_dir = "/path/to/force_fields"
+success = find_and_install_custom_force_field(source_dir)
+print(f"Force field installation successful: {success}")
+
+# Construct Conda command
+command = get_conda_command_with_path("martinize2", "-f input.pdb -o output.itp")
+print(f"Conda command: {command}")
+```
+"""
+
 # Copyright (c) 2024, Colbuilder Development Team
 # Distributed under the terms of the Apache License 2.0
 
@@ -7,12 +58,11 @@ import subprocess
 import shutil
 from pathlib import Path
 import json
-from typing import Tuple, Optional, Dict, List, Union
+from typing import Tuple, Optional, Union
 
 from colbuilder.core.utils.logger import setup_logger
 
 LOG = setup_logger(__name__)
-
 
 def get_active_conda_env() -> Tuple[Optional[str], Optional[str]]:
     """
@@ -178,7 +228,6 @@ def find_martinize2_executable() -> Tuple[str, bool, Optional[str]]:
     
     LOG.warning("Could not find martinize2. Defaulting to conda run with base environment")
     return "martinize2", True, "base"
-
 
 def get_conda_command_with_path(command: str, args: str) -> str:
     """

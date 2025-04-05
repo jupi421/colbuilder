@@ -1,4 +1,61 @@
-# sequence_generator.py
+"""
+This module provides tools for generating collagen structures from input sequences.
+
+The `SequenceGenerator` class orchestrates the entire process of generating collagen structures, 
+including sequence alignment, structure modeling, crosslink application and optimization.
+
+Key Features:
+--------------
+1. **Sequence Alignment**:
+   - Align input sequences with template sequences using MUSCLE.
+   - Generate multiple sequence alignments (MSA) and prepare input for structure modeling.
+
+2. **Structure Modeling**:
+   - Use MODELLER to generate 3D structures from aligned sequences.
+   - Validate and handle required input files for modeling.
+
+3. **Crosslink Application**:
+   - Apply crosslinks to the generated structure based on user-defined configurations.
+   - Support for N-terminal and C-terminal crosslinks with flexible residue and atom specifications.
+
+4. **Crosslink Optimization**:
+   - Optimize crosslink positions using Monte Carlo method and Chimera scripts.
+   - Minimize distances between crosslinked residues to satisfy geometric constraints.
+
+Usage:
+------
+This module is designed to be used as part of a pipeline for generating collagen structures. 
+The main entry point is the `generate` method of the `SequenceGenerator` class, which performs 
+all steps in sequence and outputs the final structure.
+
+Example:
+--------
+```python
+from colbuilder.core.sequence.sequence_generator import SequenceGenerator
+from colbuilder.core.utils.config import ColbuilderConfig
+
+# Load configuration
+config = ColbuilderConfig(
+    working_directory="/path/to/working_dir",
+    fasta_file="/path/to/input.fasta",
+    crosslink=True,
+    debug=False
+)
+
+# Initialize the sequence generator
+generator = SequenceGenerator(config)
+
+# Generate the structure
+final_msa, final_pdb = await generator.generate()
+
+print(f"Final MSA file: {final_msa}")
+print(f"Final PDB file: {final_pdb}")
+```
+"""
+
+# Copyright (c) 2024, ColBuilder Development Team
+# Distributed under the terms of the Apache License 2.0
+
 import asyncio
 import os
 import tempfile
@@ -29,7 +86,6 @@ from colbuilder.core.utils.files import (
 from colbuilder.core.sequence.alignment import align_sequences
 from colbuilder.core.sequence.modeller import run_modeller
 from colbuilder.core.sequence.mutate_crosslinks import apply_crosslinks
-from colbuilder.core.sequence.optimize_crosslinks import optimize_structure
 
 from colbuilder.core.utils.config import ColbuilderConfig
 from colbuilder.core.utils.files import FileManager
@@ -293,8 +349,6 @@ class SequenceGenerator:
                     with suppress_output():
                         output_pdb = await self._apply_crosslinks(output_pdb, file_prefix)
                         LOG.debug(f"Crosslinks applied - Output: {output_pdb}")
-                
-                #update_pdb_header(output_pdb, str(self.config.pdb_first_line))
                 
                 final_output = await self._finalize_output(output_pdb, file_prefix)
                 

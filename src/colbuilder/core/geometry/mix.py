@@ -11,15 +11,37 @@ LOG = setup_logger(__name__)
 
 class Mix:
     """
-    A class to handle mixing of different components in a system.
+    Manages the mixing and type assignment of components in a collagen system.
 
-    This class provides functionality to manage ratios of different components,
-    assign types to models based on these ratios, and handle connections between models.
+    This class handles:
+    - Assignment of crosslink types according to specified ratios
+    - Preservation of spatial relationships between models
+    - Management of connected components
+    - Type distribution based on component connectivity
 
-    Attributes:
-        ratio_mix (Dict[str, int]): A dictionary of component names and their ratios.
-        system (Any): The system object containing models.
-        connect_mix (Dict[float, str]): A dictionary mapping model IDs to their types.
+    Attributes
+    ----------
+    ratio_mix : Dict[str, int]
+        Mapping of component types to their ratios (e.g., {"D": 80, "T": 20})
+    system : Any
+        System object containing models to be mixed
+    connect_mix : Dict[float, str]
+        Mapping of model IDs to their assigned types
+
+    Methods
+    -------
+    add_mix(ratio_mix, system)
+        Assigns types to models according to ratios while preserving connectivity
+    get_mix(ratio_mix)
+        Returns a random component type based on ratios
+    get_mix_from_connect_file(system, connect_file)
+        Assigns types based on a connect file specification
+
+    Example
+    -------
+    >>> mixer = Mix(ratio_mix={"D": 80, "T": 20})
+    >>> mixer.add_mix(system=collagen_system)
+    >>> assigned_system = mixer.get_mix_from_connect_file("connects.txt")
     """
 
     def __init__(self, ratio_mix: Optional[Dict[str, int]] = None, system: Optional[Any] = None, connect_mix: Optional[Dict[float, str]] = None):
@@ -36,59 +58,154 @@ class Mix:
         self.connect_mix: Dict[float, str] = connect_mix or {}
     
     def add_mix(self, ratio_mix: Optional[Dict[str, int]] = None, system: Optional[Any] = None) -> Any:
-        """Add or update the mix ratio and system."""
+        """
+        Add or update the mix ratio and system.
+        
+        This method assigns crosslink types to models in the system according to the ratio mix,
+        while preserving spatial relationships and connections between models.
+        
+        Args:
+            ratio_mix: Optional dictionary of crosslink types and their ratios
+            system: Optional system to update
+            
+        Returns:
+            The updated system with crosslink types assigned
+        """
         if ratio_mix:
             self.ratio_mix = ratio_mix
         if system:
             self.system = system
 
-        # Get all models with connections
-        models_to_process = []
-        for idx in self.system.get_models():
-            model = self.system.get_model(model_id=idx)
-            if model.connect is not None:
-                models_to_process.append(model)
+        if not self.system or not self.ratio_mix:
+            raise ValueError("Both system and ratio_mix must be initialized")
 
-        # Calculate numbers of each type needed
-        total_models = len(models_to_process)
-        type_counts = {k: int((v/100.0) * total_models) for k, v in self.ratio_mix.items()}
+        if isinstance(self.ratio_mix, str):
+            ratio_dict = {}
+            for part in self.ratio_mix.split():
+                if ':' in part:
+                    key, value = part.split(':')
+                    try:
+                        ratio_dict[key] = int(value)
+                    except ValueError:
+                        LOG.error(f"Invalid ratio value in {part}")
+                        ratio_dict[key] = 0
+            self.ratio_mix = ratio_dict
+            LOG.debug(f"Converted ratio_mix from string: {self.ratio_mix}")
+
+        total_models = self.system.get_size()
+        LOG.debug(f"Total models in system: {total_models}")
         
-        LOG.debug(f"Total models: {total_models}")
-        LOG.debug(f"Type counts needed: {type_counts}")
-
-        # Process models in connected groups
-        processed = set()
-        for model in models_to_process:
-            if model.id in processed:
+        model_ids = list(self.system.get_models())
+        
+        total_ratio = sum(self.ratio_mix.values())
+        type_counts = {}
+        remaining = total_models
+        
+        for type_name, ratio in sorted(self.ratio_mix.items(), key=lambda x: x[1], reverse=True):
+            count = max(1, int((ratio / total_ratio) * total_models))
+            type_counts[type_name] = count
+            remaining -= count
+        
+        if remaining > 0:
+            for type_name in sorted(type_counts.keys(), key=lambda x: self.ratio_mix[x], reverse=True):
+                type_counts[type_name] += 1
+                remaining -= 1
+                if remaining == 0:
+                    break
+        
+        LOG.info(f"     Type distribution: {type_counts}")
+        
+        connected_components = []
+        visited = set()
+        
+        for model_id in model_ids:
+            if model_id in visited:
                 continue
-
-            # Get all connected models
-            connected_group = {model.id}
-            to_check = list(model.connect) if model.connect else []
-            while to_check:
-                current = to_check.pop(0)
-                if current not in connected_group:
-                    connected_group.add(current)
-                    current_model = self.system.get_model(model_id=current)
-                    if current_model.connect:
-                        to_check.extend(c for c in current_model.connect if c not in connected_group)
-
-            # Choose type for this group based on available counts
-            available_types = [t for t, c in type_counts.items() if c > 0]
-            if available_types:
-                chosen_type = max(available_types, key=lambda t: type_counts[t])
-                type_counts[chosen_type] -= len(connected_group)
+                
+            component = set()
+            queue = [model_id]
+            
+            while queue:
+                current_id = queue.pop(0)
+                if current_id in component:
+                    continue
+                    
+                component.add(current_id)
+                visited.add(current_id)
+                
+                current_model = self.system.get_model(model_id=current_id)
+                if hasattr(current_model, 'connect') and current_model.connect:
+                    for connect_id in current_model.connect:
+                        if connect_id not in component and connect_id in model_ids:
+                            queue.append(connect_id)
+            
+            if component:
+                connected_components.append(component)
+        
+        LOG.debug(f"Found {len(connected_components)} connected components")
+        
+        connected_components.sort(key=len, reverse=True)
+        
+        type_assignments = {t: 0 for t in type_counts.keys()}
+        assigned_types = {}
+        
+        for component in connected_components:
+            available_types = [t for t in type_counts.keys() if type_assignments[t] < type_counts[t]]
+            
+            if not available_types:
+                chosen_type = max(self.ratio_mix.keys(), key=lambda t: self.ratio_mix[t])
             else:
-                # If we've used all counts, distribute remaining evenly
-                chosen_type = np.random.choice(list(self.ratio_mix.keys()))
-
-            # Assign type to all models in group
-            for model_id in connected_group:
-                self.system.get_model(model_id=model_id).type = chosen_type
-                processed.add(model_id)
-
-            LOG.debug(f"Assigned type {chosen_type} to group of {len(connected_group)} models")
-
+                percentages = {
+                    t: type_assignments[t] / type_counts[t]
+                    for t in available_types
+                }
+                
+                chosen_type = min(percentages.keys(), key=lambda t: percentages[t])
+            
+            for model_id in component:
+                assigned_types[model_id] = chosen_type
+            
+            type_assignments[chosen_type] += len(component)
+            
+            if len(component) > 5:
+                LOG.debug(f"Assigned type {chosen_type} to large component with {len(component)} models")
+        
+        # Apply the assigned types to each model
+        for model_id in model_ids:
+            if model_id in assigned_types:
+                model = self.system.get_model(model_id=model_id)
+                model_type = assigned_types[model_id]
+                
+                # Set the type attribute
+                model.type = model_type
+                
+                # Store the type information in a way the System.write_pdb can use
+                model.crosslink_type = model_type
+                
+                LOG.debug(f"Assigned type {model.type} to model {model_id}")
+                
+                # Set the type for connected models too
+                if hasattr(model, 'connect') and model.connect:
+                    for connect_id in model.connect:
+                        try:
+                            connected_model = self.system.get_model(model_id=connect_id)
+                            connected_model.type = model_type
+                            connected_model.crosslink_type = model_type
+                            LOG.debug(f"  - Also set type {model_type} for connected model {connect_id}")
+                        except Exception as e:
+                            LOG.warning(f"  - Could not set type for connected model {connect_id}: {e}")
+            else:
+                LOG.warning(f"Model {model_id} was not assigned a type")
+        
+        # Log the final type distribution
+        actual_distribution = {}
+        for model_id in model_ids:
+            model = self.system.get_model(model_id=model_id)
+            if hasattr(model, 'type'):
+                actual_distribution[model.type] = actual_distribution.get(model.type, 0) + 1
+        
+        LOG.info(f"     Final type distribution: {actual_distribution}")
+        
         return self.system
 
     def get_mix(self, ratio_mix: Optional[List[int]] = None) -> str:
@@ -103,6 +220,7 @@ class Mix:
         """
         if ratio_mix is None:
             ratio_mix = list(self.ratio_mix.values())
+            
         return np.random.choice(list(self.ratio_mix.keys()), p=[i/100 for i in ratio_mix])
 
     def get_mix_from_connect_file(self, system: Optional[Any] = None, connect_file: Optional[str] = None) -> Any:
@@ -119,6 +237,7 @@ class Mix:
         if system:
             self.system = system
         self.connect_mix = self.get_connect_mix(connect_file=connect_file)
+        
         for model_id in self.system.get_models():
             model = self.system.get_model(model_id=model_id)
             if model.connect is not None and len(model.connect) > 1:

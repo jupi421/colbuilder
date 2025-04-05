@@ -1,21 +1,58 @@
 """
 This module provides functionality to apply crosslinks to protein structures using MODELLER®.
 
-MODELLER® is a trademark of the Regents of the University of California.
-It was developed by Andrej Sali and colleagues at the University of California, San Francisco.
-For more information about MODELLER, please visit: https://salilab.org/modeller/
+MODELLER® is a trademark of the Regents of the University of California, developed by Andrej Sali 
+and colleagues at the University of California, San Francisco. For more information, visit: 
+https://salilab.org/modeller/
 
-This module is designed to facilitate the use of MODELLER within the Colbuilder project,
-but it is not affiliated with or endorsed by the MODELLER developers or the University of California.
+Key Features:
+--------------
+1. **Crosslink Application**:
+   - Apply N-terminal and C-terminal crosslinks to collagen structures.
+   - Support for flexible residue and atom specifications.
 
-When using this module, please ensure you comply with MODELLER's license terms and provide
-appropriate attribution in your work.
+2. **Residue Renaming**:
+   - Rename residues in PDB files to reflect applied crosslinks.
+
+3. **Integration with MODELLER**:
+   - Use MODELLER's patching functionality to apply crosslinks.
+   - Handle topology and parameter libraries for crosslink modeling.
+
+Usage:
+------
+This module is designed to be used as part of a pipeline for modeling crosslinked collagen structures. 
+The main entry point is the `apply_crosslinks` function, which takes input PDB files, crosslink 
+information, and configuration settings to generate a crosslinked structure.
+
+Example:
+--------
+```python
+from colbuilder.core.sequence.mutate_crosslinks import apply_crosslinks
+from colbuilder.core.utils.config import ColbuilderConfig
+import pandas as pd
+
+# Define input files and crosslink information
+input_pdb = "input_structure.pdb"
+output_pdb = "output_structure.pdb"
+n_crosslink = pd.Series({"R1": "L5Y", "P1": "9.A"})
+c_crosslink = pd.Series({"R1": "L4Y", "P1": "947.C"})
+
+# Load configuration
+config = ColbuilderConfig(
+    RESTYP_LIB_PATH="/path/to/restyp.lib",
+    TOP_HEAV_LIB_PATH="/path/to/top_heav.lib",
+    PAR_MOD_LIB_PATH="/path/to/par.lib"
+)
+
+# Apply crosslinks
+output_pdb = apply_crosslinks(input_pdb, output_pdb, n_crosslink, c_crosslink, config)
+print(f"Crosslinked structure saved to: {output_pdb}")
+```
 """
 
-# Copyright (c) 2024, Colbuilder Development Team
+# Copyright (c) 2024, ColBuilder Development Team
 # Distributed under the terms of the Apache License 2.0
 
-import os
 from typing import Optional, List, Tuple
 import pandas as pd
 from modeller import Environ

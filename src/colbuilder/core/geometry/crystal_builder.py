@@ -70,13 +70,11 @@ class CrystalBuilder:
         """
         LOG.debug(f"Setting system after cutting fibril. crystalcontacts_file type: {type(crystalcontacts_file)}")
         crystalcontacts_file = Path(crystalcontacts_file)
-        LOG.debug(f"crystalcontacts_file after conversion: {crystalcontacts_file}")
         
-        if crystalcontacts_file.suffix == '.txt':
+        if (crystalcontacts_file.suffix == '.txt'):
             crystalcontacts_file = crystalcontacts_file.with_suffix('') 
             
         id_file = crystalcontacts_file.with_name(f"{crystalcontacts_file.name}_id.txt")
-        LOG.debug(f"id_file: {id_file}")
         
         if not id_file.exists():
             raise FileNotFoundError(f"Crystal contacts ID file not found: {id_file}")
@@ -98,7 +96,7 @@ class CrystalBuilder:
         
         LOG.debug("System set after cutting")    
         return system
-        
+    
     async def build(self, config: ColbuilderConfig) -> System:
         """Build a crystal system from configuration."""
         if not self.file_manager:
@@ -121,60 +119,81 @@ class CrystalBuilder:
             LOG.info(f'{Fore.BLUE}Please wait, this may take some time ...{Style.RESET_ALL}')
             
             pdb_path = Path(config.pdb_file).resolve() if config.pdb_file else None
-            chimera_scripts_dir = self.file_manager.find_file('chimera_scripts')
+            
+            try:
+                chimera_scripts_dir = self.file_manager.find_file('chimera_scripts')
+                LOG.debug(f"Found chimera scripts at: {chimera_scripts_dir}")
+            except FileNotFoundError:
+                chimera_scripts_dir = self.file_manager.ensure_dir("chimera_scripts")
+                LOG.warning(f"Chimera scripts directory not found, created at: {chimera_scripts_dir}")
             
             chimera = Chimera(config, str(pdb_path))
             chimera.matrixset(
-                pdb=str(config.pdb_file),
+                pdb=str(pdb_path),
                 crystalcontacts=crystalcontacts.crystalcontacts_file,
                 system_size=system.get_size(),
                 fibril_length=config.fibril_length
             )
             
             system = self.matrixset_system(system=system, crystalcontacts_file=crystalcontacts.crystalcontacts_file)
-           
-            LOG.info(f"Step 5/{self.steps} Writing {connect.connect_file}")
+        
+            LOG.info(f"Step 5/{self.steps} Writing models' connectivity")
             connect.write_connect(system=system, connect_file=connect.connect_file)
             
+            # In the CrystalBuilder.build method, replace the duplicate Step 6 sections with this clean version
             LOG.info(f"Step 6/{self.steps} Adding caps")
             model_type = system.get_model(model_id=0.0).type
-            
-            type_dir = self.file_manager.get_type_dir(model_type)
-            
+            LOG.debug(f"Model type: {model_type}")
+
+            # Create a temporary directory for caps
+            temp_dir = self.file_manager.get_temp_path("geometry_gen", create_dir=True)
+            LOG.debug(f"Using temporary directory for caps: {temp_dir}")
+
             has_crosslinks = self._needs_optimization(system)
             if has_crosslinks:
+                LOG.debug(f"System has crosslinks, using crosslink capping")
                 caps = Caps(system=system)
                 for idx in system.get_models():
                     pdb_id = int(idx)
                     pdb_file = f"{pdb_id}.pdb"
-                    if not os.path.exists(pdb_file):
+                    pdb_path = Path(pdb_file)
+                    
+                    if not pdb_path.exists():
                         LOG.warning(f"PDB file {pdb_file} not found. Model IDs: {list(system.get_models())}")
                         continue
+                        
                     caps.read_residues(pdb_id=pdb_id)
-                    caps.add_caps(pdb_id=pdb_id, crosslink_type=model_type)
+                    caps.add_caps(pdb_id=pdb_id, crosslink_type=model_type, temp_dir=temp_dir)
             else:
                 LOG.debug("System has no crosslinks, using standard capping")
                 caps = Caps(system=system)
                 for idx in system.get_models():
                     pdb_id = int(idx)
                     pdb_file = f"{pdb_id}.pdb"
-                    if not os.path.exists(pdb_file):
+                    pdb_path = Path(pdb_file)
+                    
+                    if not pdb_path.exists():
                         LOG.warning(f"PDB file {pdb_file} not found. Model IDs: {list(system.get_models())}")
                         continue
+                        
                     caps.read_residues(pdb_id=pdb_id)
-                    caps.add_caps(pdb_id=pdb_id, crosslink_type="NC")
-            
+                    caps.add_caps(pdb_id=pdb_id, crosslink_type="NC", temp_dir=temp_dir)
+
             LOG.info(f"Step 7/{self.steps} Writing final structure")
             output_path = self.file_manager.get_output_path(config.output, ".pdb")
+            LOG.debug(f"Writing final structure to: {output_path}")
+
             system.write_pdb(
                 pdb_out=output_path,
                 fibril_length=config.fibril_length,
-                cleanup=False
+                cleanup=False,
+                temp_dir=temp_dir  # Pass the temp directory to write_pdb
             )
             
             return system
             
         except Exception as e:
+            LOG.error(f"Failed to build crystal system: {str(e)}", exc_info=True)
             raise GeometryGenerationError(
                 message="Failed to build crystal system",
                 original_error=e,
@@ -278,34 +297,67 @@ class CrystalBuilder:
                     if config.crystalcontacts_file else None
                 }
             )
-
+    
     async def _build_from_contact_distance(
         self,
         crystal: Crystal,
         config: ColbuilderConfig
     ) -> Tuple[System, CrystalContacts, Connect]:
-        """
-        Build system using contact distance method.
-        """
         try:
-            pdb_path = Path(config.working_directory) / config.pdb_file
-            
-            chimera = Chimera(config, str(pdb_path))
-            crystalcontacts_file = 'crystalcontacts_from_colbuilder'
-            connect_file = 'connect_from_colbuilder'
-            
+            if not self.file_manager:
+                raise GeometryGenerationError(
+                    message="FileManager not initialized in CrystalBuilder",
+                    error_code="GEO_ERR_002"
+                )
+
+            pdb_path = Path(config.pdb_file).resolve() if config.pdb_file else None
+
+            if not pdb_path or not pdb_path.exists():
+                raise GeometryGenerationError(
+                    message=f"PDB file not found: {pdb_path}",
+                    error_code="GEO_ERR_005"
+                )
+
+            LOG.debug(f"Using PDB file at: {pdb_path}")
+
+            crystalcontacts_file = self.file_manager.get_temp_path('geometry_gen/crystalcontacts_from_colbuilder')
+            LOG.debug(f"CrystalContacts file path: {crystalcontacts_file}")
+
+            connect_file = self.file_manager.get_temp_path('geometry_gen/connect_from_colbuilder')
+
             LOG.debug(f'Getting CrystalContacts for contact distance {config.contact_distance} Ang')
-            
+            LOG.debug(f'Crystalcontacts file will be: {crystalcontacts_file}')
+
+            try:
+                chimera_scripts_dir = self.file_manager.find_file('chimera_scripts')
+                LOG.debug(f"Found chimera scripts at: {chimera_scripts_dir}")
+            except FileNotFoundError:
+                chimera_scripts_dir = self.file_manager.ensure_dir("chimera_scripts")
+                LOG.warning(f"Chimera scripts directory not found, created one at: {chimera_scripts_dir}")
+
+            chimera = Chimera(config, str(pdb_path))
             chimera.matrixget(
                 pdb=str(pdb_path),
                 contact_distance=config.contact_distance,
-                crystalcontacts=crystalcontacts_file
+                crystalcontacts=str(crystalcontacts_file)
             )
-            
-            crystalcontacts = CrystalContacts(crystalcontacts_file)
+            LOG.debug(f"Chimera command executed with PDB: {pdb_path}, contact distance: {config.contact_distance}")
+
+            if crystalcontacts_file.with_suffix('.txt').exists():
+                crystalcontacts_file = crystalcontacts_file.with_suffix('.txt')
+                LOG.debug(f"Adjusted CrystalContacts file path: {crystalcontacts_file}")
+
+            if not crystalcontacts_file.exists():
+                raise GeometryGenerationError(
+                    message=f"Failed to generate crystalcontacts file at: {crystalcontacts_file}",
+                    error_code="GEO_ERR_002"
+                )
+
+            crystalcontacts = CrystalContacts(str(crystalcontacts_file))
             system = await self._build_system_structure(crystal, crystalcontacts)
-            system, connect = await self._connect_system(system, connect_file)
-            
+
+            system, connect = await self._connect_system(system, str(connect_file))
+
             if self._needs_optimization(system):
                 LOG.info(f'{Fore.BLUE}Optimizing system{Style.RESET_ALL}')
                 system = await self._optimize_system(
@@ -313,18 +365,25 @@ class CrystalBuilder:
                     connect,
                     config.solution_space
                 )
-                crystalcontacts.crystalcontacts_file = crystalcontacts_file + '_opt'
-            
+                
+                optimized_crystalcontacts_file = crystalcontacts_file.with_name(
+                    f"{crystalcontacts_file.stem}_opt"
+                )
+                crystalcontacts.crystalcontacts_file = str(optimized_crystalcontacts_file)
+                LOG.debug(f"Updated CrystalContacts file path for optimization: {crystalcontacts.crystalcontacts_file}")
+
             return system, crystalcontacts, connect
-            
+
         except Exception as e:
+            LOG.error(f"Error in _build_from_contact_distance: {str(e)}")
             raise GeometryGenerationError(
                 message="Failed to build system from contact distance",
                 original_error=e,
                 error_code="GEO_ERR_002",
                 context={
                     "contact_distance": config.contact_distance,
-                    "pdb_file": str(pdb_path)
+                    "pdb_file": str(pdb_path) if 'pdb_path' in locals() else None,
+                    "working_dir": str(config.working_directory)
                 }
             )
 
@@ -347,10 +406,17 @@ class CrystalBuilder:
             GeometryGenerationError: If building fails
         """
         try:
-            crystalcontacts_file = Path(config.crystalcontacts_file).with_suffix('')
-            connect_file = (Path(config.connect_file) if config.connect_file 
-                          else Path('connect_from_colbuilder'))
+            crystalcontacts_file = Path(config.crystalcontacts_file)
+            if not crystalcontacts_file.exists() and crystalcontacts_file.with_suffix('.txt').exists():
+                crystalcontacts_file = crystalcontacts_file.with_suffix('.txt')
             
+            LOG.debug(f"Using CrystalContacts file path: {crystalcontacts_file}")
+
+            connect_file = (
+                Path(config.connect_file) if config.connect_file 
+                else Path('connect_from_colbuilder')
+            )
+
             try:
                 crystalcontacts = CrystalContacts(str(crystalcontacts_file))
             except Exception as e:
@@ -360,10 +426,10 @@ class CrystalBuilder:
                     error_code="GEO_ERR_002",
                     context={"crystalcontacts_file": str(crystalcontacts_file)}
                 )
-            
+
             system = await self._build_system_structure(crystal, crystalcontacts)
             system, connect = await self._connect_system(system, str(connect_file))
-            
+
             if config.crystalcontacts_optimize:
                 LOG.info(f'{Fore.BLUE}Optimizing system{Style.RESET_ALL}')
                 system = await self._optimize_system(
@@ -372,7 +438,7 @@ class CrystalBuilder:
                     config.solution_space
                 )
                 crystalcontacts.crystalcontacts_file = str(crystalcontacts_file) + '_opt'
-            
+
             if config.connect_file:
                 try:
                     system = connect.get_external_connect_file(
@@ -386,9 +452,9 @@ class CrystalBuilder:
                         error_code="GEO_ERR_002",
                         context={"connect_file": str(connect_file)}
                     )
-            
+
             return system, crystalcontacts, connect
-            
+
         except GeometryGenerationError:
             raise
         except Exception as e:

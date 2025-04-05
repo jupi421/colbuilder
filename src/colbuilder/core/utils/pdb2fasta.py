@@ -1,4 +1,38 @@
-# Adapted from https://github.com/kad-ecoli/pdb2fasta
+"""
+This module provides functionality to convert PDB files into FASTA format sequences.
+
+It extracts amino acid sequences from the alpha-carbon (CA) atoms in a PDB file and maps 
+three-letter amino acid codes to one-letter codes. The resulting sequences are formatted 
+in FASTA format, with each chain represented as a separate entry.
+
+Key Features:
+--------------
+1. **PDB to FASTA Conversion**:
+   - Extracts amino acid sequences from PDB files based on CA atom records.
+   - Supports standard amino acids, modified residues (e.g., MSE), and collagen-specific residues 
+     (e.g., HYP, L4Y, L5Y).
+
+2. **Chain Handling**:
+   - Processes multiple chains in a PDB file.
+   - Outputs each chain as a separate FASTA entry.
+
+3. **Custom Residue Mapping**:
+   - Maps three-letter amino acid codes to one-letter codes.
+   - Handles non-standard residues and maps unsupported residues to gaps ('-').
+
+Usage:
+------
+This module can be used as a standalone script or imported into other Python programs. 
+When run as a script, it takes a PDB file as input and prints the corresponding FASTA 
+sequences to the console.
+
+Example (Standalone Script):
+----------------------------
+```bash
+python pdb2fasta.py input_structure.pdb
+```
+"""
+
 import re
 import sys
 

@@ -72,6 +72,9 @@ class Chimera(object):
         LOG.debug("Chimera stderr: %s", result.stderr.decode())
         
         if result.returncode != 0:
+            LOG.error(f"Chimera command failed with return code {result.returncode}")
+            LOG.error(f"Chimera stdout: {result.stdout.decode()}")
+            LOG.error(f"Chimera stderr: {result.stderr.decode()}")
             raise RuntimeError(f"Chimera command failed: {result.stderr.decode()}")
 
         return result
@@ -102,6 +105,9 @@ class Chimera(object):
         LOG.debug("Chimera stderr: %s", result.stderr.decode())
         
         if result.returncode != 0:
+            LOG.error(f"Chimera command failed with return code {result.returncode}")
+            LOG.error(f"Chimera stdout: {result.stdout.decode()}")
+            LOG.error(f"Chimera stderr: {result.stderr.decode()}")
             raise RuntimeError(f"Chimera command failed: {result.stderr.decode()}")
 
         expected_file = f"{crystalcontacts}_id.txt"
@@ -128,7 +134,6 @@ class Chimera(object):
         """
         swapaa_script = os.path.join(self.chimera_dir, 'swapaa.py')
         
-        # Ensure the script exists
         if not os.path.exists(swapaa_script):
             LOG.error(f"Chimera swapaa script not found: {swapaa_script}")
             raise FileNotFoundError(f"Chimera swapaa script not found: {swapaa_script}")
@@ -137,21 +142,20 @@ class Chimera(object):
         # Use proper quoting for the script and arguments
         cmd = f"chimera --nogui --silent --script \"{swapaa_script} {replace} {system_type}\""
         
-        LOG.info(f"Running Chimera command: {cmd}")
+        LOG.debug(f"Running Chimera command: {cmd}")
         
         try:
             result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             
-            LOG.info(f"Chimera command completed with return code: {result.returncode}")
+            LOG.debug(f"Chimera command completed with return code: {result.returncode}")
             if result.stdout:
-                LOG.info(f"Chimera stdout: {result.stdout}")
+                LOG.debug(f"Chimera stdout: {result.stdout}")
             if result.stderr:
-                LOG.info(f"Chimera stderr: {result.stderr}")
+                LOG.debug(f"Chimera stderr: {result.stderr}")
             
             return result
         except Exception as e:
             LOG.error(f"Error executing Chimera command: {str(e)}")
-            # Return a failed result
             return subprocess.CompletedProcess(
                 args=cmd,
                 returncode=1,

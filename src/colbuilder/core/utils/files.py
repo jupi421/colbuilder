@@ -1,10 +1,62 @@
 """
-File management utilities for the Colbuilder system.
+File management utilities for the ColBuilder system.
 
-This module provides utilities for file operations, resource management, and progress tracking
-throughout the Colbuilder pipeline. It includes context managers for resource tracking,
-output suppression, PDB file manipulation, and a comprehensive FileManager class
-for centralized file handling.
+This module provides utilities for handling file operations, resource management, and progress 
+tracking throughout the ColBuilder pipeline. It includes context managers for resource tracking, 
+output suppression, PDB file manipulation, and a centralized `FileManager` class for consistent 
+file handling.
+
+Key Features:
+--------------
+1. **File Management**:
+   - Centralized handling of temporary and permanent files.
+   - Create, track, and clean up temporary files and directories.
+   - Copy files to output directories with consistent logging and error handling.
+
+2. **Context Managers**:
+   - `managed_resources`: Tracks operation performance and ensures proper resource cleanup.
+   - `suppress_output`: Suppresses stdout and stderr during execution.
+   - Temporary file and directory context managers for safe resource handling.
+
+3. **PDB File Manipulation**:
+   - Update PDB headers to standardize structure and remove duplicates.
+   - Extract and rewrite CRYST1 and ATOM records with optional custom headers.
+
+4. **Progress Tracking**:
+   - `ProgressTracker` class to monitor and log progress through multi-step operations.
+
+5. **File Search**:
+   - Locate files across multiple standard or user-defined directories.
+
+Usage:
+------
+This module is designed to be used as part of the ColBuilder pipeline for managing files and 
+resources. It provides utilities for temporary file handling, directory creation, and PDB 
+manipulation, ensuring consistent and reliable file operations.
+
+Example:
+--------
+```python
+from colbuilder.core.utils.files import FileManager, managed_resources, suppress_output
+
+# Initialize FileManager
+config = ColbuilderConfig(working_directory=Path("/path/to/working_dir"))
+file_manager = FileManager(config)
+
+# Create a temporary file
+with file_manager.temp_file_context("temp_file", ".txt") as temp_file:
+    with open(temp_file, "w") as f:
+        f.write("Temporary content")
+
+# Suppress output during noisy operations
+with suppress_output():
+    print("This will not appear in the console")
+
+# Track operation performance
+with managed_resources("Example Operation"):
+    # Perform some operation
+    pass
+```
 """
 
 import contextlib
@@ -242,6 +294,8 @@ class FileManager:
             config: Colbuilder configuration
         """
         self.config: ColbuilderConfig = config
+        self.project_root = config.PROJECT_ROOT  # Use the project root from config
+        self.working_dir = Path(config.working_directory).resolve()
         self.temp_files: Set[Path] = set()
         self.temp_dirs: Set[Path] = set()
         
@@ -420,32 +474,132 @@ class FileManager:
         finally:
             self.temp_dirs.add(temp_dir)
             
-    def find_file(self, filename: str, search_paths: Optional[List[Path]] = None) -> Optional[Path]:
+    def find_file(self, filename_or_path: str, search_paths: Optional[List[Path]] = None) -> Optional[Path]:
         """
         Find a file by searching in multiple locations.
         
-        Searches for a file in the provided search paths, or in standard
-        Colbuilder locations if no paths are provided.
+        Searches for a file in the provided search paths, standard Colbuilder locations,
+        and relative to the project root.
         
         Args:
-            filename: Name of the file to find
-            search_paths: Optional list of paths to search (defaults to standard locations)
+            filename_or_path: Name of the file or relative path to find
+            search_paths: Optional list of paths to search (added to standard locations)
             
         Returns:
             Path to the file if found, None otherwise
         """
-        if search_paths is None:
-            search_paths = [
-                self.config.working_directory,
-                Path.cwd(),
-                self.config.DATA_DIR,
-                self.config.HOMOLOGY_LIB_DIR,
-                self.config.PROJECT_ROOT
-            ]
+        # Convert string to Path if necessary
+        filepath = Path(filename_or_path)
+        
+        # First, check if it's an absolute path
+        if filepath.is_absolute() and filepath.exists():
+            return filepath
             
-        for path in search_paths:
-            full_path = path / filename
+        # Initialize standard search paths if none provided
+        if search_paths is None:
+            search_paths = []
+            
+        # Add standard search locations
+        search_paths.extend([
+            self.working_dir,                 # User's current working directory
+            Path.cwd(),                       # Python process working directory
+            self.project_root,                # Project root from config
+            self.project_root / "data",       # Project data directory
+            self.project_root / "colbuilder" / "data",  # Package data directory
+            self.config.DATA_DIR,             # Data directory from config
+            self.config.HOMOLOGY_LIB_DIR,     # Homology lib directory from config
+            self.config.FORCE_FIELD_DIR       # Force field directory from config
+        ])
+        
+        # Filter out None values
+        search_paths = [p for p in search_paths if p is not None]
+        
+        # Try finding the file in each search path
+        for base_path in search_paths:
+            # Try with the filepath as provided
+            full_path = base_path / filepath
             if full_path.exists():
                 return full_path
                 
+            # If filepath has multiple parts, also try with just the filename
+            if len(filepath.parts) > 1:
+                filename_only = filepath.name
+                name_only_path = base_path / filename_only
+                if name_only_path.exists():
+                    return name_only_path
+                
+        # File not found
         return None
+
+    def copy_to_directory(self, source: Path, dest_dir: Optional[Path] = None, dest_name: Optional[str] = None) -> Path:
+        """
+        Copy a file to a specified directory.
+
+        Args:
+            source (Path): Source file path.
+            dest_dir (Optional[Path]): Destination directory (defaults to the working directory).
+            dest_name (Optional[str]): Optional destination name (uses source name if not provided).
+
+        Returns:
+            Path: Path to the copied file in the destination directory.
+
+        Raises:
+            FileNotFoundError: If the source file does not exist.
+            Exception: If the copy operation fails.
+        """
+        if not source.exists():
+            raise FileNotFoundError(f"Source file not found: {source}")
+
+        dest_dir = dest_dir or self.config.working_directory
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        dest_name = dest_name or source.name
+        dest_path = dest_dir / dest_name
+
+        try:
+            shutil.copy2(source, dest_path)
+            LOG.debug(f"Copied {source} to {dest_path}")
+            return dest_path
+        except Exception as e:
+            LOG.error(f"Failed to copy {source} to {dest_path}: {str(e)}")
+            raise
+
+    def get_type_dir(self, model_type: str) -> Path:
+        """
+        Get or create the directory for a specific model type.
+
+        Args:
+            model_type (str): The type of the model (e.g., "D", "NC").
+
+        Returns:
+            Path: Path to the directory for the specified model type.
+
+        Raises:
+            FileNotFoundError: If the directory cannot be created or accessed.
+        """
+        try:
+            # Define the base directory for model types
+            type_dir = self.config.working_directory / "types" / model_type
+
+            # Create the directory if it doesn't exist
+            type_dir.mkdir(parents=True, exist_ok=True)
+
+            return type_dir
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to locate or create type directory for model type: {model_type}") from e
+
+    def get_temp_dir(self, dirname: str) -> Path:
+        """
+        Get a temporary directory path and create the directory.
+        
+        This is a convenience wrapper around get_temp_path with create_dir=True.
+        
+        Args:
+            dirname: Name for the directory
+            
+        Returns:
+            Path to the created temporary directory
+        """
+        temp_dir = self.get_temp_path(dirname, create_dir=True)
+        LOG.info(f"Created temporary directory: {temp_dir}")
+        return temp_dir

@@ -18,32 +18,51 @@ from typing import Optional, Dict, Any, List, Union, Tuple, cast, Set
 from ..utils.exceptions import GeometryGenerationError
 from ..utils.logger import setup_logger
 from ..utils.config import ColbuilderConfig
+from .system import System  
+from .crystal import Crystal  
 
 LOG = setup_logger(__name__)
 
 class CrosslinkReplacer:
-    """
-    Unified service for replacing crosslinks in collagen structures.
-    
-    This class consolidates different replacement approaches:
-    1. System-based replacement (when working with a System object from geometry generation)
-    2. Direct replacement (when working directly with PDB files)
-    
-    It provides methods for selecting crosslinks to replace, generating
-    replacement instructions, running Chimera to perform replacements,
-    and handling PDB file operations.
-    """
-    
-    def __init__(self) -> None:
+    """Handles replacement of crosslinks in collagen systems."""
+
+    def __init__(self):
+        """Initialize the CrosslinkReplacer."""
+        self.file_manager = None
+
+    async def replace(self, system: Optional[System], config: ColbuilderConfig, temp_dir: Path) -> Tuple[Optional[System], Optional[Path]]:
         """
-        Initialize the crosslink replacer service.
-        
-        Sets up the basic state required for the replacer, including
-        which line prefixes to process and a container for external data.
+        Replace crosslinks in a system or perform direct replacement.
+
+        Args:
+            system: Optional system to modify. If None, performs direct replacement
+            config: Configuration settings
+            temp_dir: Temporary directory for file operations
+
+        Returns:
+            Tuple[Optional[System], Optional[Path]]: (modified system, output PDB path)
         """
-        self.is_line = ('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
-        self.external = {}
-        
+        LOG.debug(f"Starting replacement with temp_dir: {temp_dir}")
+
+        if system is None:
+            # Direct replacement mode
+            LOG.info("Using direct replacement mode")
+            return await self.replace_direct(config, temp_dir)
+        else:
+            # System modification mode
+            LOG.info("Using system modification mode")
+            modified_system = await self.replace_in_system(system, config, temp_dir)
+            output_pdb = temp_dir / f"{config.output or 'output'}.pdb"
+            
+            # Write modified system to PDB
+            modified_system.write_pdb(
+                pdb_out=output_pdb,
+                fibril_length=config.fibril_length,
+                temp_dir=temp_dir
+            )
+            
+            return modified_system, output_pdb
+
     async def replace_in_system(self, system: Any, config: ColbuilderConfig) -> Any:
         """
         Replace crosslinks in the provided system according to configuration settings.
@@ -107,7 +126,7 @@ class CrosslinkReplacer:
                 context={"config": config.model_dump()}
             )
     
-    async def replace_direct(self, config: ColbuilderConfig) -> None:
+    async def replace_direct(self, config: ColbuilderConfig, temp_dir: Path) -> Tuple[Optional[System], Optional[Path]]:
         """
         Directly replace crosslinks in a PDB file without requiring a System object.
         
@@ -128,19 +147,25 @@ class CrosslinkReplacer:
                     message=f"Input PDB file not found: {input_pdb}",
                     error_code="GEO_ERR_004"
                 )
-                
-            output_pdb = f"{config.output}.pdb"
-            system_type = "NC"
+                    
+            output_pdb = temp_dir / f"{config.output or 'output'}.pdb"
+            
+            # Create type-specific directory within the temp directory
+            type_dir = temp_dir / "NC"
+            type_dir.mkdir(parents=True, exist_ok=True)
+            LOG.info(f"Created type-specific directory: {type_dir}")
             
             LOG.info(f"- Input PDB: {input_pdb}")
 
-            model_count = self._split_pdb_into_models(input_pdb, system_type)
+            # Split PDB into models - make sure to use full paths
+            model_count = self._split_pdb_into_models(input_pdb, str(type_dir))
             
-            temp_crosslinks_file = os.path.join(system_type, "temp_crosslinks.txt")
+            # Create temporary crosslinks file with proper path
+            temp_crosslinks_file = type_dir / "temp_crosslinks.txt"
             with open(temp_crosslinks_file, 'w') as f:
                 for model_id in range(model_count):
-                    model_path = os.path.join(system_type, f"{model_id}.caps.pdb")
-                    if not os.path.exists(model_path):
+                    model_path = type_dir / f"{model_id}.caps.pdb"
+                    if not model_path.exists():
                         continue
                     
                     LOG.debug(f"Processing model file: {model_path}")
@@ -162,6 +187,7 @@ class CrosslinkReplacer:
                                         
                     LOG.debug(f"Model {model_id}: {atom_count} atoms total, {crosslink_count} crosslink atoms found")
             
+            # Rest of the method remains the same, but update references to use type_dir
             crosslink_residues = {}
             with open(temp_crosslinks_file, 'r') as f:
                 for line in f:
@@ -319,23 +345,25 @@ class CrosslinkReplacer:
 
                 return
             
+            # When calling _run_chimera_replacement, pass temp_dir
             success = self._run_chimera_replacement(
                 instructions=instructions,
                 chimera_scripts_dir=config.CHIMERA_SCRIPTS_DIR,
-                system_type=system_type,
-                output_pdb=None
+                system_type=str(type_dir),  # Use full path
+                output_pdb=str(output_pdb),
+                temp_dir=temp_dir
             )
             
             if success:
                 try:
-                    from .system import System
-                    from .crystal import Crystal
-                    
+                    # Use proper path handling for file operations
                     crystal = Crystal(pdb=input_pdb)
                     system = System(crystal=crystal)
                     
-                    pdb_files = [f for f in os.listdir(system_type) if f.endswith('.pdb') and f != "temp_crosslinks.pdb"]
-                    pdb_files.sort(key=lambda x: int(x.split('.')[0]))
+                    pdb_files = sorted(
+                        [f for f in type_dir.glob("*.pdb") if f.name != "temp_crosslinks.pdb"],
+                        key=lambda x: int(x.stem.split('.')[0])
+                    )
                     
                     with open(output_pdb, 'w') as out:
                         with open(input_pdb, 'r') as in_file:
@@ -346,7 +374,7 @@ class CrosslinkReplacer:
                                 out.write("REMARK   Generated by colbuilder direct replacement\n")
                         
                         for pdb_file in pdb_files:
-                            pdb_path = os.path.join(system_type, pdb_file)
+                            pdb_path = os.path.join(type, pdb_file)
                             with open(pdb_path, 'r') as f:
                                 for line in f:
                                     if line.startswith(("ATOM", "HETATM", "TER")):
@@ -371,11 +399,11 @@ class CrosslinkReplacer:
                         except Exception as e:
                             LOG.warning(f"Could not retrieve CRYST1 info: {e}")
                         
-                        pdb_files = [f for f in os.listdir(system_type) if f.endswith('.pdb') and f != "temp_crosslinks.pdb"]
+                        pdb_files = [f for f in os.listdir(type) if f.endswith('.pdb') and f != "temp_crosslinks.pdb"]
                         pdb_files.sort(key=lambda x: int(x.split('.')[0]))
                         
                         for pdb_file in pdb_files:
-                            pdb_path = os.path.join(system_type, pdb_file)
+                            pdb_path = os.path.join(type, pdb_file)
                             with open(pdb_path, 'r') as f:
                                 for line in f:
                                     if line.startswith(("ATOM", "HETATM", "TER")):
@@ -629,13 +657,22 @@ class CrosslinkReplacer:
                 
             system_type = model_zero.type
             
-            os.makedirs(system_type, exist_ok=True)
+            # Create a temporary directory specifically for replacements
+            temp_dir = Path(config.working_directory) / ".tmp" / "replacement"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            LOG.debug(f"Created temporary directory for replacement: {temp_dir}")
+            
+            # Create type-specific directory within the temp directory
+            type_dir = temp_dir / system_type
+            type_dir.mkdir(parents=True, exist_ok=True)
+            LOG.debug(f"Created type-specific directory: {type_dir}")
             
             base_file = os.path.splitext(replace_file)[0]
             success = self._run_chimera_replacement(
                 instructions=self._read_replacement_instructions(replace_file),
                 chimera_scripts_dir=config.CHIMERA_SCRIPTS_DIR,
-                system_type=system_type
+                system_type=str(type_dir),
+                temp_dir=temp_dir
             )
             
             if not success:
@@ -652,7 +689,7 @@ class CrosslinkReplacer:
                 message=f"Chimera execution failed: {str(e)}",
                 error_code="GEO_ERR_004"
             )
-    
+
     def _read_replacement_instructions(self, replace_file: str) -> List[str]:
         """
         Read replacement instructions from a file.
@@ -685,7 +722,8 @@ class CrosslinkReplacer:
         instructions: List[str],
         chimera_scripts_dir: str,
         system_type: str,
-        output_pdb: Optional[str] = None
+        output_pdb: Optional[str] = None,
+        temp_dir: Optional[Path] = None
     ) -> bool:
         """
         Run Chimera to perform replacements on PDB files.
@@ -698,12 +736,18 @@ class CrosslinkReplacer:
             chimera_scripts_dir: Directory containing Chimera scripts
             system_type: Type of system (directory name)
             output_pdb: Optional path for output PDB file
+            temp_dir: Optional temporary directory for intermediate files
             
         Returns:
             True if successful, False if replacement failed
         """
         try:
-            replace_file = "replace.txt"
+            # Create replacement file in the temporary directory if provided
+            if temp_dir and temp_dir.exists():
+                replace_file = temp_dir / "replace.txt"
+            else:
+                replace_file = Path("replace.txt")
+                
             with open(replace_file, 'w') as f:
                 f.write("\n".join(instructions))
                 
@@ -718,8 +762,10 @@ class CrosslinkReplacer:
                     error_code="GEO_ERR_004"
                 )
                 
-            base_file = replace_file[:-4] if replace_file.endswith('.txt') else replace_file
-            
+            base_file = str(replace_file)
+            if base_file.endswith('.txt'):
+                base_file = base_file[:-4]
+                
             cmd = f"chimera --nogui --silent --script \"{swapaa_script} {base_file} {system_type}\""
             
             LOG.debug(f"Running command: {cmd}")
@@ -741,11 +787,14 @@ class CrosslinkReplacer:
                 with open(output_pdb, 'w') as out:
                     out.write("REMARK   Generated by colbuilder replacement\n")
                     
-                    pdb_files = [f for f in os.listdir(system_type) if f.endswith('.pdb')]
+                    # Use Path object for system_type to make directory handling easier
+                    system_type_path = Path(system_type)
+                    
+                    pdb_files = [f for f in os.listdir(system_type_path) if f.endswith('.pdb')]
                     pdb_files.sort(key=lambda x: int(x.split('.')[0]))
                     
                     for pdb_file in pdb_files:
-                        pdb_path = os.path.join(system_type, pdb_file)
+                        pdb_path = system_type_path / pdb_file
                         with open(pdb_path, 'r') as f:
                             for line in f:
                                 if line.startswith(("ATOM", "HETATM", "TER")):
@@ -1035,4 +1084,6 @@ async def direct_replace_geometry(config: ColbuilderConfig) -> None:
         config: Configuration settings for the replacement
     """
     replacer = CrosslinkReplacer()
-    await replacer.replace_direct(config)
+    temp_dir = Path(config.working_directory) / ".tmp" / "replacement_direct"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    await replacer.replace_direct(config, temp_dir)
