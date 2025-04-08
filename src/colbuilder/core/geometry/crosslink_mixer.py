@@ -90,7 +90,6 @@ class CrosslinkMixer:
     @staticmethod
     def _build_system(crystal: Crystal, crystalcontacts: Optional[CrystalContacts] = None) -> System:
         """Build a system from crystal and crystal contacts."""
-        LOG.debug("Building system of models")
         system = System(crystal=crystal, crystalcontacts=crystalcontacts)
         
         if crystalcontacts is None:
@@ -149,10 +148,10 @@ class CrosslinkMixer:
         LOG.debug(f'     Writing {self.crystalcontacts_file}')
         crystalcontacts = CrystalContacts(self.crystalcontacts_file)
         
-        LOG.debug(f'     Building system')
+        LOG.info(f'     Building system')
         system = self._build_system(crystal=crystal, crystalcontacts=crystalcontacts)
         
-        LOG.debug(f'     Connecting system')
+        LOG.info(f'     Connecting system')
         system, connect = self._connect_system(system=system, connect_file=connect_file)
         
         has_crosslinks = any(
@@ -162,13 +161,13 @@ class CrosslinkMixer:
         )
         
         if has_crosslinks:
-            LOG.debug(f'     Optimizing system')
+            LOG.info(f'     Optimizing system')
             optimizer = Optimizer(system=system, solution_space=solution_space)
             system = optimizer.run_optimize(system=system, connect=connect)
             system, connect = self._connect_system(system=system, connect_file=connect_file)
             crystalcontacts.crystalcontacts_file = self.crystalcontacts_file + '_opt'
         else:
-            LOG.debug(f'     Skipping optimization for non-crosslinked system')
+            LOG.info(f'     Skipping optimization for non-crosslinked system')
         
         return system, crystalcontacts, connect
     
@@ -189,8 +188,7 @@ class CrosslinkMixer:
     
     def _cap_system(self, system: System, crosslink_type: str, temp_dir: Optional[Path] = None) -> Caps:
         """Add caps to the system."""
-        LOG.debug(f"Capping models in the system with terminal groups for type {crosslink_type}")
-        
+         
         if temp_dir is None:
             LOG.warning(f"No temporary directory provided for capping. Using current directory.")
             temp_dir = Path.cwd()
@@ -232,7 +230,6 @@ class CrosslinkMixer:
     
     def _matrixset_system(self, system: System) -> System:
         """Update system after cutting to specified length."""
-        LOG.debug(f"Setting system after cutting fibril")
         
         id_file = Path(f"{self.crystalcontacts_file}_opt_id.txt")
         
@@ -291,7 +288,7 @@ class CrosslinkMixer:
                 LOG.error(f"Invalid ratio_mix format in config: {config.ratio_mix}")
                 raise ValueError(f"ratio_mix must be a dictionary, got {type(config.ratio_mix)}")
             
-            LOG.info(f"Mix setup: {config.ratio_mix} ('TypeA': A%, 'TypeB': B%)")
+            LOG.debug(f"Mix setup: {Fore.MAGENTA}{config.ratio_mix} ('TypeA': %, 'TypeB': %){Style.RESET_ALL}")
             
             if not config.files_mix or len(config.files_mix) < len(config.ratio_mix):
                 LOG.error(f"Not enough files in files_mix: {config.files_mix}")
@@ -345,7 +342,6 @@ class CrosslinkMixer:
                     continue
                 
                 pdb_file = mix_pdb[key]
-                LOG.debug(f"Processing type {key} with PDB file {pdb_file}")
 
                 pdb_path = Path(pdb_file)
                 if not pdb_path.exists():
@@ -359,8 +355,8 @@ class CrosslinkMixer:
                 
                 chimera = Chimera(config, str(pdb_path))
                 
-                LOG.info(f' System {key}:')
-                LOG.info(f'     Generating system from {pdb_file} {Fore.BLUE}...{Style.RESET_ALL}')
+                LOG.info(f' - System {key}:')
+                LOG.info(f'     Generating system from {pdb_file}')
 
                 crystalcontacts_file = (
                     system.crystalcontacts.crystalcontacts_file 
@@ -387,7 +383,6 @@ class CrosslinkMixer:
                 type_dir = temp_dir / str(key)
                 type_dir.mkdir(parents=True, exist_ok=True)
                 
-                LOG.info(f'     Copying transformed model PDB files to {type_dir}')
                 for model_id in system.get_models():
                     model_id_int = int(float(model_id))
                     source_pdb = Path(f"{model_id_int}.pdb")
@@ -437,4 +432,3 @@ class CrosslinkMixer:
             
         finally:
             os.chdir(original_dir)
-            LOG.debug(f"Restored original working directory: {original_dir}")

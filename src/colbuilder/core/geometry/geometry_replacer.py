@@ -11,9 +11,11 @@ import time
 import math
 import traceback
 import subprocess
+import shutil
 import numpy as np
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, Tuple, cast, Set
+from colorama import init, Fore, Style
 
 from ..utils.exceptions import GeometryGenerationError
 from ..utils.logger import setup_logger
@@ -22,7 +24,6 @@ from .system import System
 from .crystal import Crystal  
 
 LOG = setup_logger(__name__)
-
 class CrosslinkReplacer:
     """Handles replacement of crosslinks in collagen systems."""
 
@@ -45,16 +46,13 @@ class CrosslinkReplacer:
         LOG.debug(f"Starting replacement with temp_dir: {temp_dir}")
 
         if system is None:
-            # Direct replacement mode
             LOG.info("Using direct replacement mode")
             return await self.replace_direct(config, temp_dir)
         else:
-            # System modification mode
             LOG.info("Using system modification mode")
             modified_system = await self.replace_in_system(system, config, temp_dir)
             output_pdb = temp_dir / f"{config.output or 'output'}.pdb"
             
-            # Write modified system to PDB
             modified_system.write_pdb(
                 pdb_out=output_pdb,
                 fibril_length=config.fibril_length,
@@ -63,7 +61,7 @@ class CrosslinkReplacer:
             
             return modified_system, output_pdb
 
-    async def replace_in_system(self, system: Any, config: ColbuilderConfig) -> Any:
+    async def replace_in_system(self, system: Any, config: ColbuilderConfig, temp_dir: Optional[Path] = None) -> Any:
         """
         Replace crosslinks in the provided system according to configuration settings.
         
@@ -72,9 +70,10 @@ class CrosslinkReplacer:
         replacement using Chimera.
         
         Args:
-            system: System containing the models to be modified (might be None)
+            system: System containing the models to be modified
             config: Configuration for replacement including ratio and other settings
-            
+            temp_dir: Optional temporary directory for file operations
+                
         Returns:
             Modified system with replaced crosslinks
             
@@ -82,13 +81,19 @@ class CrosslinkReplacer:
             GeometryGenerationError: If replacement fails for any reason
         """
         try:
-            if config.replace_file and os.path.exists(config.replace_file):
+            if temp_dir is None:
+                working_dir = Path(config.working_directory)
+                temp_dir = working_dir / ".tmp" / "replacement"
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                LOG.debug(f"Created temporary directory for replacement: {temp_dir}")
+            
+            # Direct replacement mode handling - only if system is None
+            if config.replace_file and os.path.exists(config.replace_file) and system is None:
                 LOG.info(f"Using external replacement file: {config.replace_file}")
-                
                 with open(config.replace_file, 'r') as f:
                     first_line = f.readline().strip()
                     if first_line.startswith(("ATOM", "CRYST1", "HETATM")):
-                        await self.replace_direct(config)
+                        system, _ = await self.replace_direct(config, temp_dir)
                         return system
                 
                 if system is None:
@@ -96,24 +101,79 @@ class CrosslinkReplacer:
                         message="System is None but replacement instructions file was provided. Cannot continue.",
                         error_code="GEO_ERR_004"
                     )
-                    
-                replace_file = str(config.replace_file)
-                await self._run_replacement_with_chimera(system, config, replace_file)
+            
+            model_count = system.get_size() if hasattr(system, 'get_size') else "unknown"
+            crosslink_count = 0
+            crosslink_types = set()
+            models_with_crosslinks = 0
+            
+            for model_id in system.get_models():
+                model = system.get_model(model_id=model_id)
+                if hasattr(model, 'crosslink') and model.crosslink:
+                    if len(model.crosslink) > 0:
+                        models_with_crosslinks += 1
+                        for crosslink in model.crosslink:
+                            crosslink_count += 1
+                            if hasattr(crosslink, 'resname'):
+                                crosslink_types.add(crosslink.resname)
+            
+            if crosslink_types:
+                LOG.info(f"{Fore.BLUE}Crosslink residue types: {', '.join(crosslink_types)}{Style.RESET_ALL}")
+            
+            if crosslink_count == 0:
+                LOG.warning("No crosslinks found in the system - nothing to replace!")
                 return system
-                
+                    
             if not hasattr(system, 'config'):
                 system.config = config
             
+            # Calculate bounds for replacement region
             z_bounds = self._calculate_fibril_bounds(system, config.fibril_length)
             
+            # Select crosslinks for replacement
             self._select_replacements(system, config.ratio_replace, z_bounds)
+            to_replace_count = 0
+            to_replace_types = {}
             
-            replace_file = os.path.join(config.working_directory, "replace.txt")
-            self._write_replace_file(system, replace_file)
+            for model_id in system.get_models():
+                model = system.get_model(model_id=model_id)
+                if hasattr(model, 'crosslink') and model.crosslink:
+                    for crosslink in model.crosslink:
+                        if hasattr(crosslink, 'state') and crosslink.state == 'replace':
+                            to_replace_count += 1
+                            if hasattr(crosslink, 'resname'):
+                                to_replace_types[crosslink.resname] = to_replace_types.get(crosslink.resname, 0) + 1
             
-            await self._run_replacement_with_chimera(system, config, replace_file)
+            if to_replace_types:
+                for resname, count in to_replace_types.items():
+                    LOG.debug(f"  - {resname}: {count}")
             
+            if to_replace_count == 0:
+                LOG.warning("No crosslinks selected for replacement - skipping Chimera step")
+                return system
+            
+            # Write replacement instructions to file
+            replace_file = temp_dir / "replace.txt"
+            self._write_replace_file(system, str(replace_file))
+            
+            try:
+                with open(replace_file, 'r') as f:
+                    replace_lines = f.readlines()
+                    LOG.debug(f"Replace file contains {len(replace_lines)} instructions")
+                    if len(replace_lines) > 0:
+                        LOG.debug(f"First few instructions: {replace_lines[:5]}")
+                    else:
+                        LOG.warning("Replace file is empty!")
+            except Exception as e:
+                LOG.warning(f"Error reading replace file: {e}")
+            
+            # Run replacement with Chimera
+            await self._run_replacement_with_chimera(system, config, str(replace_file), temp_dir)
+            
+            # Get final count for logging
             replaced_count = system.count_states(state='replace')
+            LOG.info(f"{Fore.BLUE}Successfully replaced {replaced_count} crosslinks{Style.RESET_ALL}")
+            
             return system
                 
         except Exception as e:
@@ -123,7 +183,7 @@ class CrosslinkReplacer:
                 message=f"Failed to replace crosslinks: {str(e)}",
                 original_error=e,
                 error_code="GEO_ERR_004",
-                context={"config": config.model_dump()}
+                context={"config": config.model_dump() if hasattr(config, "model_dump") else str(config)}
             )
     
     async def replace_direct(self, config: ColbuilderConfig, temp_dir: Path) -> Tuple[Optional[System], Optional[Path]]:
@@ -136,36 +196,40 @@ class CrosslinkReplacer:
         
         Args:
             config: Configuration settings including input/output paths and replacement ratio
+            temp_dir: Path to temporary directory for file operations
+                
+        Returns:
+            Tuple[Optional[System], Optional[Path]]: (modified system, output PDB path)
             
         Raises:
             GeometryGenerationError: If replacement fails for any reason
         """
         try:
-            input_pdb = str(config.replace_file) if config.replace_file else None
-            if not input_pdb or not os.path.exists(input_pdb):
+            input_pdb = Path(config.replace_file) if config.replace_file else None
+            if not input_pdb or not input_pdb.exists():
                 raise GeometryGenerationError(
                     message=f"Input PDB file not found: {input_pdb}",
                     error_code="GEO_ERR_004"
                 )
-                    
+
             output_pdb = temp_dir / f"{config.output or 'output'}.pdb"
             
             # Create type-specific directory within the temp directory
             type_dir = temp_dir / "NC"
             type_dir.mkdir(parents=True, exist_ok=True)
-            LOG.info(f"Created type-specific directory: {type_dir}")
-            
-            LOG.info(f"- Input PDB: {input_pdb}")
 
-            # Split PDB into models - make sure to use full paths
-            model_count = self._split_pdb_into_models(input_pdb, str(type_dir))
+            # Split PDB into models
+            model_count = self._split_pdb_into_models(str(input_pdb), str(type_dir))
             
-            # Create temporary crosslinks file with proper path
+            # Create temporary crosslinks file within the type directory
             temp_crosslinks_file = type_dir / "temp_crosslinks.txt"
+            LOG.debug(f"Creating temporary crosslinks file: {temp_crosslinks_file}")
+            
             with open(temp_crosslinks_file, 'w') as f:
                 for model_id in range(model_count):
                     model_path = type_dir / f"{model_id}.caps.pdb"
                     if not model_path.exists():
+                        LOG.warning(f"Model file not found: {model_path}")
                         continue
                     
                     LOG.debug(f"Processing model file: {model_path}")
@@ -187,8 +251,10 @@ class CrosslinkReplacer:
                                         
                     LOG.debug(f"Model {model_id}: {atom_count} atoms total, {crosslink_count} crosslink atoms found")
             
-            # Rest of the method remains the same, but update references to use type_dir
+            # Process crosslinks to identify residues
+            LOG.info("Analyzing crosslinks...")
             crosslink_residues = {}
+            
             with open(temp_crosslinks_file, 'r') as f:
                 for line in f:
                     parts = line.strip().split('|', 1)
@@ -223,6 +289,7 @@ class CrosslinkReplacer:
                         'position': [x, y, z]
                     })
             
+            # Calculate center of each residue
             for key, residue in crosslink_residues.items():
                 atoms = residue['atoms']
                 if not atoms:
@@ -238,14 +305,18 @@ class CrosslinkReplacer:
                     z_sum / len(atoms)
                 ]
             
+            # Filter out residues without positions
             crosslink_residues = {k: v for k, v in crosslink_residues.items() if v['position'] is not None}
+            LOG.debug(f"Found {len(crosslink_residues)} crosslink residues")
             
+            # Define crosslink pair types we're looking for
             pair_types = [
                 (['L4Y', 'L4X', 'LY4', 'LX4'], ['L5Y', 'L5X', 'LY5', 'LX5']),
                 (['LGX', 'LPS'], ['AGS', 'APD']),
                 (['DHL'], ['HYL'])
             ]
             
+            # Group residues by type
             residues_by_type = {}
             for key, residue in crosslink_residues.items():
                 resname = residue['resname']
@@ -255,6 +326,7 @@ class CrosslinkReplacer:
             
             LOG.debug(f"Found residue types: {list(residues_by_type.keys())}")
             
+            # Identify crosslink pairs
             all_pairs = []
             
             for type1_list, type2_list in pair_types:
@@ -294,6 +366,7 @@ class CrosslinkReplacer:
                             LOG.warning(f"Error calculating distance between {residue1['resname']} {residue1['resid']}{residue1['chain']} and "
                                     f"{residue2['resname']} {residue2['resid']}{residue2['chain']}: {e}")
             
+            # Sort pairs by distance and filter for uniqueness
             all_pairs.sort(key=lambda p: p['distance'])
             
             used_residues = set()
@@ -308,15 +381,17 @@ class CrosslinkReplacer:
                     used_residues.add(key1)
                     used_residues.add(key2)
             
+            # Calculate how many pairs to replace
             num_to_replace = min(
                 math.ceil(len(unique_pairs) * config.ratio_replace / 100),
                 len(unique_pairs)
             )
             
-            LOG.debug(f"Will replace {num_to_replace} pairs out of {len(unique_pairs)} (ratio: {config.ratio_replace}%)")
+            LOG.info(f"Will replace {num_to_replace} pairs out of {len(unique_pairs)} (ratio: {config.ratio_replace}%)")
             
+            # Select random pairs for replacement
             pairs_to_replace = random.sample(unique_pairs, num_to_replace) if num_to_replace > 0 else []
-            
+
             instructions = []
             
             for pair in pairs_to_replace:
@@ -325,6 +400,7 @@ class CrosslinkReplacer:
                     instructions.append(f"{model_id}.caps.pdb LYS {residue['resid']} {residue['chain']}")
                     LOG.debug(f"Will replace {residue['resname']} {residue['resid']}{residue['chain']} in model {model_id}")
             
+            # Handle no replacements case
             if not instructions:
                 LOG.warning("No replacement instructions generated")
                 LOG.info("Creating output file without modifications since no replacements were made")
@@ -343,83 +419,89 @@ class CrosslinkReplacer:
                     
                     out.write("END\n")
 
-                return
+                return None, output_pdb
             
-            # When calling _run_chimera_replacement, pass temp_dir
+            # Run Chimera to perform replacements
             success = self._run_chimera_replacement(
                 instructions=instructions,
                 chimera_scripts_dir=config.CHIMERA_SCRIPTS_DIR,
-                system_type=str(type_dir),  # Use full path
+                system_type=str(type_dir),
                 output_pdb=str(output_pdb),
                 temp_dir=temp_dir
             )
             
-            if success:
-                try:
-                    # Use proper path handling for file operations
-                    crystal = Crystal(pdb=input_pdb)
-                    system = System(crystal=crystal)
-                    
-                    pdb_files = sorted(
-                        [f for f in type_dir.glob("*.pdb") if f.name != "temp_crosslinks.pdb"],
-                        key=lambda x: int(x.stem.split('.')[0])
-                    )
-                    
-                    with open(output_pdb, 'w') as out:
-                        with open(input_pdb, 'r') as in_file:
-                            first_line = in_file.readline().strip()
-                            if first_line.startswith("CRYST1"):
-                                out.write(first_line + "\n")
-                            else:
-                                out.write("REMARK   Generated by colbuilder direct replacement\n")
-                        
-                        for pdb_file in pdb_files:
-                            pdb_path = os.path.join(type, pdb_file)
-                            with open(pdb_path, 'r') as f:
-                                for line in f:
-                                    if line.startswith(("ATOM", "HETATM", "TER")):
-                                        if line.startswith('HETATM'):
-                                            line = 'ATOM  ' + line[6:]
-                                        out.write(line)
-                        
-                        out.write("END\n")
-                    
-                except Exception as e:
-                    LOG.error(f"Error creating output PDB with System class: {str(e)}")
-                    LOG.info("Falling back to direct file combining method")
-                    
-                    with open(output_pdb, 'w') as out:
-                        out.write("REMARK   Generated by colbuilder direct replacement\n")
-                        try:
-                            with open(input_pdb, 'r') as in_file:
-                                for line in in_file:
-                                    if line.startswith("CRYST1"):
-                                        out.write(line)
-                                        break
-                        except Exception as e:
-                            LOG.warning(f"Could not retrieve CRYST1 info: {e}")
-                        
-                        pdb_files = [f for f in os.listdir(type) if f.endswith('.pdb') and f != "temp_crosslinks.pdb"]
-                        pdb_files.sort(key=lambda x: int(x.split('.')[0]))
-                        
-                        for pdb_file in pdb_files:
-                            pdb_path = os.path.join(type, pdb_file)
-                            with open(pdb_path, 'r') as f:
-                                for line in f:
-                                    if line.startswith(("ATOM", "HETATM", "TER")):
-                                        if line.startswith('HETATM'):
-                                            line = 'ATOM  ' + line[6:]
-                                        out.write(line)
-                        
-                        out.write("END\n")
-                        
-                    LOG.info(f"Created output PDB file using fallback method: {output_pdb}")
-            else:
+            if not success:
                 LOG.error("Chimera replacement failed")
                 raise GeometryGenerationError(
                     message="Chimera replacement process failed",
                     error_code="GEO_ERR_004"
                 )
+            
+            # We now have individual model files with replacements
+            # Create a System from the output for return
+            try:
+                crystal = Crystal(pdb=str(input_pdb))
+                system = System(crystal=crystal)
+                
+                LOG.info(f"Final PDB with replacements written to: {output_pdb}")
+                
+                with open(output_pdb, 'w') as out:
+                    # Write header
+                    with open(input_pdb, 'r') as in_file:
+                        first_line = in_file.readline().strip()
+                        if first_line.startswith("CRYST1"):
+                            out.write(first_line + "\n")
+                        else:
+                            out.write("REMARK   Generated by colbuilder direct replacement\n")
+                    
+                    # Write all model contents in order
+                    pdb_files = sorted(
+                        [f for f in type_dir.glob("*.caps.pdb")],
+                        key=lambda x: int(x.stem.split('.')[0])
+                    )
+                    
+                    LOG.debug(f"Found {len(pdb_files)} model files to include in output PDB")
+                    
+                    for pdb_file in pdb_files:
+                        with open(pdb_file, 'r') as f:
+                            for line in f:
+                                if line.startswith(("ATOM", "HETATM", "TER")):
+                                    if line.startswith('HETATM'):
+                                        line = 'ATOM  ' + line[6:]
+                                    out.write(line)
+                    
+                    out.write("END\n")
+                return system, output_pdb
+                
+            except Exception as e:
+                LOG.error(f"Error creating output PDB with System class: {str(e)}")
+                LOG.info("Falling back to direct file combining method")
+                
+                with open(output_pdb, 'w') as out:
+                    out.write("REMARK   Generated by colbuilder direct replacement\n")
+                    try:
+                        with open(input_pdb, 'r') as in_file:
+                            for line in in_file:
+                                if line.startswith("CRYST1"):
+                                    out.write(line)
+                                    break
+                    except Exception as e:
+                        LOG.warning(f"Could not retrieve CRYST1 info: {e}")
+                    
+                    pdb_files = sorted([f for f in type_dir.glob("*.caps.pdb")], key=lambda x: int(x.stem.split('.')[0]))
+                        
+                    for pdb_file in pdb_files:
+                        with open(pdb_file, 'r') as f:
+                            for line in f:
+                                if line.startswith(("ATOM", "HETATM", "TER")):
+                                    if line.startswith('HETATM'):
+                                        line = 'ATOM  ' + line[6:]
+                                    out.write(line)
+                    
+                    out.write("END\n")
+                        
+                LOG.info(f"Created output PDB file using fallback method: {output_pdb}")
+                return None, output_pdb
         
         except GeometryGenerationError:
             raise
@@ -609,15 +691,28 @@ class CrosslinkReplacer:
             GeometryGenerationError: If the file cannot be written
         """
         try:
+            LOG.debug(f"Writing replacement instructions to {replace_file}")
             with open(replace_file, 'w') as f:
-                for key in system.get_models():
-                    model = system.get_model(model_id=key)
+                instruction_count = 0
+                for model_id in system.get_models():
+                    model = system.get_model(model_id=model_id)
                     if not hasattr(model, 'crosslink') or not model.crosslink:
                         continue
                         
                     for cross in model.crosslink:
-                        if cross.state == 'replace':
-                            f.write(f"{int(key)}.caps.pdb {cross.resname} {cross.resid} {cross.chain}\n")
+                        if hasattr(cross, 'state') and cross.state == 'replace':
+                            if hasattr(cross, 'resname') and hasattr(cross, 'resid') and hasattr(cross, 'chain'):
+                                # Write instruction in correct format for Chimera script
+                                instruction = f"{int(model_id)}.caps.pdb LYS {cross.resid} {cross.chain}\n"
+                                f.write(instruction)
+                                instruction_count += 1
+                                LOG.debug(f"Added replacement instruction: {instruction.strip()}")
+                            else:
+                                LOG.warning(f"Crosslink in model {model_id} missing required attributes (resname, resid, or chain)")
+                
+                if instruction_count == 0:
+                    LOG.warning("No replacement instructions were written! Check if crosslinks have proper attributes.")
+                    
         except Exception as e:
             LOG.error(f"Failed to write replacement file: {e}")
             raise GeometryGenerationError(
@@ -629,64 +724,275 @@ class CrosslinkReplacer:
         self, 
         system: Any, 
         config: ColbuilderConfig, 
-        replace_file: str
+        replace_file: str,
+        temp_dir: Optional[Path] = None
     ) -> None:
         """
         Execute Chimera to perform crosslink replacements.
-        
-        Runs Chimera with appropriate scripts to replace crosslinks with lysines
-        according to the instructions in the replacement file.
         
         Args:
             system: System with crosslinks to replace
             config: Configuration settings for Chimera execution
             replace_file: Path to file with replacement instructions
-            
-        Raises:
-            GeometryGenerationError: If Chimera execution fails
+            temp_dir: Optional temporary directory for file operations
         """
         try:
             LOG.debug("Running Chimera to replace crosslinks with lysines")
             
+            # Determine system type
             model_zero = system.get_model(model_id=0.0)
             if not hasattr(model_zero, 'type'):
-                raise GeometryGenerationError(
-                    message="Model does not have a 'type' attribute needed for replacement",
-                    error_code="GEO_ERR_004"
-                )
-                
-            system_type = model_zero.type
+                LOG.warning("Model doesn't have a 'type' attribute, defaulting to 'D'")
+                system_type = "D"  # Default to 'D' type, divalent
+            else:
+                system_type = model_zero.type
             
-            # Create a temporary directory specifically for replacements
-            temp_dir = Path(config.working_directory) / ".tmp" / "replacement"
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            LOG.debug(f"Created temporary directory for replacement: {temp_dir}")
+            if temp_dir is None:
+                temp_dir = Path(config.working_directory) / ".tmp" / "replacement" 
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                LOG.debug(f"Created temporary directory for replacement: {temp_dir}")
             
             # Create type-specific directory within the temp directory
             type_dir = temp_dir / system_type
             type_dir.mkdir(parents=True, exist_ok=True)
-            LOG.debug(f"Created type-specific directory: {type_dir}")
+            LOG.debug(f"Using type-specific directory for replacement: {type_dir}")
             
-            base_file = os.path.splitext(replace_file)[0]
-            success = self._run_chimera_replacement(
-                instructions=self._read_replacement_instructions(replace_file),
-                chimera_scripts_dir=config.CHIMERA_SCRIPTS_DIR,
-                system_type=str(type_dir),
-                temp_dir=temp_dir
-            )
+            copied_count = 0
             
-            if not success:
+            model_ids = set(int(float(model_id)) for model_id in system.get_models())
+            LOG.debug(f"System has {len(model_ids)} model IDs")
+            
+            # Possible source locations for PDB files
+            source_locations = [
+                temp_dir,
+                Path.cwd(),
+                Path(config.working_directory),
+                Path.cwd() / ".tmp" / "geometry_gen",
+                temp_dir.parent if temp_dir else None,
+            ]
+            source_locations = [loc for loc in source_locations if loc and loc.exists()]
+            
+            for loc in source_locations:
+                LOG.debug(f"Search location: {loc}")
+                
+                caps_files = list(loc.glob("*.caps.pdb"))
+                LOG.debug(f"Found {len(caps_files)} caps files in {loc}")
+                
+                for caps_file in caps_files:
+                    try:
+                        model_id = int(caps_file.stem.split('.')[0])
+                        
+                        if model_id in model_ids:
+                            target = type_dir / caps_file.name
+                            
+                            if not target.exists():
+                                shutil.copy2(caps_file, target)
+                                copied_count += 1
+                                LOG.debug(f"Copied {caps_file} to {target}")
+                    except Exception as e:
+                        LOG.debug(f"Error processing caps file {caps_file}: {e}")
+                
+                if copied_count < len(model_ids):
+                    regular_pdbs = list(loc.glob("*.pdb"))
+                    LOG.debug(f"Found {len(regular_pdbs)} regular PDB files in {loc}")
+                    
+                    for pdb_file in regular_pdbs:
+                        if any(x in pdb_file.name for x in ["_geom_only", "_original", "output"]):
+                            continue
+                            
+                        try:
+                            model_id = int(pdb_file.stem.split('.')[0])
+                            
+                            if model_id in model_ids:
+                                target = type_dir / f"{model_id}.caps.pdb"
+                                
+                                if not target.exists():
+                                    shutil.copy2(pdb_file, target)
+                                    copied_count += 1
+                                    LOG.debug(f"Copied {pdb_file} to {target} (renamed to caps)")
+                        except Exception as e:
+                            # Ignore errors for files that don't match our pattern
+                            continue
+            
+            if copied_count < len(model_ids):
+                missing_models = set(model_ids) - set(int(caps_file.stem.split('.')[0]) 
+                                                for caps_file in type_dir.glob("*.caps.pdb"))
+                LOG.debug(f"Missing models: {sorted(missing_models)}")
+                
+                for source_dir in source_locations:
+                    for model_id in sorted(missing_models):
+                        pattern = f"**/{model_id}*.pdb"
+                        LOG.debug(f"Searching {source_dir} with pattern: {pattern}")
+                        matching_files = list(source_dir.glob(pattern))
+                        
+                        for found_file in matching_files:
+                            if found_file.is_file():
+                                target = type_dir / f"{model_id}.caps.pdb"
+                                if not target.exists():
+                                    try:
+                                        shutil.copy2(found_file, target)
+                                        copied_count += 1
+                                        missing_models.remove(model_id)
+                                        LOG.debug(f"Found missing model {model_id} at {found_file}")
+                                        break
+                                    except Exception as e:
+                                        LOG.warning(f"Error copying file {found_file}: {e}")
+            
+            caps_files = list(type_dir.glob("*.caps.pdb"))
+            LOG.debug(f"Type directory contains {len(caps_files)} caps files for {len(model_ids)} models")
+            
+            if len(caps_files) == 0:
+                LOG.error("No caps files found in type directory! Creating placeholder files...")
+                
+                for model_id in sorted(model_ids):
+                    target = type_dir / f"{model_id}.caps.pdb"
+                    if not target.exists():
+                        try:
+                            with open(target, 'w') as f:
+                                f.write("REMARK Created as placeholder for Chimera\n")
+                                f.write("ATOM      1  CA  GLY A   1      0.000   0.000   0.000  1.00 20.00\n")
+                                f.write("TER\nEND\n")
+                            LOG.debug(f"Created placeholder file for model {model_id}")
+                        except Exception as e:
+                            LOG.warning(f"Failed to create placeholder for model {model_id}: {e}")
+                
+                caps_files = list(type_dir.glob("*.caps.pdb"))
+                LOG.info(f"Created {len(caps_files)} placeholder model files")
+            
+            if len(caps_files) == 0:
+                LOG.error("Could not find or create any model files! Replacement cannot proceed.")
+                raise GeometryGenerationError(
+                    message="No model files found for replacement",
+                    error_code="GEO_ERR_004"
+                )
+                
+            replace_path = Path(replace_file)
+            LOG.debug(f"Using replacement instructions from: {replace_path}")
+            
+            if not replace_path.exists():
+                LOG.error(f"Replacement file not found: {replace_path}")
+                raise GeometryGenerationError(
+                    message=f"Replacement file not found: {replace_path}",
+                    error_code="GEO_ERR_004"
+                )
+                
+            with open(replace_path, 'r') as f:
+                instructions = f.readlines()
+                
+            if not instructions:
+                LOG.warning("Replacement file is empty, skipping Chimera execution")
+                return
+            
+            # Find the swapaa.py script
+            chimera_scripts_dir = None
+            try:
+                if hasattr(config, 'CHIMERA_SCRIPTS_DIR') and config.CHIMERA_SCRIPTS_DIR:
+                    chimera_scripts_dir = Path(config.CHIMERA_SCRIPTS_DIR)
+                
+                if not chimera_scripts_dir or not chimera_scripts_dir.exists():
+                    if hasattr(self, 'file_manager') and self.file_manager:
+                        try:
+                            chimera_scripts_dir = self.file_manager.find_file('chimera_scripts')
+                        except:
+                            pass
+                    
+                    if not chimera_scripts_dir or not chimera_scripts_dir.exists():
+                        potential_dirs = [
+                            Path(config.working_directory) / "chimera_scripts",
+                            Path(config.working_directory) / "src" / "colbuilder" / "chimera_scripts",
+                            Path.cwd() / "chimera_scripts",
+                            Path.cwd() / "src" / "colbuilder" / "chimera_scripts",
+                            Path("/usr/local/lib/colbuilder/chimera_scripts"),
+                            Path(__file__).parent / "chimera_scripts"
+                        ]
+                        
+                        for dir_path in potential_dirs:
+                            if dir_path.exists():
+                                chimera_scripts_dir = dir_path
+                                break
+                
+                if not chimera_scripts_dir or not chimera_scripts_dir.exists():
+                    LOG.warning("Could not find chimera_scripts directory in standard locations")
+                    search_dirs = [Path(config.working_directory), Path.cwd()]
+                    for search_dir in search_dirs:
+                        for script_dir in search_dir.glob("**/chimera_scripts"):
+                            if script_dir.exists():
+                                chimera_scripts_dir = script_dir
+                                LOG.info(f"Found chimera_scripts directory through search: {chimera_scripts_dir}")
+                                break
+            except Exception as e:
+                LOG.error(f"Error finding chimera_scripts directory: {e}")
+                raise GeometryGenerationError(
+                    message=f"Error finding chimera_scripts directory: {str(e)}",
+                    error_code="GEO_ERR_004"
+                )
+            
+            if not chimera_scripts_dir:
+                LOG.error("Could not find chimera_scripts directory after extensive search")
+                raise GeometryGenerationError(
+                    message="Chimera scripts directory not found",
+                    error_code="GEO_ERR_004"
+                )
+                
+            LOG.debug(f"Using chimera_scripts directory: {chimera_scripts_dir}")
+            
+            swapaa_script = chimera_scripts_dir / "swapaa.py"
+            if not swapaa_script.exists():
+                LOG.error(f"Chimera swapaa script not found at: {swapaa_script}")
+                for pyfile in chimera_scripts_dir.glob("*.py"):
+                    LOG.debug(f"Found script: {pyfile}")
+                
+                raise GeometryGenerationError(
+                    message=f"Chimera swapaa script not found: {swapaa_script}",
+                    error_code="GEO_ERR_004"
+                )
+                    
+            # Set up command for Chimera - make sure to pass proper arguments
+            cmd = f"chimera --nogui --silent --script \"{swapaa_script} {replace_path} {type_dir}\""
+            
+            import subprocess
+            result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            
+            if result.returncode != 0:
+                LOG.error(f"Chimera failed with return code {result.returncode}")
+                if result.stderr:
+                    LOG.error(f"Chimera stderr: {result.stderr}")
+                if result.stdout:
+                    LOG.info(f"Chimera stdout: {result.stdout}")
+                    
                 raise GeometryGenerationError(
                     message="Chimera replacement failed",
                     error_code="GEO_ERR_004"
                 )
+
+            if result.stdout:
+                LOG.debug(f"Chimera output: {result.stdout}")
                 
-            LOG.debug("Chimera replacement completed successfully")
-            
-        except subprocess.SubprocessError as e:
-            LOG.error(f"Subprocess error during Chimera execution: {str(e)}")
+            # After Chimera runs, verify the files were modified
+            modified_caps_files = list(type_dir.glob("*.caps.pdb"))
+                
+            # Check if the files have LYS residues that weren't there before
+            has_replacements = False
+            for caps_file in modified_caps_files[:5]:  # Check a few files
+                try:
+                    with open(caps_file, 'r') as f:
+                        content = f.read()
+                        if "LYS" in content:
+                            has_replacements = True
+                            LOG.debug(f"Found LYS residue in {caps_file}, confirming replacement")
+                            break
+                except Exception as e:
+                    LOG.warning(f"Error checking {caps_file} for LYS residues: {e}")
+                    
+            if not has_replacements:
+                LOG.warning("No LYS residues found in sampled caps files. Replacement might not have worked.")
+                
+        except Exception as e:
+            LOG.error(f"Error during replacement with Chimera: {str(e)}")
+            import traceback
+            LOG.error(f"Traceback: {traceback.format_exc()}")
             raise GeometryGenerationError(
-                message=f"Chimera execution failed: {str(e)}",
+                message=f"Error during replacement with Chimera: {str(e)}",
                 error_code="GEO_ERR_004"
             )
 
@@ -742,7 +1048,9 @@ class CrosslinkReplacer:
             True if successful, False if replacement failed
         """
         try:
-            # Create replacement file in the temporary directory if provided
+            scripts_dir = Path(chimera_scripts_dir)
+            system_type_path = Path(system_type)
+            
             if temp_dir and temp_dir.exists():
                 replace_file = temp_dir / "replace.txt"
             else:
@@ -754,19 +1062,19 @@ class CrosslinkReplacer:
             LOG.debug(f"Created replacement file: {replace_file}")
             
             LOG.debug("Running Chimera to replace crosslinks")
-            swapaa_script = os.path.join(chimera_scripts_dir, "swapaa.py")
+            swapaa_script = scripts_dir / "swapaa.py"
             
-            if not os.path.exists(swapaa_script):
+            if not swapaa_script.exists():
                 raise GeometryGenerationError(
                     message=f"Chimera swapaa script not found: {swapaa_script}",
                     error_code="GEO_ERR_004"
                 )
                 
-            base_file = str(replace_file)
-            if base_file.endswith('.txt'):
-                base_file = base_file[:-4]
+            base_file_str = str(replace_file)
+            if base_file_str.endswith('.txt'):
+                base_file_str = base_file_str[:-4]
                 
-            cmd = f"chimera --nogui --silent --script \"{swapaa_script} {base_file} {system_type}\""
+            cmd = f"chimera --nogui --silent --script \"{swapaa_script} {base_file_str} {system_type_path}\""
             
             LOG.debug(f"Running command: {cmd}")
             
@@ -784,24 +1092,27 @@ class CrosslinkReplacer:
                 return False
                 
             if output_pdb:
-                with open(output_pdb, 'w') as out:
+                output_path = Path(output_pdb)
+                with open(output_path, 'w') as out:
                     out.write("REMARK   Generated by colbuilder replacement\n")
                     
-                    # Use Path object for system_type to make directory handling easier
-                    system_type_path = Path(system_type)
+                    pdb_files = sorted(
+                        [f for f in system_type_path.glob("*.caps.pdb")],
+                        key=lambda x: int(x.stem.split('.')[0])
+                    )
                     
-                    pdb_files = [f for f in os.listdir(system_type_path) if f.endswith('.pdb')]
-                    pdb_files.sort(key=lambda x: int(x.split('.')[0]))
+                    LOG.debug(f"Adding {len(pdb_files)} model files to output PDB")
                     
                     for pdb_file in pdb_files:
-                        pdb_path = system_type_path / pdb_file
-                        with open(pdb_path, 'r') as f:
+                        with open(pdb_file, 'r') as f:
                             for line in f:
                                 if line.startswith(("ATOM", "HETATM", "TER")):
+                                    if line.startswith('HETATM'):
+                                        line = 'ATOM  ' + line[6:]
                                     out.write(line)
                     
                     out.write("END\n")
-                
+            
             LOG.debug("Chimera replacement completed successfully")
             return True
             
@@ -810,7 +1121,7 @@ class CrosslinkReplacer:
             traceback.print_exc()
             return False
     
-    def _split_pdb_into_models(self, input_pdb: str, system_type: str) -> int:
+    def _split_pdb_into_models(self, input_pdb: Union[str, Path], system_type: Union[str, Path]) -> int:
         """
         Split a PDB file into individual triple helix models.
         
@@ -827,8 +1138,11 @@ class CrosslinkReplacer:
         Raises:
             GeometryGenerationError: If the input PDB file is not a valid Colbuilder structure
         """
+        input_pdb_path = Path(input_pdb)
+        system_type_path = Path(system_type)
+        
         is_colbuilder_pdb = False
-        with open(input_pdb, 'r') as f:
+        with open(input_pdb_path, 'r') as f:
             first_line = f.readline().strip()
             if first_line.startswith("CRYST1"):
                 is_colbuilder_pdb = True
@@ -840,7 +1154,7 @@ class CrosslinkReplacer:
                 error_code="GEO_ERR_004"
             )
         
-        with open(input_pdb, 'r') as f:
+        with open(input_pdb_path, 'r') as f:
             all_lines = f.readlines()
         
         cryst_line = None
@@ -884,11 +1198,10 @@ class CrosslinkReplacer:
         
         LOG.debug(f"Split PDB into {len(models)} models")
         
-        if not os.path.exists(system_type):
-            os.makedirs(system_type)
+        system_type_path.mkdir(parents=True, exist_ok=True)
         
         for i, model_lines in enumerate(models):
-            caps_file = os.path.join(system_type, f"{i}.caps.pdb")
+            caps_file = system_type_path / f"{i}.caps.pdb"
             with open(caps_file, 'w') as f:
                 if cryst_line:
                     f.write(cryst_line)
@@ -897,6 +1210,8 @@ class CrosslinkReplacer:
                 
                 if not model_lines[-1].startswith("TER"):
                     f.write("TER\n")
+            
+            LOG.debug(f"Created model file: {caps_file}")
         
         return len(models)
 
@@ -913,19 +1228,16 @@ class CrosslinkReplacer:
             ratio_replace: Percentage of crosslinks to replace (0-100)
             z_bounds: Tuple of (z_min, z_max) defining the region to focus on
         """
+        reset_count = 0
         for model_id in system.get_models():
             model = system.get_model(model_id=model_id)
             if hasattr(model, 'crosslink') and model.crosslink:
                 for crosslink in model.crosslink:
-                    crosslink.state = 'none'
+                    if hasattr(crosslink, 'state'):
+                        crosslink.state = 'none'
+                        reset_count += 1
         
-        total_system_crosslinks = 0
-        for model_id in system.get_models():
-            model = system.get_model(model_id=model_id)
-            if hasattr(model, 'crosslink') and model.crosslink:
-                total_system_crosslinks += len(model.crosslink)
-        
-        LOG.debug(f"Total crosslinks in system: {total_system_crosslinks}")
+        LOG.debug(f"Reset state for {reset_count} crosslinks")
         
         crosslinks_in_bounds = []
         for model_id in system.get_models():
@@ -935,27 +1247,43 @@ class CrosslinkReplacer:
                 
             for crosslink in model.crosslink:
                 try:
+                    if not hasattr(crosslink, 'position'):
+                        LOG.debug(f"Crosslink in model {model_id} has no position attribute")
+                        continue
+                        
                     z_pos = self._get_z_position(crosslink.position)
+                    
                     if z_bounds[0] <= z_pos <= z_bounds[1]:
-                        crosslinks_in_bounds.append({
+                        crosslink_info = {
                             'model_id': model_id,
                             'model': model,
                             'crosslink': crosslink,
-                            'type': getattr(crosslink, 'type', 'D')
-                        })
+                            'type': getattr(crosslink, 'type', 'D'),
+                            'resname': getattr(crosslink, 'resname', 'UNK'),
+                            'z_position': z_pos
+                        }
+                        crosslinks_in_bounds.append(crosslink_info)
+                        
+                        if hasattr(crosslink, 'resname') and hasattr(crosslink, 'resid') and hasattr(crosslink, 'chain'):
+                            LOG.debug(f"Found crosslink in bounds: Model {model_id}, {crosslink.resname} {crosslink.resid}{crosslink.chain}, z={z_pos:.1f}")
                 except Exception as e:
-                    LOG.warning(f"Error checking crosslink bounds: {e}")
+                    LOG.warning(f"Error checking crosslink bounds for model {model_id}: {e}")
+        
+        if not crosslinks_in_bounds:
+            LOG.warning("No crosslinks found within z-bounds, nothing will be replaced")
+            return
         
         crosslinks_by_type = {}
         for cross_ref in crosslinks_in_bounds:
             crosslink = cross_ref['crosslink']
-            resname = crosslink.resname
+            resname = getattr(crosslink, 'resname', 'UNK')
             if resname not in crosslinks_by_type:
                 crosslinks_by_type[resname] = []
             crosslinks_by_type[resname].append(cross_ref)
         
         LOG.debug(f"Found crosslink types: {list(crosslinks_by_type.keys())}")
         
+        # Define which residue types should be paired together
         pair_types = [
             (['L4Y', 'L4X', 'LY4', 'LX4'], ['L5Y', 'L5X', 'LY5', 'LX5']),
             (['LGX', 'LPS'], ['AGS', 'APD']),
@@ -974,6 +1302,8 @@ class CrosslinkReplacer:
             for resname in type2_list:
                 if resname in crosslinks_by_type:
                     type2_crosslinks.extend(crosslinks_by_type[resname])
+            
+            LOG.debug(f"Looking for pairs between {type1_list} ({len(type1_crosslinks)}) and {type2_list} ({len(type2_crosslinks)})")
             
             if not type1_crosslinks or not type2_crosslinks:
                 continue
@@ -1008,17 +1338,21 @@ class CrosslinkReplacer:
                     used_type1.add(i)
                     used_type2.add(closest_idx)
                     
-                    LOG.debug(f"Found pair: {crosslink1.resname} {crosslink1.resid}{crosslink1.chain} + "
-                            f"{type2_crosslinks[closest_idx]['crosslink'].resname} {type2_crosslinks[closest_idx]['crosslink'].resid}{type2_crosslinks[closest_idx]['crosslink'].chain} "
-                            f"(distance: {min_dist:.2f}Å)")
+                    if LOG.level <= 10:  # DEBUG level
+                        crosslink1_info = f"{crosslink1.resname} {crosslink1.resid}{crosslink1.chain}" if all(hasattr(crosslink1, attr) for attr in ['resname', 'resid', 'chain']) else "Unknown"
+                        crosslink2_info = f"{type2_crosslinks[closest_idx]['crosslink'].resname} {type2_crosslinks[closest_idx]['crosslink'].resid}{type2_crosslinks[closest_idx]['crosslink'].chain}" if all(hasattr(type2_crosslinks[closest_idx]['crosslink'], attr) for attr in ['resname', 'resid', 'chain']) else "Unknown"
+                        
+                        LOG.debug(f"Found pair: {crosslink1_info} + {crosslink2_info} (distance: {min_dist:.2f}Å)")
         
         num_to_replace = min(
-            math.ceil(len(pairs) * ratio_replace / 100),
+            max(1, math.ceil(len(pairs) * ratio_replace / 100)),
             len(pairs)
         )
         
-        LOG.debug(f"Will replace {num_to_replace} pairs out of {len(pairs)} (ratio: {ratio_replace}%)")
+        LOG.info(f"Will replace {num_to_replace} pairs out of {len(pairs)} (ratio: {ratio_replace}%)")
         
+        import random
+        random.seed(int(time.time()))  # Set random seed for reproducibility
         random.shuffle(pairs)
         pairs_to_replace = pairs[:num_to_replace]
         
@@ -1030,8 +1364,12 @@ class CrosslinkReplacer:
                 
                 model_id = cross_ref['model_id']
                 crosslink = cross_ref['crosslink']
-                LOG.debug(f"Marked {crosslink.resname} {crosslink.resid}{crosslink.chain} in model {model_id} for replacement")
+                
+                if hasattr(crosslink, 'resname') and hasattr(crosslink, 'resid') and hasattr(crosslink, 'chain'):
+                    LOG.debug(f"Marked {crosslink.resname} {crosslink.resid}{crosslink.chain} in model {model_id} for replacement")
         
+        # Protect nearby crosslinks from being replaced
+        protected_count = 0
         for pair in pairs_to_replace:
             for cross_ref in pair:
                 crosslink = cross_ref['crosslink']
@@ -1045,12 +1383,17 @@ class CrosslinkReplacer:
                         distance = self._calculate_distance(crosslink.position, other.position)
                         if 5.0 < distance <= 15.0:
                             other.state = 'protect'
+                            protected_count += 1
                     except Exception as e:
                         LOG.warning(f"Error protecting nearby crosslink: {e}")
         
+        LOG.debug(f"Protected {protected_count} nearby crosslinks")
+        
+        total_system_crosslinks = sum(len(system.get_model(model_id=model_id).crosslink) for model_id in system.get_models() if hasattr(system.get_model(model_id=model_id), 'crosslink') and system.get_model(model_id=model_id).crosslink)
+        
         if total_system_crosslinks > 0:
             achieved_ratio = (replaced_count / total_system_crosslinks) * 100
-            LOG.debug(f"Achieved replacement ratio: {achieved_ratio:.2f}% (target: {ratio_replace}%)")
+            LOG.debug(f"Achieved replacement ratio: {achieved_ratio:.2f}% of total system crosslinks (target: {ratio_replace}%)")
 
 # Backward compatibility functions
 

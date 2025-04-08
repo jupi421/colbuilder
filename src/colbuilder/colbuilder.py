@@ -307,26 +307,50 @@ async def run_pipeline(config: ColbuilderConfig) -> Dict[str, Path]:
         
         # Sequence Generation
         if config.sequence_generator:
-            # ... existing sequence generation code ...
-            pass
+            LOG.section("Running sequence generation")
+            sequence_msa, sequence_pdb = await run_sequence_generation(config)
+            results["sequence_msa"] = sequence_msa
+            results["sequence_pdb"] = sequence_pdb
+            
+            # Update PDB file for next steps if needed
+            if sequence_pdb and not config.pdb_file:
+                config.pdb_file = sequence_pdb
+                LOG.info(f"Using generated sequence PDB for further processing: {sequence_pdb}")
 
         # Handle direct replacement without geometry generation
         if config.replace_bool and not config.geometry_generator:
-            LOG.info("Running direct replacement without geometry generation")
+            LOG.section("Running direct replacement without geometry generation")
             from colbuilder.core.geometry.main_geometry import GeometryService
             geometry_service = GeometryService(config, file_manager)
             current_system, pdb_path = await geometry_service._handle_direct_replacement()
             results["geometry_pdb"] = pdb_path
+            LOG.info(f"Direct replacement completed, output PDB: {pdb_path}")
             
         # Combined Geometry/Mixing/Replacement
-        elif config.geometry_generator or config.mix_bool:
+        elif config.geometry_generator:
+            LOG.section("Running geometry generation")
+            from colbuilder.core.geometry.main_geometry import GeometryService
+            geometry_service = GeometryService(config, file_manager)
+            
+            # Use full generation which handles both geometry and replacement
+            current_system, pdb_path = await geometry_service._handle_full_generation()
+            results["geometry_pdb"] = pdb_path
+            
+            LOG.info(f"Geometry generation completed, output PDB: {pdb_path}")
+        
+        # Mix-only mode (no geometry generation)
+        elif config.mix_bool:
+            LOG.section("Running crosslinks mixing mode")
             current_system, pdb_path = await run_geometry_generation(config, file_manager)
             results["geometry_pdb"] = pdb_path
+            LOG.info(f"Mixing completed, output PDB: {pdb_path}")
         
         # Topology Generation
         if config.topology_generator and results["geometry_pdb"]:
-            # ... existing topology generation code ...
-            pass
+            LOG.info("Running topology generation")
+            topology_dir, system_path = await run_topology_generation(config, results["geometry_pdb"])
+            results["topology_dir"] = topology_dir
+            LOG.info(f"Topology generation completed, output directory: {topology_dir}")
         
         # Clean up temporary files if not in debug mode
         if not config.debug:
@@ -334,12 +358,31 @@ async def run_pipeline(config: ColbuilderConfig) -> Dict[str, Path]:
             
         return results
         
+    except SequenceGenerationError as e:
+        LOG.error(f"Sequence generation error: {str(e)}")
+        e.log_error()
+        raise
+    except GeometryGenerationError as e:
+        LOG.error(f"Geometry generation error: {str(e)}")
+        e.log_error()
+        raise
+    except TopologyGenerationError as e:
+        LOG.error(f"Topology generation error: {str(e)}")
+        e.log_error()
+        raise
     except ColbuilderError as e:
+        LOG.error(f"Colbuilder error: {str(e)}")
         e.log_error()
         raise
     except Exception as e:
-        # ... existing error handling ...
-        pass
+        LOG.critical(f"Unhandled exception in pipeline: {str(e)}")
+        LOG.info(f"Exception details: {traceback.format_exc()}")
+        raise SystemError(
+            message=f"Unhandled exception in pipeline: {str(e)}",
+            original_error=e,
+            error_code="SYS_ERR_001",
+            context={"config": config.model_dump() if hasattr(config, "model_dump") else str(config)}
+        )
 
 def log_configuration_summary(cfg: ColbuilderConfig) -> None:
     """
@@ -378,8 +421,10 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
             LOG.info(f"- {item}")
 
     if cfg.config_file:
-        LOG.info(f"Config File: {cfg.config_file}")
-    if cfg.pdb_file and not (cfg.mix_bool or cfg.replace_bool):
+        LOG.info(f"Config File: {cfg.config_file}") 
+    # if cfg.pdb_file and not (cfg.mix_bool or cfg.replace_bool):
+    #     LOG.info(f"Input File: {cfg.pdb_file}")
+    if cfg.pdb_file and (cfg.geometry_generator):
         LOG.info(f"Input File: {cfg.pdb_file}")
     LOG.info(f"Output File: {cfg.output}.pdb")
     LOG.info(f"Working Directory: {cfg.working_directory}")

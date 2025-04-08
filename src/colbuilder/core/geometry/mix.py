@@ -93,7 +93,6 @@ class Mix:
             LOG.debug(f"Converted ratio_mix from string: {self.ratio_mix}")
 
         total_models = self.system.get_size()
-        LOG.debug(f"Total models in system: {total_models}")
         
         model_ids = list(self.system.get_models())
         
@@ -112,8 +111,6 @@ class Mix:
                 remaining -= 1
                 if remaining == 0:
                     break
-        
-        LOG.info(f"     Type distribution: {type_counts}")
         
         connected_components = []
         visited = set()
@@ -141,8 +138,6 @@ class Mix:
             
             if component:
                 connected_components.append(component)
-        
-        LOG.debug(f"Found {len(connected_components)} connected components")
         
         connected_components.sort(key=len, reverse=True)
         
@@ -176,10 +171,7 @@ class Mix:
                 model = self.system.get_model(model_id=model_id)
                 model_type = assigned_types[model_id]
                 
-                # Set the type attribute
                 model.type = model_type
-                
-                # Store the type information in a way the System.write_pdb can use
                 model.crosslink_type = model_type
                 
                 LOG.debug(f"Assigned type {model.type} to model {model_id}")

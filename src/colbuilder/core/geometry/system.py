@@ -258,7 +258,7 @@ class System:
             pdb_out: Path to output PDB file
             fibril_length: Length of fibril in nm
             cleanup: Whether to clean up temporary files
-            temp_dir: Optional temporary directory containing caps files
+            temp_dir: Directory containing caps files to use
         """
         pdb_out_path = Path(pdb_out)
         if not pdb_out_path.is_absolute():
@@ -267,78 +267,54 @@ class System:
         if pdb_out_path.suffix != '.pdb':
             pdb_out_path = pdb_out_path.with_suffix('.pdb')
 
+        # Require a source directory
+        if temp_dir is None:
+            raise ValueError("temp_dir must be provided - specify which directory to use for caps files")
+        
+        LOG.debug(f"Using caps files from: {temp_dir}")
+        
         model_types = set()
         for model in self.system.values():
             if hasattr(model, 'type') and model.type:
                 model_types.add(model.type)
         
-        potential_dirs = []
-        type_dirs = {t: [] for t in model_types} 
+        LOG.debug(f"System contains {self.get_size()} models with types: {', '.join(str(t) for t in model_types)}")
         
-        # 1. First check in temp_dir if provided
-        if temp_dir and temp_dir.exists():
-            potential_dirs.append(temp_dir)
-            
-            # Check type-specific subdirectories in temp_dir
-            for model_type in model_types:
-                type_dir = temp_dir / str(model_type)
-                if type_dir.exists():
-                    potential_dirs.append(type_dir)
-                    type_dirs[model_type].append(type_dir)
-        
-        # 2. Check standard locations
-        std_locations = [
-            Path.cwd() / ".tmp" / "geometry_gen",
-            Path.cwd() / ".tmp" / "mix_crosslinks",
-            Path.cwd()
-        ]
-        
-        for location in std_locations:
-            if location.exists():
-                potential_dirs.append(location)
-                
-                # Check for type-specific directories
-                for model_type in model_types:
-                    type_dir = location / str(model_type)
-                    if type_dir.exists():
-                        potential_dirs.append(type_dir)
-                        type_dirs[model_type].append(type_dir)
-        
+        # Find type-specific directories
+        type_dirs = {}
         for model_type in model_types:
-            if not type_dirs[model_type]:
-                LOG.warning(f"No type-specific directories found for {model_type}. This may cause incorrect mixing.")
+            type_dir = temp_dir / str(model_type)
+            if type_dir.exists():
+                type_dirs[model_type] = type_dir
+                LOG.debug(f"Found {model_type} directory: {type_dir}")
             else:
-                LOG.debug(f"Type {model_type} has {len(type_dirs[model_type])} directories")
+                LOG.error(f"No {model_type} directory found in {temp_dir}!")
+                raise FileNotFoundError(f"Required directory not found: {type_dir}")
         
-        caps_by_type = {t: {} for t in model_types}
-        
-        for model_type, directories in type_dirs.items():
-            for dir_path in directories:
-                for caps_file in dir_path.glob("*.caps.pdb"):
-                    try:
-                        connect_id = float(caps_file.stem.split('.')[0])
-                        caps_by_type[model_type][connect_id] = caps_file
-                    except (ValueError, IndexError):
-                        continue
-            
-            LOG.debug(f"Found {len(caps_by_type[model_type])} caps files for type {model_type}")
-        
-        general_caps = {}
-        for dir_path in potential_dirs:
-            for caps_file in dir_path.glob("*.caps.pdb"):
+        # Find caps files for each model type
+        caps_by_model = {}
+        for model_type, type_dir in type_dirs.items():
+            for caps_file in type_dir.glob("*.caps.pdb"):
                 try:
                     connect_id = float(caps_file.stem.split('.')[0])
-                    general_caps[connect_id] = caps_file
+                    caps_by_model[connect_id] = caps_file
                 except (ValueError, IndexError):
                     continue
         
-        stats = {
-            "processed": 0,
-            "type_specific": 0,
-            "fallback": 0,
-            "missing": 0,
-            "by_type": {t: {"total": 0, "found": 0} for t in model_types}
-        }
+        # Verify we have all needed models
+        missing_models = []
+        for model_id, model in self.system.items():
+            if not model.connect:
+                continue
+                
+            for connect_id in model.connect:
+                connect_float = float(connect_id)
+                if connect_float not in caps_by_model:
+                    missing_models.append(connect_float)
+        
+        if missing_models:
+            LOG.error(f"Missing caps files for {len(missing_models)} models: {missing_models[:5]}...")
+            raise FileNotFoundError(f"Missing necessary caps files. Cannot create complete PDB.")
         
         # Write the PDB file
         try:
@@ -356,63 +332,61 @@ class System:
                 
                 # Process each model and its connections
                 for model_id, model in self.system.items():
-                    model_type = getattr(model, 'type', None)
-                    
                     if not model.connect:
+                        LOG.warning(f"Model {model_id} has no connections, skipping")
                         continue
                     
-                    if model_type in model_types:
-                        stats["by_type"][model_type]["total"] += len(model.connect)
-                    
                     for connect_id in model.connect:
-                        stats["processed"] += 1
                         connect_float = float(connect_id)
-                        caps_file = None
+                        caps_file = caps_by_model.get(connect_float)
                         
-                        # PRIORITY 1: Find caps file for this specific model type
-                        if model_type and model_type in caps_by_type and connect_float in caps_by_type[model_type]:
-                            caps_file = caps_by_type[model_type][connect_float]
-                            stats["type_specific"] += 1
-                            if model_type in model_types:
-                                stats["by_type"][model_type]["found"] += 1
-                        
-                        # PRIORITY 2: Fallback to general lookup only if no type-specific found
-                        elif connect_float in general_caps:
-                            caps_file = general_caps[connect_float]
-                            stats["fallback"] += 1
-                            LOG.debug(f"Using fallback caps file for model {model_id} (type: {model_type}) connect {connect_id}")
-                        
-                        # Handle missing caps file
                         if not caps_file:
-                            stats["missing"] += 1
-                            LOG.warning(f"No caps file found for model {model_id} (type: {model_type}) connect {connect_id}")
+                            LOG.warning(f"No caps file found for model {model_id} connect {connect_id}")
                             continue
                         
                         # Write the caps file content
                         try:
                             with open(caps_file, 'r') as caps_file_obj:
+                                content_written = False
                                 for line in caps_file_obj:
                                     if line.startswith(self.is_line):
+                                        content_written = True
                                         if line.startswith('HETATM'):
                                             line = 'ATOM  ' + line[6:]
                                         f.write(line)
+                                
+                                if not content_written:
+                                    LOG.warning(f"No atom records found in caps file: {caps_file}")
                         except Exception as e:
                             LOG.error(f"Error reading caps file {caps_file}: {str(e)}")
                 
                 f.write("END\n")
             
-            # # Log detailed statistics about caps file usage
-            # LOG.info(f"PDB writing complete: {pdb_out_path}")
-            # LOG.info(f"Total connections processed: {stats['processed']}")
-            # LOG.info(f"Type-specific caps used: {stats['type_specific']} ({stats['type_specific']/max(1, stats['processed'])*100:.1f}%)")
-            # LOG.info(f"Fallback caps used: {stats['fallback']} ({stats['fallback']/max(1, stats['processed'])*100:.1f}%)")
-            # LOG.info(f"Missing caps: {stats['missing']} ({stats['missing']/max(1, stats['processed'])*100:.1f}%)")
-            
-            for model_type in model_types:
-                type_total = stats["by_type"][model_type]["total"]
-                type_found = stats["by_type"][model_type]["found"]
-                if type_total > 0:
-                    LOG.debug(f"Type {model_type}: {type_found}/{type_total} connections ({type_found/type_total*100:.1f}%)")
+            # Verify the output file has content
+            try:
+                if pdb_out_path.exists():
+                    file_size = pdb_out_path.stat().st_size
+                    
+                    if file_size == 0:
+                        LOG.error("Output PDB file is empty!")
+                    elif file_size < 1000:
+                        LOG.warning(f"Output PDB file is very small ({file_size} bytes)")
+                    
+                    # Count atoms as a basic check
+                    atom_count = 0
+                    resi_types = {}
+                    with open(pdb_out_path, 'r') as check_file:
+                        for line in check_file:
+                            if line.startswith(("ATOM", "HETATM")):
+                                atom_count += 1
+                                if len(line) >= 20:
+                                    resi_type = line[17:20].strip()
+                                    resi_types[resi_type] = resi_types.get(resi_type, 0) + 1
+                else:
+                    LOG.error(f"Output PDB file not found: {pdb_out_path}")
+                    
+            except Exception as e:
+                LOG.warning(f"Error performing PDB verification: {e}")
         
         except Exception as e:
             LOG.error(f"Error writing PDB file {pdb_out_path}: {str(e)}")

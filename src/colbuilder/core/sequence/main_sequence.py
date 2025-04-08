@@ -50,8 +50,12 @@ print(f"PDB file saved to: {pdb_output}")
 
 from pathlib import Path
 from typing import Tuple
+from colorama import Fore, Style
 from colbuilder.core.utils.config import ColbuilderConfig
 from .sequence_generator import SequenceGenerator
+
+from ..utils.logger import setup_logger
+LOG = setup_logger(__name__)
 
 async def build_sequence(config: ColbuilderConfig) -> Tuple[Path, Path]:
     """
@@ -68,6 +72,11 @@ async def build_sequence(config: ColbuilderConfig) -> Tuple[Path, Path]:
         SystemError: If system operations fail
     """
     generator = SequenceGenerator(config)
-    return await generator.generate()
+    msa_output, final_pdb = await generator.generate()
+    
+    if final_pdb and final_pdb.exists():
+        LOG.info(f"{Fore.GREEN}Sequence generation completed, output PDB: {final_pdb.absolute()}{Style.RESET_ALL}")
+    
+    return msa_output, final_pdb
 
 __all__ = ['build_sequence']
