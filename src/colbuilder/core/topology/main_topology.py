@@ -6,9 +6,11 @@ import os
 from pathlib import Path
 from typing import Any, Optional, Set
 import shutil
+import traceback
 import asyncio
 from colorama import init, Fore, Style
 
+from ..utils.files import FileManager, managed_resources
 from colbuilder.core.geometry.system import System
 from colbuilder.core.topology.amber import Amber, build_amber99
 from colbuilder.core.topology.martini import Martini, build_martini3
@@ -114,7 +116,7 @@ def organize_topology_files(topology_dir: Path, species: str) -> None:
 
 
 @timeit
-async def build_topology(system: System, config: ColbuilderConfig) -> Any:
+async def build_topology(system: System, config: ColbuilderConfig, file_manager: Optional[FileManager] = None) -> Any:
     """
     Build the topology of a molecular system and organize output files.
     
@@ -124,6 +126,8 @@ async def build_topology(system: System, config: ColbuilderConfig) -> Any:
         The molecular system to process
     config : ColbuilderConfig
         Configuration object containing settings
+    file_manager : Optional[FileManager]
+        File manager for consistent file handling
         
     Returns
     -------
@@ -136,59 +140,104 @@ async def build_topology(system: System, config: ColbuilderConfig) -> Any:
         If topology generation fails
     """
     try:
-        force_field = config.force_field
+        # Initialize file manager if not provided
+        if file_manager is None:
+            file_manager = FileManager(config)
         
-        for model_id in system.get_models():
-            model = system.get_model(model_id=model_id)
-            LOG.debug(f"Model {model_id} - Type: {model.type}, Connect: {model.connect}")
-            
-        if force_field == 'amber99':
-            ff = f"{force_field}sb-star-ildnp"
-            LOG.subsection(f'Building topology based on the {force_field} force field')
-            await build_amber99(system=system, config=config)
-            
-        elif force_field == 'martini3':
-            ff = f"{force_field}"
-            LOG.subsection(f'Building topology based on the {force_field} force field')
-            
-            # Install custom force field files before building the topology
-            LOG.info("Installing Martini 3.0 force field custom files")
-            from colbuilder.core.utils.martinize_finder import find_and_install_custom_force_field
-            
-            if not find_and_install_custom_force_field(config.FORCE_FIELD_DIR):
-                LOG.warning("Failed to install custom force field files, proceeding with existing installation")
-            
-            await build_martini3(system=system, config=config)
-        else:
-            raise TopologyGenerationError(
-                message='Invalid or unsupported force field specified',
-                error_code="TOP_ERR_001",
-                context={"force_field": force_field}
-            )
-            
-        # Organize topology files in the final top directory
-        LOG.debug("Setting up topology directory and organizing files")
-        topology_dir = setup_topology_directory(config.species)
-        organize_topology_files(topology_dir, config.species)
+        # Get the topology directory from the file manager
+        topology_dir = file_manager.get_temp_dir("topology_gen")
+        original_dir = Path.cwd()
         
-        # Clean up temporary files
-        LOG.debug("Cleaning up temporary files")
-        cleanup_temporary_files(force_field, TEMP_FILES_TO_CLEAN)
-            
-        return system
-    except TopologyGenerationError:
         try:
-            LOG.warning("Attempting cleanup after error")
-            cleanup_temporary_files(config.force_field, TEMP_FILES_TO_CLEAN)
-        except Exception as cleanup_error:
-            LOG.warning(f"Cleanup after error failed: {cleanup_error}")
+            # Change to topology directory
+            os.chdir(topology_dir)
+            
+            # Search for cap files and copy them to the topology directory
+            geometry_dir = Path(".tmp/geometry_gen")
+            if not geometry_dir.exists():
+                geometry_dir = Path(original_dir) / ".tmp" / "geometry_gen"
+            
+            if geometry_dir.exists():
+                cap_files = list(geometry_dir.glob("**/*.caps.pdb"))
+                
+                # Get the model type from the first model
+                if len(list(system.get_models())) > 0:
+                    first_model = system.get_model(model_id=list(system.get_models())[0])
+                    model_type = first_model.type
+                    type_dir = topology_dir / model_type
+                    type_dir.mkdir(exist_ok=True, parents=True)
+                    
+                    # Copy cap files to the topology directory
+                    for cap_file in cap_files:
+                        dest_file = type_dir / cap_file.name
+                        shutil.copy(cap_file, dest_file)
+                else:
+                    LOG.warning("No models found in system, cannot determine model type")
+            else:
+                LOG.warning(f"Geometry directory not found: {geometry_dir}")
+            
+            force_field = config.force_field
+            
+            for model_id in system.get_models():
+                model = system.get_model(model_id=model_id)
+                LOG.debug(f"Model {model_id} - Type: {model.type}, Connect: {model.connect}")
+                
+            if force_field == 'amber99':
+                ff = f"{force_field}sb-star-ildnp"
+                LOG.subsection(f'Building topology based on the {force_field} force field')
+                await build_amber99(system=system, config=config, file_manager=file_manager)
+                
+            elif force_field == 'martini3':
+                ff = f"{force_field}"
+                LOG.subsection(f'Building topology based on the {force_field} force field')
+                
+                # Install custom force field files before building the topology
+                LOG.info("Installing Martini 3.0 force field custom files")
+                from colbuilder.core.utils.martinize_finder import find_and_install_custom_force_field
+                
+                if not find_and_install_custom_force_field(config.FORCE_FIELD_DIR):
+                    LOG.warning("Failed to install custom force field files, proceeding with existing installation")
+                
+                await build_martini3(system=system, config=config, file_manager=file_manager)
+            else:
+                raise TopologyGenerationError(
+                    message='Invalid or unsupported force field specified',
+                    error_code="TOP_ERR_001",
+                    context={"force_field": force_field}
+                )
+                
+            # Organize topology files in the final top directory
+            LOG.debug("Setting up topology directory and organizing files")
+            output_topology_dir = file_manager.ensure_dir(f"{config.species}_topology_files")
+            
+            # Copy topology files
+            for top_file in Path().glob(f"collagen_fibril_*.top"):
+                dest_path = file_manager.copy_to_directory(top_file, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied topology file to: {dest_path}")
+                
+            # Copy ITP files
+            for itp_file in Path().glob("*.itp"):
+                dest_path = file_manager.copy_to_directory(itp_file, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied ITP file to: {dest_path}")
+                    
+            LOG.info(f"{Fore.BLUE}Topology files written at: {output_topology_dir}{Style.RESET_ALL}")
+                
+            return system
+            
+        finally:
+            # Return to original directory
+            os.chdir(original_dir)
+            LOG.debug(f"Returned to original directory: {original_dir}")
+            
+            # Clean up temporary files (unless in debug mode)
+            if not config.debug:
+                cleanup_temporary_files(config.force_field, TEMP_FILES_TO_CLEAN)
+            
+    except TopologyGenerationError:
         raise
     except Exception as e:
-        try:
-            LOG.warning("Attempting cleanup after unexpected error")
-            cleanup_temporary_files(config.force_field, TEMP_FILES_TO_CLEAN)
-        except Exception as cleanup_error:
-            LOG.warning(f"Cleanup after error failed: {cleanup_error}")
+        LOG.error(f"Unexpected error in topology generation: {str(e)}")
+        LOG.debug(f"Traceback: {traceback.format_exc()}")
         
         raise TopologyGenerationError(
             message="Unexpected error in topology generation",

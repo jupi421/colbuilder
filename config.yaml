@@ -2,8 +2,8 @@
 mode: null
 config_file: null
 sequence_generator: false
-geometry_generator: false
-topology_generator: false
+geometry_generator: true
+topology_generator: true
 debug: false
 working_directory: "./"
 
@@ -25,7 +25,7 @@ c_term_combination: "1047.C - 104.C"
 
 
 # Geometry Parameters
-pdb_file: null #homosapiens_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
+pdb_file: homosapiens_N_HLKNL_C_HLKNL.pdb # Set to null if sequence_generator is true
 contact_distance: 20                      # Contact distance in Angstroms
 fibril_length: 40                         # Fibril length in nm
 crystalcontacts_file: null                # Optional: Path to a file containing crystal contacts
@@ -33,7 +33,7 @@ connect_file: null                        # Optional: Path to a file containing 
 crystalcontacts_optimize: false           # Note: This is automatically true when generating geometry from contact_distance, but has to be manually set to true to be performed otherwise.
 
 # Mixing Options (for mixed crosslinked microfibril)
-mix_bool: true
+mix_bool: false
 ratio_mix: "D:80 T:20"  # Format: "Type:percentage (0-100) Type:percentage (0-100)"
 # Example: "D:80 T:20" means 80% Divalent and 20% Trivalent crosslinks
 files_mix:              # Required if mix_bool is true

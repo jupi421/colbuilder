@@ -340,16 +340,16 @@ class FileManager:
         # Sanitize the basename to prevent nested .tmp directories
         clean_basename = str(basename)
         if clean_basename.startswith(".tmp/"):
-            LOG.info(f"Removing leading .tmp/ from path: {clean_basename}")
+            LOG.debug(f"Removing leading .tmp/ from path: {clean_basename}")
             clean_basename = clean_basename[5:]
         
         if ".tmp/.tmp" in clean_basename:
-            LOG.info(f"Removing nested .tmp from path: {clean_basename}")
+            LOG.debug(f"Removing nested .tmp from path: {clean_basename}")
             clean_basename = clean_basename.replace(".tmp/.tmp", ".tmp")
         
         # Handle standard directory prefixes
         if clean_basename.startswith(self.TEMP_GEOMETRY_DIR):
-            LOG.info(f"Using standard geometry directory for: {clean_basename}")
+            LOG.debug(f"Using standard geometry directory for: {clean_basename}")
             path_parts = Path(clean_basename).parts[1:]  # Skip the geometry_gen part
             if path_parts:
                 result_path = self.geometry_dir.joinpath(*path_parts)
@@ -357,7 +357,7 @@ class FileManager:
                 result_path = self.geometry_dir
         
         elif clean_basename.startswith(self.TEMP_REPLACEMENT_DIR):
-            LOG.info(f"Using standard replacement directory for: {clean_basename}")
+            LOG.debug(f"Using standard replacement directory for: {clean_basename}")
             path_parts = Path(clean_basename).parts[1:]  # Skip the replace_crosslinks part
             if path_parts:
                 result_path = self.replacement_dir.joinpath(*path_parts)
@@ -365,7 +365,7 @@ class FileManager:
                 result_path = self.replacement_dir
         
         elif clean_basename.startswith(self.TEMP_MIXING_DIR):
-            LOG.info(f"Using standard mixing directory for: {clean_basename}")
+            LOG.debug(f"Using standard mixing directory for: {clean_basename}")
             path_parts = Path(clean_basename).parts[1:]  # Skip the mixing_crosslinks part
             if path_parts:
                 result_path = self.mixing_dir.joinpath(*path_parts)
@@ -373,7 +373,7 @@ class FileManager:
                 result_path = self.mixing_dir
         
         elif clean_basename.startswith(self.TEMP_TOPOLOGY_DIR):
-            LOG.info(f"Using standard topology directory for: {clean_basename}")
+            LOG.debug(f"Using standard topology directory for: {clean_basename}")
             path_parts = Path(clean_basename).parts[1:]  # Skip the topology_gen part
             if path_parts:
                 result_path = self.topology_dir.joinpath(*path_parts)
@@ -784,5 +784,5 @@ class FileManager:
             Path to the created temporary directory
         """
         temp_dir = self.get_temp_path(dirname, create_dir=True)
-        LOG.info(f"Created temporary directory: {temp_dir}")
+        LOG.debug(f"Created temporary directory: {temp_dir}")
         return temp_dir

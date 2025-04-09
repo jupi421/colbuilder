@@ -349,11 +349,20 @@ class System:
                             with open(caps_file, 'r') as caps_file_obj:
                                 content_written = False
                                 for line in caps_file_obj:
+                                    # Only include PDB format lines and skip any trailing data
                                     if line.startswith(self.is_line):
                                         content_written = True
                                         if line.startswith('HETATM'):
                                             line = 'ATOM  ' + line[6:]
-                                        f.write(line)
+                                        # Make sure the line ends with a newline and is the proper length
+                                        if len(line.rstrip()) > 0:
+                                            # Standard PDB format line length is 80 characters
+                                            if len(line) > 81:  # Allow for newline character
+                                                line = line[:80] + '\n'
+                                            f.write(line)
+                                    # Stop processing if we reach END or ENDMDL
+                                    elif line.startswith(("END", "ENDMDL")):
+                                        break
                                 
                                 if not content_written:
                                     LOG.warning(f"No atom records found in caps file: {caps_file}")

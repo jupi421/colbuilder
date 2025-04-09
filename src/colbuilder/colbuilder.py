@@ -240,36 +240,50 @@ async def run_geometry_generation(config: ColbuilderConfig, file_manager: Option
         raise
 
 @timeit
-async def run_topology_generation(config: ColbuilderConfig, system_path: Path) -> Tuple[Path, Path]:
-    """
-    Generate topology for the system.
-    
-    This function handles the topology generation step of the pipeline,
-    including force field validation and topology building.
-    
-    Args:
-        config: Configuration settings
-        system_path: Path to the PDB file of the system
-        
-    Returns:
-        Tuple containing the topology directory and the system PDB path
-        
-    Raises:
-        TopologyGenerationError: If topology generation fails
-    """
+async def run_topology_generation(config: ColbuilderConfig, system_path: Path, existing_system: Optional[System] = None, file_manager: Optional[FileManager] = None) -> Tuple[Path, Path]:
     try:
-        LOG.section("Topology Generation")
-        LOG.subsection("Building Topology")
+        # LOG.section("Topology Generation")
         
-        # Create a system object from the PDB file
-        from colbuilder.core.geometry.crystal import Crystal
-        from colbuilder.core.geometry.system import System
+        # Initialize file manager if not provided
+        if file_manager is None:
+            file_manager = FileManager(config)
+            
+        # Identify the geometry directory
+        geometry_dir = Path(".tmp") / "geometry_gen"
+        if not geometry_dir.exists():
+            geometry_dir = Path.cwd() / ".tmp" / "geometry_gen"
+
+        if geometry_dir.exists():
+            LOG.debug(f"Found geometry directory: {geometry_dir}")
+            # Check for any .caps.pdb files in the directory
+            cap_files = list(geometry_dir.glob("**/*.caps.pdb"))
+            LOG.debug(f"Found {len(cap_files)} cap files in geometry directory")
+        else:
+            LOG.warning(f"Geometry directory not found: {geometry_dir}")
         
-        crystal = Crystal(pdb=str(system_path))
-        system = System(crystal=crystal)
+        # Use existing system if provided
+        if existing_system:
+            LOG.info(f"{Fore.MAGENTA}Using existing system from geometry generation{Style.RESET_ALL}")
+            system = existing_system
+            
+            # Debug info
+            model_count = len(list(system.get_models()))
+            
+            for model_id in system.get_models():
+                model = system.get_model(model_id=model_id)
+                if model:
+                    LOG.debug(f"Model {model_id} - Type: {model.type if hasattr(model, 'type') else 'Unknown'}")
+        else:
+            # Create a system object from the PDB file
+            LOG.info("Creating new system from PDB file")
+            from colbuilder.core.geometry.crystal import Crystal
+            from colbuilder.core.geometry.system import System
+            
+            crystal = Crystal(pdb=str(system_path))
+            system = System(crystal=crystal)
         
-        # Run topology generation
-        await build_topology(system, config)
+        # Run topology generation with the system and file manager
+        await build_topology(system, config, file_manager)
         
         # Topology files are created in [species]_topology_files directory
         topology_dir = Path(f"{config.species}_topology_files")
@@ -278,7 +292,7 @@ async def run_topology_generation(config: ColbuilderConfig, system_path: Path) -
             topology_dir = Path()
             
         return topology_dir, system_path
-        
+    
     except Exception as e:
         LOG.error(f"Topology generation failed: {str(e)}")
         if not isinstance(e, TopologyGenerationError):
@@ -325,18 +339,6 @@ async def run_pipeline(config: ColbuilderConfig) -> Dict[str, Path]:
             current_system, pdb_path = await geometry_service._handle_direct_replacement()
             results["geometry_pdb"] = pdb_path
             LOG.info(f"Direct replacement completed, output PDB: {pdb_path}")
-            
-        # Combined Geometry/Mixing/Replacement
-        elif config.geometry_generator:
-            LOG.section("Running geometry generation")
-            from colbuilder.core.geometry.main_geometry import GeometryService
-            geometry_service = GeometryService(config, file_manager)
-            
-            # Use full generation which handles both geometry and replacement
-            current_system, pdb_path = await geometry_service._handle_full_generation()
-            results["geometry_pdb"] = pdb_path
-            
-            LOG.info(f"Geometry generation completed, output PDB: {pdb_path}")
         
         # Mix-only mode (no geometry generation)
         elif config.mix_bool:
@@ -345,12 +347,31 @@ async def run_pipeline(config: ColbuilderConfig) -> Dict[str, Path]:
             results["geometry_pdb"] = pdb_path
             LOG.info(f"Mixing completed, output PDB: {pdb_path}")
         
+        if config.geometry_generator:
+            LOG.section("Running geometry generation")
+            from colbuilder.core.geometry.main_geometry import GeometryService
+            geometry_service = GeometryService(config, file_manager)
+            
+            # Use full generation which handles both geometry and replacement
+            current_system, pdb_path = await geometry_service._handle_full_generation()
+            results["geometry_pdb"] = pdb_path
+            results["geometry_system"] = current_system  # Store the system object
+            
+            LOG.info(f"Geometry generation completed, output PDB: {pdb_path}")
+
         # Topology Generation
         if config.topology_generator and results["geometry_pdb"]:
-            LOG.info("Running topology generation")
-            topology_dir, system_path = await run_topology_generation(config, results["geometry_pdb"])
-            results["topology_dir"] = topology_dir
-            LOG.info(f"Topology generation completed, output directory: {topology_dir}")
+            LOG.section("Running topology generation")
+            
+            # Pass the existing system to topology generation
+            if "geometry_system" in results and results["geometry_system"]:
+                topology_dir, system_path = await run_topology_generation(
+                    config, 
+                    results["geometry_pdb"],
+                    existing_system=results["geometry_system"]
+                )
+            else:
+                topology_dir, system_path = await run_topology_generation(config, results["geometry_pdb"])
         
         # Clean up temporary files if not in debug mode
         if not config.debug:
