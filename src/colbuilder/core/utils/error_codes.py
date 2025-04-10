@@ -346,5 +346,50 @@ TOPOLOGY_ERRORS: Dict[str, ErrorInfo] = {
             "Verify topology generation completed successfully",
             "Check for conflicting file names"
         ]
+    ),
+    "TOP_MART_001": ErrorInfo(
+        code="TOP_MART_001",
+        message="Unexpected error in Martini topology generation",
+        suggestions=[
+            "Check if Martini force field files are available",
+            "Verify Martinize2 is properly installed",
+            "Check system requirements for Martini coarse-graining"
+        ]
+    ),
+    "TOP_MART_002": ErrorInfo(
+        code="TOP_MART_002",
+        message="No models were successfully processed with Martinize2",
+        suggestions=[
+            "Check input PDB files for correct format",
+            "Verify Martinize2 installation",
+            "Check Martinize2 error messages for detailed information"
+        ]
+    ),
+    "TOP_MART_003": ErrorInfo(
+        code="TOP_MART_003",
+        message="Failed to create system PDB file",
+        suggestions=[
+            "Verify sufficient disk space",
+            "Check file permissions",
+            "Ensure model processing completed successfully"
+        ]
+    ),
+    "TOP_MART_004": ErrorInfo(
+        code="TOP_MART_004",
+        message="Failed to create system topology files",
+        suggestions=[
+            "Verify sufficient disk space",
+            "Check file permissions",
+            "Ensure model processing completed successfully"
+        ]
+    ),
+    "TOP_MART_005": ErrorInfo(
+        code="TOP_MART_005",
+        message="Error with Martini force field setup",
+        suggestions=[
+            "Verify Martinize2 is installed and in your PATH",
+            "Check the martinize2_command setting in your configuration",
+            "Ensure force field directory exists and has proper permissions"
+        ]
     )
 }

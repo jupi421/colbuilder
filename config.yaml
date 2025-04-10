@@ -47,4 +47,4 @@ ratio_replace: 30    # Percentage of crosslinks to replace with standard amino a
 replace_file: homo_sapiens.pdb   # "rattus_norvegicus.pdb"   # Optional: Path to a file containing specific crosslinks to replace
 
 # Topology Options
-force_field: "amber99"  # Options: "amber99", "martini3"
+force_field: "martini3"  # Options: "amber99", "martini3"

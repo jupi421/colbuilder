@@ -263,7 +263,7 @@ async def run_topology_generation(config: ColbuilderConfig, system_path: Path, e
         
         # Use existing system if provided
         if existing_system:
-            LOG.info(f"{Fore.MAGENTA}Using existing system from geometry generation{Style.RESET_ALL}")
+            LOG.info(f"{Fore.BLUE}Using existing system from geometry generation{Style.RESET_ALL}")
             system = existing_system
             
             # Debug info
