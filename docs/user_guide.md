@@ -351,6 +351,8 @@ ColBuilder supports various crosslink types found in collagen:
 - **NOCROSS**: No crosslinking
 - **Glucosepane**: Advanced glycation end-product crosslink (specific species)
 
+Each crosslink type can be positioned in a few combination of selected Lysine residues, depending on the species being modeled. All available crosslinks and respective combinations for each species are listed at [src/colbuilder/data/sequence/crosslinks.csv](https://github.com/graeter-group/colbuilder/blob/main/src/colbuilder/data/sequence/crosslinks.csv)
+
 ### Fibril Dimensions
 
 Control the size of your microfibril using these parameters:

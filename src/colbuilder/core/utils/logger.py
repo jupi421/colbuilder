@@ -1,3 +1,35 @@
+"""
+This module provides utilities for setting up and managing loggers with enhanced functionality, 
+including colored console output and support for logging to files. It is designed to simplify 
+logging configuration and improve readability of log messages in the ColBuilder pipeline.
+
+Usage:
+------
+This module can be used to configure loggers for any Python application. The `setup_logger` function 
+returns a configured logger instance that can be used to log messages at various levels.
+
+Example:
+--------
+```python
+from colbuilder.core.utils.logger import setup_logger
+
+# Basic logger
+logger = setup_logger("my_logger")
+logger.info("This is an info message")
+logger.error("This is an error message")
+
+# Advanced logger with file output
+advanced_logger = setup_logger(
+    "advanced_logger",
+    level=logging.DEBUG,
+    log_file=Path("advanced.log"),
+    format_string="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+advanced_logger.debug("This is a debug message")
+advanced_logger.critical("This is a critical message")
+```
+"""
+
 # Copyright (c) 2024, Colbuilder Development Team
 # Distributed under the terms of the Apache License 2.0
 

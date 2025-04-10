@@ -1,195 +1,229 @@
-# Copyright (c) 2024, Colbuilder Development Team
-# Distributed under the terms of the Apache License 2.0
+"""
+Main topology generation module.
 
-import subprocess
+This module handles the generation of molecular topology files using different force fields
+(AMBER99 and MARTINI3). It provides functionality for file management, cleanup, and 
+topology file organization.
+"""
+
 import os
 from pathlib import Path
-from typing import Any, Optional, Set
+from typing import Any, Optional, Set, List
 import shutil
-import asyncio
 from colorama import init, Fore, Style
 
+from colbuilder.core.utils.files import FileManager, managed_resources
 from colbuilder.core.geometry.system import System
 from colbuilder.core.topology.amber import Amber, build_amber99
 from colbuilder.core.topology.martini import Martini, build_martini3
 from colbuilder.core.utils.dec import timeit
 from colbuilder.core.utils.config import ColbuilderConfig
 from colbuilder.core.utils.exceptions import (
-    TopologyGenerationError,
-    ColbuilderError,
-    ErrorCategory,
-    ErrorSeverity,
-    ColbuilderErrorDetail
+    TopologyGenerationError
 )
 from colbuilder.core.utils.logger import setup_logger
 
 LOG = setup_logger(__name__)
 
-REQUIRED_FF_FILES = ['residuetypes.dat', 'specbond.dat']
-TEMP_FILES_TO_CLEAN = ['*.itp', '*.CG.pdb', '*.merge.pdb', 'create_goVirt.py', 'tmp.pdb', '*.top', 'map.*', 'contactmap', 'amber99*', '*.dat']
+REQUIRED_FF_FILES: List[str] = ['residuetypes.dat', 'specbond.dat']
+TEMP_FILES_TO_CLEAN: Set[str] = {
+    'col_*.*_go-*.itp', 
+    'col_*.*.itp', 
+    'col_[0-9]*_go-sites.itp',
+    'col_[0-9]*_go-table.itp',
+    'col_[0-9]*_go-harm.itp',
+    'go-table.itp',
+    'col_go-sites.itp',
+    '*.CG.pdb',
+    'D'
+}
 
-
-def cleanup_temporary_files(ff_name: str, temp_patterns: Set[str]) -> None:
+def cleanup_temporary_files(ff_name: str, temp_patterns: Set[str], search_dirs: Optional[List[Path]] = None) -> None:
     """
-    Clean up temporary files and directories.
+    Remove temporary files and directories created during topology generation.
     
     Parameters
     ----------
     ff_name : str
-        Name of the force field directory
+        Force field directory name to be cleaned up
     temp_patterns : Set[str]
-        Set of patterns for temporary files and directories to remove
+        Patterns matching temporary files and directories to remove
+    search_dirs : Optional[List[Path]]
+        List of specific directories to search in. If None, searches in current directory
     """
     try:
-        for pattern in temp_patterns:
-            if not "*" in pattern:
-                path_obj = Path(pattern)
-                if path_obj.exists():
-                    if path_obj.is_dir():
-                        shutil.rmtree(path_obj)
-                        LOG.debug(f"Removed temporary directory: {path_obj}")
-                    else:
-                        os.remove(path_obj)
-                        LOG.debug(f"Removed temporary file: {path_obj}")
-            else:
-                for matched_path in Path().glob(pattern):
-                    if matched_path.is_dir():
-                        shutil.rmtree(matched_path)
-                        LOG.debug(f"Removed temporary directory: {matched_path}")
-                    else:
-                        os.remove(matched_path)
-                        LOG.debug(f"Removed temporary file: {matched_path}")
+        # Use current directory if no search dirs specified
+        dirs_to_search = search_dirs if search_dirs else [Path()]
+        
+        for search_dir in dirs_to_search:
+            if not search_dir.exists():
+                LOG.warning(f"Search directory does not exist: {search_dir}")
+                continue
                 
-        copied_ff_dir = Path(ff_name)
-        if copied_ff_dir.exists():
-            shutil.rmtree(copied_ff_dir)
-            LOG.debug(f"Removed copied force field directory: {copied_ff_dir}")
+            for pattern in temp_patterns:
+                if "*" not in pattern:
+                    path_obj = search_dir / pattern
+                    if path_obj.exists():
+                        if path_obj.is_dir():
+                            shutil.rmtree(path_obj)
+                        else:
+                            os.remove(path_obj)
+                else:
+                    for matched_path in search_dir.glob(pattern):
+                        if matched_path.is_dir():
+                            shutil.rmtree(matched_path)
+                        else:
+                            os.remove(matched_path)
+        
+        # Handle force field directory cleanup
+        for search_dir in dirs_to_search:
+            copied_ff_dir = search_dir / ff_name
+            if copied_ff_dir.exists():
+                shutil.rmtree(copied_ff_dir)
+            
     except Exception as e:
         LOG.warning(f"Error during cleanup: {str(e)}")
 
 
-def setup_topology_directory(system_name: str) -> Path:
+def setup_topology_directory(system_name: str, ff_name: str) -> Path:
     """
-    Create and return path to topology directory.
+    Create and prepare a directory for topology file generation.
     
     Parameters
     ----------
     system_name : str
-        Name of the system for the directory
+        System identifier used for directory naming
         
     Returns
     -------
     Path
         Path to the created topology directory
     """
-    topology_dir = Path(f"{system_name}_topology_files")
+    topology_dir = Path(f"{system_name}_{ff_name}_topology_files")
     topology_dir.mkdir(exist_ok=True)
     return topology_dir
 
 
 def organize_topology_files(topology_dir: Path, species: str) -> None:
     """
-    Move topology files to the final directory.
+    Organize and move topology files to their final location.
     
     Parameters
     ----------
     topology_dir : Path
-        Path to topology directory
+        Destination directory for topology files
     species : str
-        Species name for naming convention
+        Species identifier used in file naming
     """
     try:
-        # Copy topology files
         for top_file in Path().glob(f"collagen_fibril_*.top"):
             shutil.copy2(top_file, topology_dir / top_file.name)
             
-        # Copy and remove ITP files
         for itp_file in Path().glob("*.itp"):
             shutil.copy2(itp_file, topology_dir / itp_file.name)
             os.remove(itp_file)  
             
-        LOG.info(f"{Fore.BLUE}Topology files written at: {topology_dir}{Style.RESET_ALL}")
     except Exception as e:
         LOG.warning(f"Error organizing topology files: {str(e)}")
 
 
 @timeit
-async def build_topology(system: System, config: ColbuilderConfig) -> Any:
+async def build_topology(system: System, config: ColbuilderConfig, file_manager: Optional[FileManager] = None) -> Any:
     """
-    Build the topology of a molecular system and organize output files.
+    Build molecular system topology and organize output files.
+    
+    Handles the complete topology generation process including:
+    - Setting up working directories
+    - Copying necessary geometry files
+    - Generating topology based on selected force field
+    - Organizing output files
     
     Parameters
     ----------
     system : System
-        The molecular system to process
+        Molecular system to process
     config : ColbuilderConfig
-        Configuration object containing settings
+        Configuration settings including force field parameters
+    file_manager : Optional[FileManager]
+        File manager for handling I/O operations
         
     Returns
     -------
     Any
-        The processed system
+        Processed molecular system
         
     Raises
     ------
     TopologyGenerationError
-        If topology generation fails
+        If topology generation fails at any stage
     """
     try:
-        force_field = config.force_field
+        file_manager = file_manager or FileManager(config)
+        topology_dir = file_manager.get_temp_dir("topology_gen")
+        original_dir = Path.cwd()
         
-        for model_id in system.get_models():
-            model = system.get_model(model_id=model_id)
-            LOG.debug(f"Model {model_id} - Type: {model.type}, Connect: {model.connect}")
-            
-        if force_field == 'amber99':
-            ff = f"{force_field}sb-star-ildnp"
-            LOG.subsection(f'Building topology based on the {force_field} force field')
-            await build_amber99(system=system, config=config)
-            
-        elif force_field == 'martini3':
-            ff = f"{force_field}"
-            LOG.subsection(f'Building topology based on the {force_field} force field')
-            
-            # Install custom force field files before building the topology
-            LOG.info("Installing Martini 3.0 force field custom files")
-            from colbuilder.core.utils.martinize_finder import find_and_install_custom_force_field
-            
-            if not find_and_install_custom_force_field(config.FORCE_FIELD_DIR):
-                LOG.warning("Failed to install custom force field files, proceeding with existing installation")
-            
-            await build_martini3(system=system, config=config)
-        else:
-            raise TopologyGenerationError(
-                message='Invalid or unsupported force field specified',
-                error_code="TOP_ERR_001",
-                context={"force_field": force_field}
-            )
-            
-        # Organize topology files in the final top directory
-        LOG.debug("Setting up topology directory and organizing files")
-        topology_dir = setup_topology_directory(config.species)
-        organize_topology_files(topology_dir, config.species)
-        
-        # Clean up temporary files
-        LOG.debug("Cleaning up temporary files")
-        cleanup_temporary_files(force_field, TEMP_FILES_TO_CLEAN)
-            
-        return system
-    except TopologyGenerationError:
         try:
-            LOG.warning("Attempting cleanup after error")
-            cleanup_temporary_files(config.force_field, TEMP_FILES_TO_CLEAN)
-        except Exception as cleanup_error:
-            LOG.warning(f"Cleanup after error failed: {cleanup_error}")
+            os.chdir(topology_dir)
+            geometry_dir = Path(".tmp/geometry_gen")
+            if not geometry_dir.exists():
+                geometry_dir = Path(original_dir) / ".tmp" / "geometry_gen"
+            
+            if geometry_dir.exists():
+                cap_files = list(geometry_dir.glob("**/*.caps.pdb"))
+                
+                if list(system.get_models()):
+                    first_model = system.get_model(model_id=list(system.get_models())[0])
+                    model_type = first_model.type
+                    type_dir = topology_dir / model_type
+                    type_dir.mkdir(exist_ok=True, parents=True)
+                    
+                    for cap_file in cap_files:
+                        dest_file = type_dir / cap_file.name
+                        shutil.copy(cap_file, dest_file)
+            
+            force_field = config.force_field
+            
+            if force_field == 'amber99':
+                ff = f"{force_field}sb-star-ildnp"
+                LOG.subsection(f'Building topology based on the {force_field} force field')
+                await build_amber99(system=system, config=config, file_manager=file_manager)
+                
+            elif force_field == 'martini3':
+                ff = force_field
+                LOG.subsection(f'Building topology based on the {force_field} force field')
+                
+                from colbuilder.core.utils.martinize_finder import find_and_install_custom_force_field
+                find_and_install_custom_force_field(config.FORCE_FIELD_DIR)
+                
+                await build_martini3(system=system, config=config, file_manager=file_manager)
+            else:
+                raise TopologyGenerationError(
+                    message='Invalid or unsupported force field specified',
+                    error_code="TOP_ERR_001",
+                    context={"force_field": force_field}
+                )
+                
+            output_topology_dir = file_manager.ensure_dir(f"{config.species}_topology_files")
+            
+            for top_file in Path().glob(f"collagen_fibril_*.top"):
+                file_manager.copy_to_directory(top_file, dest_dir=output_topology_dir)
+                
+            for itp_file in Path().glob("col_[0-9]*.itp"):
+                file_manager.copy_to_directory(itp_file, dest_dir=output_topology_dir)
+                    
+            LOG.info(f"{Fore.BLUE}Topology files written at: {output_topology_dir}{Style.RESET_ALL}")
+                
+            return system
+            
+        finally:
+            os.chdir(original_dir)
+            search_dirs = [topology_dir, output_topology_dir]
+            if not config.topology_debug:
+                cleanup_temporary_files(config.force_field, TEMP_FILES_TO_CLEAN, search_dirs=search_dirs)
+            
+    except TopologyGenerationError:
         raise
     except Exception as e:
-        try:
-            LOG.warning("Attempting cleanup after unexpected error")
-            cleanup_temporary_files(config.force_field, TEMP_FILES_TO_CLEAN)
-        except Exception as cleanup_error:
-            LOG.warning(f"Cleanup after error failed: {cleanup_error}")
-        
         raise TopologyGenerationError(
             message="Unexpected error in topology generation",
             original_error=e,

@@ -1,3 +1,84 @@
+"""
+This module provides tools for optimizing collagen structures to satisfy crosslinking constraints.
+
+It implements methods to model and optimize crosslinked collagen structures by applying geometric 
+transformations to residues and minimizing the distances between crosslinked atoms.
+
+Key Features:
+--------------
+1. **Crosslink Distance Calculation**:
+   - Calculate Euclidean distances between crosslinked residues or atoms.
+   - Support for both divalent (two residues) and trivalent (three residues) crosslinks.
+
+2. **Geometric Transformations**:
+   - Rotate residues around backbone torsion angles (phi and psi).
+   - Rotate side chains around chi1 and chi2 angles.
+   - Apply general rotation matrices to side chains.
+   - Rotate side chains relative to the backbone plane.
+
+3. **Monte Carlo Optimization**:
+   - Use Monte Carlo methods to iteratively optimize crosslink distances.
+   - Simulated annealing is employed to escape local minima and improve convergence.
+
+4. **Transformation Tracking**:
+   - Track all transformations applied to residues for reproducibility.
+   - Apply transformations to residues in the original structure after optimization.
+
+5. **PDB File Handling**:
+   - Load and save PDB structures.
+   - Extract atomic coordinates and manipulate residues.
+
+6. **Crosslink Matching**:
+   - Identify potential residue matches for crosslinking based on residue type and position.
+   - Select the best matching crosslinks based on initial distances.
+
+Usage:
+------
+This module is designed to be used as part of a pipeline for optimizing collagen structures with 
+crosslinking constraints. The main entry point is the `optimize_structure` function, which takes 
+PDB files and crosslink specifications as input and outputs an optimized structure.
+
+Example:
+--------
+```python
+from pathlib import Path
+
+# Define input files and crosslink information
+initial_pdb = "input_structure.pdb"
+copy1_pdb = "translated_copy.pdb"
+copy2_pdb = "original_copy.pdb"
+optimized_pdb = "optimized_structure.pdb"
+crosslink_info = [
+    {
+        "residue1_type": "L5Y",
+        "residue1_position": "9",
+        "atom1": "NZ",
+        "residue2_type": "L4Y",
+        "residue2_position": "947",
+        "atom2": "CE",
+        "residue3_type": "NONE",
+        "residue3_position": "",
+        "atom31": "",
+        "atom32": ""
+    }
+]
+
+# Optimize the structure
+total_distance, tracker = optimize_structure(
+    initial_pdb=initial_pdb,
+    copy1_pdb=copy1_pdb,
+    copy2_pdb=copy2_pdb,
+    crosslink_info=crosslink_info,
+    optimized_pdb=optimized_pdb
+)
+
+print(f"Total crosslink distance after optimization: {total_distance:.2f}")
+```
+"""
+
+# Copyright (c) 2024, ColBuilder Development Team
+# Distributed under the terms of the Apache License 2.0
+
 import numpy as np
 from scipy.spatial.transform import Rotation
 from Bio import PDB
@@ -91,7 +172,6 @@ def get_distances(structures: Dict[str, PDB.Structure.Structure],
                              crosslink['R3']['position'], 
                              crosslink['R3']['atom32'])
     return distance(r1_coord, r3_coord1), distance(r2_coord, r3_coord2)
-
 
 def get_backbone_plane(residue: Residue) -> npt.NDArray[np.float64]:
    """Get backbone plane normal vector from residue N, CA, C atoms."""

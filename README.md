@@ -17,6 +17,12 @@
     - [UCSF Chimera](#ucsf-chimera)
     - [Modeller](#modeller)
 - [🚀 Quick Start](#-quick-start)
+- [⚙️ Operation Modes \& Workflow](#️-operation-modes--workflow)
+  - [🧠 Understanding PDB Types](#-understanding-pdb-types)
+  - [📊 Mode Summary Table](#-mode-summary-table)
+  - [🔁 Valid Mode Combinations](#-valid-mode-combinations)
+  - [✅ Valid Workflows](#-valid-workflows)
+  - [🔧 Mode 4 (Mixing Crosslinks): Run Separately via Script](#-mode-4-mixing-crosslinks-run-separately-via-script)
 - [📖 Usage Guide](#-usage-guide)
   - [Basic Usage](#basic-usage)
   - [Configuration Options](#configuration-options)
@@ -139,6 +145,74 @@ To verify your installation and run a basic example:
    colbuilder --config_file config.yaml
    ```
 
+## ⚙️ Operation Modes & Workflow
+
+ColBuilder operates through modular **modes**, each responsible for a different part of the collagen model-building pipeline. These modes can be combined in various ways or run separately using different configuration files.
+
+### 🧠 Understanding PDB Types
+
+ColBuilder produces or requires **two kinds of PDB files**:
+
+- **Collagen triple helix molecule PDB**: a single ~334 nm-long collagen molecule (usually with specified crosslink residues). Output of **Mode 1**, input to **Modes 2** and **4**.
+- **Collagen fibril PDB**: a full microfibril model composed of multiple triple helices arranged based on crystal geometry, length, and crosslinking. Output of **Modes 2, 4, or 5**, input to **Modes 3** and **5**.
+
+Understanding this distinction is crucial for organizing your workflow correctly.
+
+---
+
+### 📊 Mode Summary Table
+
+| # | Mode                   | Purpose                                                                 | Input(s)                                                       | Output                             | Can Run With Other Modes?   |
+|---|------------------------|-------------------------------------------------------------------------|----------------------------------------------------------------|------------------------------------|------------------------------|
+| 1 | `sequence_generator` | Generate a collagen triple helix molecule via homology modeling | `species` or custom FASTA | Triple helix PDB | Yes: with 2, 3, 5 |
+| 2 | `geometry_generator` | Assemble a collagen fibril from a single triple helix | PDB from Mode 1 or custom PDB | Fibril PDB | Yes: with 1, 3, 5 |
+| 3 | `topology_generator` | Generate topology files for GROMACS simulations | Fibril PDB (from Mode 2, 4, or 5) | `.top`, `.itp`, `.gro` | Yes: with 2, 4, 5 |
+| 4 | `mix_bool` | Generate a fibril by mixing two crosslink types | Two triple helix PDBs from Mode 1 | Mixed fibril PDB | No, requires separate script |
+| 5 | `replace_bool` | Replace crosslinks in an existing fibril | Fibril PDB from Mode 2 or 4 | Modified fibril PDB | Yes: with 2, 3 |
+
+---
+
+### 🔁 Valid Mode Combinations
+
+These combinations can be run **in a single config file**:
+
+```yaml
+# Example combination
+sequence_generator: true
+geometry_generator: true
+topology_generator: true         # (optional)
+replace_bool: true               # (optional)
+```
+
+### ✅ Valid Workflows
+
+These mode combinations can be run **in a single configuration file**:
+
+- ✅ `1 + 2`
+- ✅ `1 + 2 + 3` - [example](docs/examples/)
+- ✅ `2 + 3` *(starting from a custom triple helix PDB)*
+- ✅ `1 + 2 + 5 + 3`
+- ✅ `1 + 2 + 5`
+- ✅ `2 + 5` - [example](docs/examples/)
+- ✅ `2 + 5 + 3`
+
+---
+
+### 🔧 Mode 4 (Mixing Crosslinks): Run Separately via Script
+
+Mixing crosslinks (**Mode 4**) currently requires a separate workflow using two config files for triple helix generation and one for fibril construction:
+
+[example](docs/examples/)
+
+```bash
+# Example bash script for mixing crosslinks
+colbuilder --config_file triple_helix_A.yaml
+colbuilder --config_file triple_helix_B.yaml
+colbuilder --config_file mix_geometry.yaml   # sets mix_bool: true and includes both PDBs
+```
+
+You can also chain this with replace_bool (Mode 5) or topology_generator (Mode 3) in the third config.
+
 ## 📖 Usage Guide
 
 ### Basic Usage
@@ -174,6 +248,7 @@ species: "homo_sapiens"      # Species for collagen sequence
 # Sequence Settings
 fasta_file: null             # Custom FASTA file path (if null, auto-generated based on species)
 crosslink: true              # Enable crosslinking in the model
+# Check available crosslinks and respective combinations at [src/colbuilder/data/sequence/crosslinks.csv](https://github.com/graeter-group/colbuilder/blob/main/src/colbuilder/data/sequence/crosslinks.csv)
 n_term_type: "HLKNL"         # N-terminal crosslink type (Options: "DPD", "DPL", "HLKNL", "LKNL", "PYD", "PYL", "deHHLNL", "deHLNL", "NONE") 
 c_term_type: "HLKNL"         # C-terminal crosslink type (Options: "DPD", "DPL", "HLKNL", "LKNL", "PYD", "PYL", "deHHLNL", "deHLNL", "NONE")
 n_term_combination: "9.C - 947.A"    # N-terminal residue combination

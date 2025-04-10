@@ -65,6 +65,29 @@ class Crystal:
         pdb = pdb or self.pdb_file
         with open(pdb.with_suffix('.pdb'), 'r') as f:
             return int(f.readline().split()[-2])
+    
+    def get_default_transformation(self) -> List[float]:
+        """
+        Get a default transformation matrix for the crystal.
+    
+        Returns
+        -------
+        List[float]
+            Default transformation matrix (identity matrix).
+    
+        Raises
+        ------
+        ValueError
+            If the crystal symmetry matrix cannot be determined.
+        """
+        try:
+            cs_matrix = self.read_cs_matrix()
+            # Default transformation is the origin (0, 0, 0) in the unit cell
+            default_shift = [0, 0, 0]
+            return self.get_t_matrix(cs_matrix=cs_matrix, s_matrix=default_shift)
+        except Exception as e:
+            LOG.error(f"Failed to generate default transformation matrix: {str(e)}")
+            raise ValueError("Could not generate default transformation matrix.") from e    
 
     def read_cs_matrix(self, pdb: Optional[Path] = None, spacegroup: Optional[int] = None, crystal: Optional[Dict[str, str]] = None) -> np.ndarray:
         """

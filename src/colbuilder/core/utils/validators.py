@@ -1,13 +1,58 @@
-from dataclasses import dataclass
-from typing import List, Set, Optional
+"""
+This module provides validation utilities for biological file formats, including FASTA and PDB files, 
+to ensure compatibility with the ColBuilder pipeline. It includes functionality for validating input 
+files, parsing content, and checking structural integrity.
+
+Key Features:
+--------------
+1. **FASTA Validation**:
+   - Validate the existence and content of FASTA files.
+   - Ensure sequences are properly formatted with headers and contain exactly three sequences.
+   - Check sequence lengths against configurable minimum and maximum thresholds.
+
+2. **PDB Validation**:
+   - Validate the existence and content of PDB files.
+   - Ensure the presence of required records (e.g., CRYST1, ATOM, TER).
+   - Verify the correct number of chains (exactly three) and proper termination with TER records.
+
+3. **Error Handling**:
+   - Raise detailed exceptions for invalid files or structural issues.
+   - Provide warnings for non-critical issues, such as sequence length deviations.
+
+Usage:
+------
+This module is designed to be used as part of the ColBuilder pipeline to validate input files before 
+processing. The `BioformatValidator` class provides methods for validating FASTA and PDB files.
+
+Example:
+--------
+```python
 from pathlib import Path
-import re
+from colbuilder.core.utils.validators import BioformatValidator
+
+# Initialize the validator
+validator = BioformatValidator(min_sequence_length=950, max_sequence_length=1100)
+
+# Validate input files
+fasta_path = Path("input_sequences.fasta")
+pdb_path = Path("input_structure.pdb")
+
+try:
+    warnings = validator.validate_input_files(fasta_path=fasta_path, pdb_path=pdb_path)
+    if warnings:
+        print("Warnings:", warnings)
+    print("Validation successful!")
+except Exception as e:
+    print(f"Validation failed: {e}")
+```
+"""
+
+from dataclasses import dataclass
+from typing import List, Optional
+from pathlib import Path
 
 from .exceptions import (
     ColbuilderError,
-    ColbuilderErrorDetail,
-    ErrorCategory,
-    ErrorSeverity,
     SequenceGenerationError,
     GeometryGenerationError
 )

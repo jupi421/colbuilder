@@ -250,135 +250,155 @@ class System:
         except Exception as e:
             LOG.warning(f"Failed to remove directory {directory_path}: {str(e)}")
 
-    def write_pdb(self, pdb_out: Union[str, Path], fibril_length: float, cleanup: bool = True):
+    def write_pdb(self, pdb_out: Union[str, Path], fibril_length: float, cleanup: bool = True, temp_dir: Optional[Path] = None):
         """
-        Write the system to a PDB file and optionally cleanup temporary files.
-        Parameters
-        ----------
-        pdb_out : Union[str, Path]
-            Output path for the PDB file.
-        fibril_length : float
-            Length of the fibril in nanometers.
-        cleanup : bool, optional
-            Whether to remove temporary directories after writing. Defaults to True.
+        Write the system to a PDB file with proper type-specific caps handling.
+        
+        Args:
+            pdb_out: Path to output PDB file
+            fibril_length: Length of fibril in nm
+            cleanup: Whether to clean up temporary files
+            temp_dir: Directory containing caps files to use
         """
         pdb_out_path = Path(pdb_out)
-        
         if not pdb_out_path.is_absolute():
             pdb_out_path = Path.cwd() / pdb_out_path
-            
         pdb_out_path.parent.mkdir(exist_ok=True, parents=True)
         if pdb_out_path.suffix != '.pdb':
             pdb_out_path = pdb_out_path.with_suffix('.pdb')
-            
-        type_directories = set()
+
+        # Require a source directory
+        if temp_dir is None:
+            raise ValueError("temp_dir must be provided - specify which directory to use for caps files")
         
-        # To keep track of atoms by key (will keep only the latest version)
-        atom_lines = {}  # key -> line
-        other_lines = []  # Non-atom lines like TER
-        duplicate_count = 0
-        processed_caps_count = 0
+        LOG.debug(f"Using caps files from: {temp_dir}")
         
-        try:
-            # First, collect the header line from crystal PDB
-            crystal_header = None
-            crystal_pdb = self.crystal.pdb_file.with_suffix('.pdb')
-            if crystal_pdb.exists():
-                with open(crystal_pdb, 'r') as crystal_file:
-                    crystal_header = crystal_file.readline()
-            
-            for model in self.system.values():
-                model_type = model.type or "NC" 
-                type_directories.add(model_type)
+        model_types = set()
+        for model in self.system.values():
+            if hasattr(model, 'type') and model.type:
+                model_types.add(model.type)
+        
+        LOG.debug(f"System contains {self.get_size()} models with types: {', '.join(str(t) for t in model_types)}")
+        
+        # Find type-specific directories
+        type_dirs = {}
+        for model_type in model_types:
+            type_dir = temp_dir / str(model_type)
+            if type_dir.exists():
+                type_dirs[model_type] = type_dir
+                LOG.debug(f"Found {model_type} directory: {type_dir}")
+            else:
+                LOG.error(f"No {model_type} directory found in {temp_dir}!")
+                raise FileNotFoundError(f"Required directory not found: {type_dir}")
+        
+        # Find caps files for each model type
+        caps_by_model = {}
+        for model_type, type_dir in type_dirs.items():
+            for caps_file in type_dir.glob("*.caps.pdb"):
+                try:
+                    connect_id = float(caps_file.stem.split('.')[0])
+                    caps_by_model[connect_id] = caps_file
+                except (ValueError, IndexError):
+                    continue
+        
+        # Verify we have all needed models
+        missing_models = []
+        for model_id, model in self.system.items():
+            if not model.connect:
+                continue
                 
-                if model.connect is not None:
-                    if len(model.connect) != 1 or fibril_length <= 300:
-                        for connect in model.connect:
-                            caps_pdb = Path(model_type) / f"{int(connect)}.caps.pdb"
-                            
-                            if not caps_pdb.exists():
-                                LOG.warning(f"Caps PDB file not found: {caps_pdb}")
-                                continue
-                                
-                            # Always process the file, even if we've seen it before
-                            processed_caps_count += 1
-                            LOG.debug(f"Processing caps file ({processed_caps_count}): {caps_pdb}")
-                            
-                            try:
-                                with open(caps_pdb, 'r') as caps_file:
-                                    for line in caps_file:
-                                        if line.startswith(self.is_line) or line.startswith('TER'):
-                                            if line.startswith('HETATM'):
-                                                line = 'ATOM  ' + line[6:]
-                                                
-                                            # For atom lines, store with key for later deduplication
-                                            if line.startswith(('ATOM', 'HETATM')):
-                                                atom_key = line[12:16].strip() + line[22:27].strip() + line[30:54].strip()
-                                                if atom_key in atom_lines:
-                                                    duplicate_count += 1
-                                                atom_lines[atom_key] = line  # Always keep latest
-                                            # For TER lines, always add them
-                                            elif line.startswith('TER'):
-                                                other_lines.append(line)
-                            except Exception as e:
-                                LOG.error(f"Error reading caps PDB file {caps_pdb}: {str(e)}")
-                                continue
-                else:
-                    caps_pdb = Path(model_type) / f"{int(model.id)}.caps.pdb"
-                    
-                    if not caps_pdb.exists():
-                        LOG.warning(f"Caps PDB file not found: {caps_pdb}")
-                        continue
-                    
-                    # Always process the file, even if we've seen it before
-                    processed_caps_count += 1
-                    LOG.debug(f"Processing caps file ({processed_caps_count}): {caps_pdb}")
-                    
-                    try:
-                        with open(caps_pdb, 'r') as model_file:
-                            for line in model_file:
-                                if line.startswith(self.is_line) or line.startswith('TER'):
-                                    if line.startswith('HETATM'):
-                                        line = 'ATOM  ' + line[6:]
-                                    
-                                    # For atom lines, store with key for later deduplication
-                                    if line.startswith(('ATOM', 'HETATM')):
-                                        atom_key = line[12:16].strip() + line[22:27].strip() + line[30:54].strip()
-                                        if atom_key in atom_lines:
-                                            duplicate_count += 1
-                                        atom_lines[atom_key] = line  # Always keep latest
-                                    # For TER lines, always add them
-                                    elif line.startswith('TER'):
-                                        other_lines.append(line)
-                    except Exception as e:
-                        LOG.error(f"Error reading caps PDB file {caps_pdb}: {str(e)}")
-                        continue
+            for connect_id in model.connect:
+                connect_float = float(connect_id)
+                if connect_float not in caps_by_model:
+                    missing_models.append(connect_float)
+        
+        if missing_models:
+            LOG.error(f"Missing caps files for {len(missing_models)} models: {missing_models[:5]}...")
+            raise FileNotFoundError(f"Missing necessary caps files. Cannot create complete PDB.")
+        
+        # Write the PDB file
+        try:
+            # Get crystal header if available
+            crystal_header = None
+            if self.crystal and self.crystal.pdb_file:
+                crystal_pdb = Path(self.crystal.pdb_file).with_suffix('.pdb')
+                if crystal_pdb.exists():
+                    with open(crystal_pdb, 'r') as crystal_file:
+                        crystal_header = crystal_file.readline()
             
-            # Now write the file with only the latest version of each atom
-            with open(pdb_out_path.with_suffix('.pdb'), 'w') as f:
-                # Write the crystal header first if available
+            with open(pdb_out_path, 'w') as f:
                 if crystal_header:
                     f.write(crystal_header)
                 
-                # Write all atom lines (the latest version of each)
-                for line in atom_lines.values():
-                    f.write(line)
-                
-                # Write all TER lines
-                for line in other_lines:
-                    f.write(line)
+                # Process each model and its connections
+                for model_id, model in self.system.items():
+                    if not model.connect:
+                        LOG.warning(f"Model {model_id} has no connections, skipping")
+                        continue
                     
-                # Write the END marker
-                f.write("END")
+                    for connect_id in model.connect:
+                        connect_float = float(connect_id)
+                        caps_file = caps_by_model.get(connect_float)
+                        
+                        if not caps_file:
+                            LOG.warning(f"No caps file found for model {model_id} connect {connect_id}")
+                            continue
+                        
+                        # Write the caps file content
+                        try:
+                            with open(caps_file, 'r') as caps_file_obj:
+                                content_written = False
+                                for line in caps_file_obj:
+                                    # Only include PDB format lines and skip any trailing data
+                                    if line.startswith(self.is_line):
+                                        content_written = True
+                                        if line.startswith('HETATM'):
+                                            line = 'ATOM  ' + line[6:]
+                                        # Make sure the line ends with a newline and is the proper length
+                                        if len(line.rstrip()) > 0:
+                                            # Standard PDB format line length is 80 characters
+                                            if len(line) > 81:  # Allow for newline character
+                                                line = line[:80] + '\n'
+                                            f.write(line)
+                                    # Stop processing if we reach END or ENDMDL
+                                    elif line.startswith(("END", "ENDMDL")):
+                                        break
+                                
+                                if not content_written:
+                                    LOG.warning(f"No atom records found in caps file: {caps_file}")
+                        except Exception as e:
+                            LOG.error(f"Error reading caps file {caps_file}: {str(e)}")
                 
-            if duplicate_count > 0:
-                LOG.info(f"Replaced {duplicate_count} duplicate atom entries with newer versions when writing {pdb_out_path}")
-                
-            if cleanup:
-                LOG.debug("Cleaning up temporary type directories")
-                for type_dir in type_directories:
-                    self.safe_remove_directory(type_dir)
+                f.write("END\n")
             
+            # Verify the output file has content
+            try:
+                if pdb_out_path.exists():
+                    file_size = pdb_out_path.stat().st_size
+                    
+                    if file_size == 0:
+                        LOG.error("Output PDB file is empty!")
+                    elif file_size < 1000:
+                        LOG.warning(f"Output PDB file is very small ({file_size} bytes)")
+                    
+                    # Count atoms as a basic check
+                    atom_count = 0
+                    resi_types = {}
+                    with open(pdb_out_path, 'r') as check_file:
+                        for line in check_file:
+                            if line.startswith(("ATOM", "HETATM")):
+                                atom_count += 1
+                                if len(line) >= 20:
+                                    resi_type = line[17:20].strip()
+                                    resi_types[resi_type] = resi_types.get(resi_type, 0) + 1
+                else:
+                    LOG.error(f"Output PDB file not found: {pdb_out_path}")
+                    
+            except Exception as e:
+                LOG.warning(f"Error performing PDB verification: {e}")
+        
         except Exception as e:
             LOG.error(f"Error writing PDB file {pdb_out_path}: {str(e)}")
+            import traceback
+            LOG.debug(f"Traceback: {traceback.format_exc()}")
             raise

@@ -1,24 +1,59 @@
 """
-Colbuilder Exceptions Module
+ColBuilder Exceptions Module
 
-This module defines the exception hierarchy for the Colbuilder system.
-It provides structured error handling with detailed information about
-errors, their severity, and suggestions for resolution.
+This module defines a structured exception hierarchy for the ColBuilder system, enabling detailed 
+error handling and reporting. It provides a base exception class, categorized error types, and 
+support for logging, serialization, and contextual information to aid in debugging and resolution.
 
-Key Components:
-    - ColbuilderError: Base exception class
-    - ErrorSeverity: Error severity levels
-    - ErrorCategory: Error categories
-    - Specific error types for each category
+Key Features:
+--------------
+1. **Base Exception Class**:
+   - `ColbuilderError`: The base class for all ColBuilder exceptions, providing common functionality 
+     such as logging, serialization, and detailed error information.
 
-Example Usage:
-    try:
-        raise GeometryGenerationError(
-            message="Failed to generate crystal contacts",
-            error_code="GEO_ERR_002"
-        )
-    except ColbuilderError as e:
-        e.log_error()
+2. **Error Categories**:
+   - `ErrorCategory`: Enumerates error categories, including SEQUENCE, GEOMETRY, TOPOLOGY, CONFIGURATION, 
+     and SYSTEM errors.
+
+3. **Error Severity Levels**:
+   - `ErrorSeverity`: Defines severity levels (INFO, WARNING, ERROR, CRITICAL) to classify errors 
+     and determine their impact on the system.
+
+4. **Detailed Error Information**:
+   - `ColbuilderErrorDetail`: A dataclass that encapsulates error details, including the message, 
+     category, severity, technical details, suggestions, affected files, and links to documentation.
+
+5. **Specific Error Types**:
+   - `SystemError`: For system-level issues that affect overall operation.
+   - `ConfigurationError`: For errors related to system configuration and setup.
+   - `SequenceGenerationError`: For errors during sequence processing.
+   - `GeometryGenerationError`: For errors during geometry generation.
+   - `TopologyGenerationError`: For errors during topology generation.
+
+6. **Logging and Serialization**:
+   - Errors can be logged with appropriate severity levels and serialized to dictionaries or JSON 
+     for API responses or debugging.
+
+Usage:
+------
+This module is designed to provide structured error handling throughout the ColBuilder pipeline. 
+Exceptions can be raised with detailed information and logged for debugging or user feedback.
+
+Example:
+--------
+```python
+from colbuilder.core.utils.exceptions import SequenceGenerationError, ColbuilderErrorDetail, ErrorCategory, ErrorSeverity
+
+# Raise a sequence generation error
+try:
+    raise SequenceGenerationError(
+        message="Failed to process input sequences.",
+        error_code="SEQ_ERR_001"
+    )
+except ColbuilderError as e:
+    e.log_error()
+    print(e.to_json())
+```
 """
 
 from enum import Enum, auto
@@ -54,6 +89,7 @@ class ErrorSeverity(Enum):
     ERROR = auto()
     CRITICAL = auto()
 
+
 class ErrorCategory(Enum):
     """
     Enumeration of error categories.
@@ -70,6 +106,7 @@ class ErrorCategory(Enum):
     TOPOLOGY = auto()
     CONFIGURATION = auto()
     SYSTEM = auto()
+
 
 @dataclass
 class ColbuilderErrorDetail:
@@ -96,6 +133,7 @@ class ColbuilderErrorDetail:
     affected_files: Optional[List[Path]] = None
     docs_url: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
+
 
 class ColbuilderError(Exception):
     """
@@ -218,6 +256,7 @@ class ColbuilderError(Exception):
         """
         return json.dumps(self.to_dict(), indent=2)
 
+
 class SystemError(ColbuilderError):
     """
     Exception raised for system-related errors.
@@ -249,6 +288,7 @@ class SystemError(ColbuilderError):
             context=context
         )
         super().__init__(detail, original_error)
+
 
 class ConfigurationError(ColbuilderError):
     """
@@ -282,6 +322,7 @@ class ConfigurationError(ColbuilderError):
         )
         super().__init__(detail, original_error)
 
+
 class SequenceGenerationError(ColbuilderError):
     """
     Exception raised for errors during sequence generation.
@@ -309,6 +350,7 @@ class SequenceGenerationError(ColbuilderError):
         )
         super().__init__(detail, original_error)
 
+
 class GeometryGenerationError(ColbuilderError):
     """
     Exception raised for errors during geometry generation.
@@ -335,6 +377,7 @@ class GeometryGenerationError(ColbuilderError):
             context=context
         )
         super().__init__(detail, original_error)
+
 
 class TopologyGenerationError(ColbuilderError):
     """

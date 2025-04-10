@@ -1,3 +1,73 @@
+"""
+Configuration Utilities for the ColBuilder Pipeline
+
+This module provides utilities for managing and validating configuration settings in the ColBuilder 
+pipeline. It defines the `ColbuilderConfig` class, which encapsulates all configuration options, 
+validates input parameters, and resolves paths. The module also includes helper functions for 
+loading, validating, and updating configurations.
+
+Key Features:
+--------------
+1. **Configuration Management**:
+   - `ColbuilderConfig`: Centralized configuration class for managing pipeline settings.
+   - Supports multiple operation modes: SEQUENCE, GEOMETRY, TOPOLOGY, MIX, and REPLACE.
+   - Automatically resolves relative paths to absolute paths based on the working directory.
+
+2. **Validation**:
+   - Validates input files (FASTA, PDB) and configuration parameters.
+   - Ensures proper values for critical parameters like `fibril_length`, `contact_distance`, and `solution_space`.
+   - Raises `ConfigurationError` for invalid inputs or missing required files.
+
+3. **Path Handling**:
+   - Resolves paths for project data, working directories, and output files.
+   - Provides default paths for essential resources like templates, force fields, and Chimera scripts.
+
+4. **Dynamic Updates**:
+   - Allows runtime updates to configuration settings.
+   - Automatically adjusts operation modes based on updated flags.
+
+5. **Integration with External Tools**:
+   - Detects and configures Martinize2 for topology generation.
+   - Supports Conda environments for Martinize2 execution.
+
+Usage:
+------
+This module is designed to be used throughout the ColBuilder pipeline to manage and validate 
+configuration settings. It ensures consistency and simplifies error handling.
+
+Example:
+--------
+Example:
+--------
+```python
+from colbuilder.core.utils.config import get_config
+
+# Initialize configuration
+config = get_config(
+    working_directory="/path/to/working_dir",
+    sequence_generator=True,
+    species="homo_sapiens",
+    fasta_file="input.fasta"
+)
+
+# Access configuration attributes
+print(config.working_directory)  # Output: /path/to/working_dir
+print(config.mode)  # Output: OperationMode.SEQUENCE
+
+# Validate paths and input files
+config.validate_paths()
+
+# Update configuration dynamically
+config.update({"debug": True, "fibril_length": 300})
+print(config.debug)  # Output: True
+print(config.fibril_length)  # Output: 300
+
+# Get output path for a file
+output_path = config.get_output_path("output_file", ".pdb")
+print(output_path)  # Output: /path/to/working_dir/output_file.pdb
+```
+"""
+
 # Copyright (c) 2024, Colbuilder Development Team
 # Distributed under the terms of the Apache License 2.0
 
@@ -32,6 +102,7 @@ class OperationMode(Flag):
     MIX = auto()
     REPLACE = auto()
 
+
 def resolve_relative_paths(config: Dict[str, Any], base_dir: Path) -> Dict[str, Any]:
     """Resolve relative paths in config to be absolute based on the given base directory."""
     path_keys = ['working_directory', 'fasta_file', 'pdb_file', 'crystalcontacts_file', 
@@ -57,13 +128,14 @@ def resolve_relative_paths(config: Dict[str, Any], base_dir: Path) -> Dict[str, 
         ]
     
     return result
+
 class ColbuilderConfig(BaseModel):
     """Main configuration class for the Colbuilder pipeline."""
     
     # Operation mode 
     mode: Optional[OperationMode] = Field(None, description="Operation mode")
     debug: bool = Field(default=False, description="Enable debug logging")
-    working_directory: Path = Field(default=Path.cwd(), description="Working directory")
+    working_directory: Optional[Path] = Field(default=Path.cwd(), description="Working directory")
     config_file: Optional[Path] = Field(None, description="YAML configuration file")
     
     # PDB file generation mode (from sequence)
@@ -80,7 +152,10 @@ class ColbuilderConfig(BaseModel):
     geometry_generator: bool = Field(default=False, description="Run geometry generation")
     pdb_file: Optional[Path] = Field(None, description="Input PDB file")
     contact_distance: Optional[float] = Field(None, description="Contact distance for microfibril")
-    fibril_length: float = Field(default=334, description="Length of microfibril")
+    fibril_length: float = Field(
+        default=None,  # Remove default here
+        description="Length of microfibril in nanometers"
+    )
     crystalcontacts_file: Optional[Path] = Field(None, description="Crystal contacts file")
     connect_file: Optional[Path] = Field(None, description="Connect file")
     crystalcontacts_optimize: bool = Field(default=False, description="Optimize crystal contacts")
@@ -95,7 +170,7 @@ class ColbuilderConfig(BaseModel):
    
     # Mix crosslinks mode
     mix_bool: bool = Field(default=False, description="Generate a mixed crosslinked microfibril")
-    ratio_mix: Union[str, Dict[str, int]] = Field(default={}, alias="ratio_mix")
+    ratio_mix: Union[str, Dict[str, int]] = Field(default={}, description="Ratio mix for crosslinks")
     files_mix: Union[List[Path], Tuple[Path, ...]] = Field(
         default=(),
         description="PDB files with different crosslink types"
@@ -109,6 +184,7 @@ class ColbuilderConfig(BaseModel):
     # Topology generation mode
     topology_generator: bool = Field(default=False, description="Generate topology files")
     force_field: Optional[str] = Field(None, description="Force field to be used")
+    topology_debug: Optional[bool] = Field(default=False, description="Save all intermediate files used in building topology")
     martinize2_command: Optional[str] = Field(None, description="Detected Martinize2 command")
     martinize2_env: Optional[str] = Field(None, description="Detected Martinize2 environment")
     use_conda_run: bool = Field(default=False, description="Whether to use conda run for Martinize2")
@@ -159,6 +235,7 @@ class ColbuilderConfig(BaseModel):
     }
 
     def __init__(self, **data):
+        LOG.debug(f"Initializing ColbuilderConfig with data: {data}")
         if 'working_directory' in data:
             data['working_directory'] = Path(data['working_directory']).resolve()
         else:
@@ -260,24 +337,12 @@ class ColbuilderConfig(BaseModel):
         return value
 
     @field_validator('fibril_length')
-    def validate_fibril_length(cls, value: float) -> float:
-        """Validate fibril length value."""
-        if not isinstance(value, (int, float)):
-            raise ConfigurationError(
-                "Fibril length must be a numeric value",
-                error_code="CFG_ERR_006"
-            )
-        if value <= 0:
-            raise ConfigurationError(
-                f"Fibril length must be positive, got {value}",
-                error_code="CFG_ERR_006"
-            )
-        if value > 334:
-            raise ConfigurationError(
-                f"Fibril length must be less than 334, got {value}",
-                error_code="CFG_ERR_006"
-            )
-        return value
+    def validate_fibril_length(cls, v: float) -> float:
+        """Validate fibril length."""
+        if v <= 0:
+            raise ValueError("fibril_length must be greater than 0")
+        LOG.debug(f"Validating fibril_length: {v}")
+        return float(v)
 
     @field_validator('force_field')
     def validate_force_field(cls, value: Optional[str]) -> Optional[str]:
@@ -316,8 +381,20 @@ class ColbuilderConfig(BaseModel):
     def _convert_ratio_mix(self, value: Union[str, Dict[str, int]]) -> Dict[str, int]:
         """Convert string ratio mix to dictionary."""
         if isinstance(value, str):
-            return {item.split(':')[0]: int(item.split(':')[1]) for item in value.split()}
-        return value
+            try:
+                return {item.split(':')[0]: int(item.split(':')[1]) for item in value.split()}
+            except (ValueError, IndexError):
+                raise ConfigurationError(
+                    "Invalid ratio_mix format. Expected 'Type:percentage Type:percentage'",
+                    error_code="CFG_ERR_004"
+                )
+        elif isinstance(value, dict):
+            return value
+        else:
+            raise ConfigurationError(
+                f"Invalid ratio_mix type. Expected string or dictionary, got {type(value).__name__}",
+                error_code="CFG_ERR_004"
+            )
 
     def _convert_to_tuple(self, value: Union[List[float], Tuple[float, float, float]]) -> Tuple[float, float, float]:
         """Convert list to tuple for solution space."""
@@ -413,74 +490,61 @@ class ColbuilderConfig(BaseModel):
                 LOG.warning(f"Optional input file not found: {path}")
 
     @field_validator('ratio_mix', mode='before')
-    def validate_ratio_mix(cls, v: Union[str, Dict[str, int]], info: ValidationInfo) -> Dict[str, int]:
+    def validate_ratio_mix(cls, value: Union[str, Dict[str, int], Tuple]) -> Dict[str, int]:
         """Validate ratio mix format and values."""
-        try:
-            if isinstance(v, str):
-                result = {item.split(':')[0]: int(item.split(':')[1]) for item in v.split()}
+        LOG.debug(f"Validating ratio_mix: {value}")
+        if isinstance(value, str):
+            try:
+                result = {item.split(':')[0]: int(item.split(':')[1]) for item in value.split()}
                 if sum(result.values()) != 100:
                     raise ConfigurationError(
                         "Mix ratios must sum to 100%",
                         error_code="CFG_ERR_004"
                     )
                 return result
-            return v
-        except (ValueError, IndexError):
+            except (ValueError, IndexError):
+                raise ConfigurationError(
+                    "Invalid ratio_mix format. Expected 'Type:percentage Type:percentage'",
+                    error_code="CFG_ERR_004"
+                )
+        elif isinstance(value, dict):
+            if sum(value.values()) != 100:
+                raise ConfigurationError(
+                    "Mix ratios must sum to 100%",
+                    error_code="CFG_ERR_004"
+                )
+            return value
+        elif isinstance(value, tuple):
+            LOG.info(f"ratio_mix is a tuple: {value}")
+            try:
+                result = {item.split(':')[0]: int(item.split(':')[1]) for item in value}
+                LOG.info(f"Converted tuple to dictionary: {result}")
+                if sum(result.values()) != 100:
+                    raise ConfigurationError(
+                        "Mix ratios must sum to 100%",
+                        error_code="CFG_ERR_004"
+                    )
+                return result
+            except (ValueError, IndexError):
+                raise ConfigurationError(
+                    "Invalid ratio_mix format in tuple. Expected 'Type:percentage Type:percentage'",
+                    error_code="CFG_ERR_004"
+                )
+        else:
             raise ConfigurationError(
-                "Invalid ratio mix format. Expected 'Type:percentage Type:percentage'",
+                f"Invalid ratio_mix type. Expected string, dictionary, or tuple, got {type(value).__name__}",
                 error_code="CFG_ERR_004"
             )
 
     @model_validator(mode='after')
-    def validate_mix_config(self) -> 'ColbuilderConfig':
-        """Validate mixing configuration."""
-        if self.mix_bool:
-            if not self.ratio_mix:
-                raise ConfigurationError(
-                    "ratio_mix must be specified when mix_bool is True",
-                    error_code="CFG_ERR_004"
-                )
-            if not self.files_mix:
-                raise ConfigurationError(
-                    "files_mix must be specified when mix_bool is True",
-                    error_code="CFG_ERR_004"
-                )
+    def validate_mix_config(cls, values):
+        """Validate mixing configuration including fibril_length."""
+        if values.mix_bool:
+            if values.fibril_length is None:
+                values.fibril_length = values.get('fibril_length', 40.0)  # Default to 40 for mixing
+            LOG.debug(f"Validated fibril_length for mixing: {values.fibril_length}")
+        return values
 
-        if self.n_term_combination:
-            pattern = r'^\d+\.[A-Z]\s*-\s*\d+\.[A-Z](?:\s*-\s*\d+\.[A-Z])?$'
-            if not re.match(pattern, self.n_term_combination, re.IGNORECASE):
-                raise ConfigurationError(
-                    f"Invalid N-terminal combination format: {self.n_term_combination}. "
-                    "Expected format: 'ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '9.C - 947.A') "
-                    "or 'ResidueNumber.Chain - ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '9.C - 5.B - 944.B')",
-                    error_code="CFG_ERR_006"
-                )
-
-        if self.c_term_combination:
-            # Updated pattern to match both bivalent and trivalent formats
-            pattern = r'^\d+\.[A-Z]\s*-\s*\d+\.[A-Z](?:\s*-\s*\d+\.[A-Z])?$'
-            if not re.match(pattern, self.c_term_combination, re.IGNORECASE):
-                raise ConfigurationError(
-                    f"Invalid C-terminal combination format: {self.c_term_combination}. "
-                    "Expected format: 'ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '1047.C - 104.C') "
-                    "or 'ResidueNumber.Chain - ResidueNumber.Chain - ResidueNumber.Chain' (e.g., '1047.C - 5.B - 104.C')",
-                    error_code="CFG_ERR_006"
-                )
-
-        if len(self.solution_space) != 3:
-            raise ConfigurationError(
-                f"Solution space must have exactly 3 values, got {len(self.solution_space)}",
-                error_code="CFG_ERR_006"
-            )
-        for val in self.solution_space:
-            if not isinstance(val, (int, float)) or val <= 0:
-                raise ConfigurationError(
-                    f"Solution space values must be positive numbers, got {val}",
-                    error_code="CFG_ERR_006"
-                )
-
-        return self
-    
     @model_validator(mode='after')
     def validate_replace_config(self) -> 'ColbuilderConfig':
         """Validate replacement configuration."""
@@ -540,19 +604,8 @@ class ColbuilderConfig(BaseModel):
             # Look for the specified environment in the paths
             for env_path in env_data["envs"]:
                 if os.path.basename(env_path) == self.martinize2_env:
-                    LOG.debug(f"Found conda environment path: {env_path}")
+                    LOG.info(f"Found conda environment path: {env_path}")
                     return env_path
-            
-            # Try alternative method using CONDA_PREFIX
-            if "CONDA_PREFIX" in os.environ:
-                base_path = os.environ["CONDA_PREFIX"]
-                # Go up one level if we're in an environment already
-                if os.path.basename(base_path) not in ["anaconda3", "miniconda3"]:
-                    base_path = os.path.dirname(base_path)
-                candidate_path = os.path.join(os.path.dirname(base_path), "envs", self.martinize2_env)
-                if os.path.exists(candidate_path):
-                    LOG.debug(f"Found conda environment path via CONDA_PREFIX: {candidate_path}")
-                    return candidate_path
             
             LOG.warning(f"Could not find conda environment path for: {self.martinize2_env}")
             return None
@@ -579,6 +632,7 @@ class ColbuilderConfig(BaseModel):
     class Config:
         """Pydantic configuration."""
         use_enum_values = True
+
 
 def validate_input_files(config: ColbuilderConfig) -> None:
     """Validate input files if they are provided and required."""
@@ -624,38 +678,16 @@ def validate_input_files(config: ColbuilderConfig) -> None:
 
 _config_instance = None
 
-def get_config(**kwargs) -> ColbuilderConfig:
+def get_config(existing_config: Optional[ColbuilderConfig] = None, **kwargs) -> ColbuilderConfig:
     """Get or create the configuration singleton."""
     global _config_instance
-    if _config_instance is None:
-        try:
+    if (_config_instance is None) or (existing_config is not None):
+        if existing_config:
+            LOG.debug("Reusing existing ColbuilderConfig object in get_config")
+            _config_instance = existing_config
+        else:
+            LOG.debug("Creating ColbuilderConfig object in get_config")
             _config_instance = ColbuilderConfig(**kwargs)
-            _config_instance.validate_paths()
-            validate_input_files(_config_instance)
-            
-            # Detect Martinize2 if topology generation is enabled
-            if _config_instance.topology_generator:
-                try:
-                    from colbuilder.core.utils.martinize_finder import find_martinize2_executable
-                    executable_path, use_conda, conda_env = find_martinize2_executable()
-                    _config_instance.martinize2_command = executable_path
-                    _config_instance.martinize2_env = conda_env
-                    _config_instance.use_conda_run = use_conda
-                    LOG.debug(f"Detected Martinize2: {executable_path}" + 
-                            (f" (using conda environment: {conda_env})" if use_conda else ""))
-                except Exception as e:
-                    LOG.warning(f"Failed to detect Martinize2: {str(e)}")
-                    LOG.warning("Topology generation may fail if Martinize2 is not available")
-                    
-        except ConfigurationError:
-            raise
-        except Exception as e:
-            raise ConfigurationError(
-                "Configuration initialization failed",
-                original_error=e,
-                error_code="CFG_ERR_001",
-                context={"kwargs": kwargs} 
-            )
     return _config_instance
 
 
@@ -663,7 +695,9 @@ def load_yaml_config(yaml_file: Path) -> Dict[str, Any]:
     """Load configuration from YAML file."""
     try:
         with open(yaml_file, 'r') as file:
-            return yaml.safe_load(file)
+            config_data = yaml.safe_load(file)
+            LOG.debug(f"Loaded YAML configuration: {config_data}")
+            return config_data
     except Exception as e:
         raise ConfigurationError(
             f"ERROR: {yaml_file}",
@@ -674,9 +708,11 @@ def load_yaml_config(yaml_file: Path) -> Dict[str, Any]:
 
 def validate_config(config: Dict[str, Any]) -> ColbuilderConfig:
     """Validate configuration dictionary and create config object."""
+    LOG.debug("Calling validate_config")
     try:
         return ColbuilderConfig(**config)
     except Exception as e:
+        LOG.error(f"Configuration validation failed: {e}")
         raise ConfigurationError(
             "Configuration validation failed",
             original_error=e,

@@ -28,17 +28,16 @@ import sys
 import os
 import time
 import asyncio
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from pathlib import Path
 import traceback
-from typing import (
-    Dict, Any, Tuple, Optional, AsyncIterator, 
-    Union, Protocol, runtime_checkable
-)
+from typing import Dict, Any, Tuple, Optional, Union, List
 import click
+import yaml
 from colorama import init, Fore, Style
-from . import VERSION
+init()
+
+# Package version
+VERSION = "0.0.0"
 
 from colbuilder.core.utils.logger import setup_logger
 from colbuilder.core.utils.dec import timeit
@@ -48,7 +47,8 @@ from colbuilder.core.utils.config import (
     get_config, 
     OperationMode, 
     load_yaml_config,
-    resolve_relative_paths
+    resolve_relative_paths,
+    validate_config
 )
 from colbuilder.core.utils.exceptions import (
     ColbuilderError,
@@ -67,77 +67,7 @@ ConfigDict = Dict[str, Any]
 RatioDict = Dict[str, int]
 PathLike = Union[str, Path]
 
-@runtime_checkable
-class ModuleProtocol(Protocol):
-    """
-    Protocol defining the interface for Colbuilder modules.
-    
-    This protocol ensures that all major processing modules
-    (sequence, geometry, topology) implement the required methods.
-    """
-    
-    async def build_sequence(
-        self, 
-        config: ColbuilderConfig
-    ) -> Tuple[Path, Path]:
-        """
-        Build sequence from configuration.
-        
-        Args:
-            config: Configuration settings
-            
-        Returns:
-            Tuple containing paths to MSA and final PDB files
-        """
-        
-    async def build_geometry(
-        self, 
-        config: ColbuilderConfig
-    ) -> System:
-        """
-        Build geometry from configuration.
-        
-        Args:
-            config: Configuration settings
-            
-        Returns:
-            Built system
-        """
-        
-    async def build_topology(
-        self,
-        system: System,
-        config: ColbuilderConfig
-    ) -> System:
-        """
-        Build topology from system and configuration.
-        
-        Args:
-            system: Input system
-            config: Configuration settings
-            
-        Returns:
-            System with topology
-        """
-        
-@dataclass
-class BuildContext:
-    """
-    Holds state during the build process.
-    
-    This class maintains the state of the build process,
-    including configuration, system state, and results.
-    
-    Attributes:
-        config: Configuration settings
-        system: Current system state
-        sequence_result: Result of sequence generation
-        file_manager: File management utility
-    """
-    config: ColbuilderConfig
-    system: Optional[System] = None
-    sequence_result: Optional[Tuple[Path, Path]] = None
-    file_manager: Optional[FileManager] = None
+LOG = setup_logger(__name__)
 
 def print_version(ctx: click.Context, param: click.Parameter, value: bool) -> None:
     """
@@ -153,57 +83,9 @@ def print_version(ctx: click.Context, param: click.Parameter, value: bool) -> No
     click.echo(f"colbuilder version {VERSION}")
     ctx.exit()
 
-init(autoreset=True)
-LOG = setup_logger(__name__)
-
-async def import_module(module_path: str) -> ModuleProtocol:
-    """Import a module with proper error handling."""
-    try:
-        import sys
-        import os
-        
-        src_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if src_path not in sys.path:
-            sys.path.insert(0, src_path)
-        
-        try:
-            mod = __import__(module_path, fromlist=[''])
-            LOG.debug(f"Successfully imported module: {module_path}")
-            return mod
-        except ImportError as import_error:
-            LOG.info(f"Import error details: {str(import_error)}")
-            module_parts = module_path.split('.')
-            possible_path = os.path.join(*module_parts) + '.py'
-            LOG.debug(f"Checking for file at: {possible_path}")
-            if os.path.exists(possible_path):
-                LOG.info(f"File exists at: {possible_path}")
-            else:
-                LOG.info(f"File not found at: {possible_path}")
-            raise import_error
-            
-    except asyncio.TimeoutError:
-        raise SystemError(
-            message=f"Module import timed out: {module_path}",
-            error_code="SYS_ERR_002",
-            context={
-                "module_path": module_path,
-                "timeout": 30.0,
-                "sys_path": sys.path,
-                "cwd": os.getcwd()
-            }
-        )
-    except ImportError as e:
-        raise SystemError(
-            message=f"Failed to import module {module_path}",
-            original_error=e,
-            error_code="SYS_ERR_002",
-            context={
-                "module_path": module_path,
-                "error_details": str(e),
-                "sys_path": sys.path,
-                "cwd": os.getcwd()
-            }
-        )
+from colbuilder.core.sequence.main_sequence import build_sequence
+from colbuilder.core.geometry.main_geometry import build_geometry_anywhere
+from colbuilder.core.topology.main_topology import build_topology
 
 def parse_ratio_mix(ratio_str: str) -> RatioDict:
     """
@@ -237,9 +119,17 @@ def parse_ratio_mix(ratio_str: str) -> RatioDict:
                 "error_details": str(e)
             }
         )
+        
+def display_title() -> None:
+    """Display the application title."""
+    LOG.title("ColBuilder: Collagen Microfibril Builder")
+    LOG.info(f"{Fore.CYAN}Version: {VERSION}{Style.RESET_ALL}")
+    LOG.info("Copyright (c) 2024, ColBuilder Development Team")
+    LOG.info("Distributed under the terms of the Apache License 2.0")
+    LOG.info("")
 
 @timeit
-async def run_sequence_generation(ctx: BuildContext) -> None:
+async def run_sequence_generation(config: ColbuilderConfig) -> Tuple[Path, Path]:
     """
     Generate coordinates for collagen molecule from sequence information.
     
@@ -247,344 +137,273 @@ async def run_sequence_generation(ctx: BuildContext) -> None:
     including homology modeling and structure optimization.
     
     Args:
-        ctx: Build context containing configuration and state
+        config: Configuration settings
+        
+    Returns:
+        Tuple containing paths to MSA and final PDB files
         
     Raises:
         SequenceGenerationError: If sequence generation fails
-        FileNotFoundError: If required files are missing
     """
     try:
-        sequence_module = await import_module('colbuilder.core.sequence.main_sequence')
-        msa, final_pdb = await sequence_module.build_sequence(ctx.config)
-        ctx.sequence_result = (Path(msa), Path(final_pdb))
-        ctx.config.pdb_file = final_pdb
-        
-    except FileNotFoundError as e:
-        raise SequenceGenerationError(
-            message="Required input file not found",
-            original_error=e,
-            error_code="SEQ_ERR_004",
-            context={
-                "file_path": str(e.filename) if hasattr(e, 'filename') else None,
-                "working_directory": str(ctx.config.working_directory),
-                "config": ctx.config.model_dump()
-            }
-        )
-    except SequenceGenerationError:
-        raise
+        LOG.section("Sequence Generation")
+        LOG.subsection("Generating Sequence")
+        return await build_sequence(config)
     except Exception as e:
-        error_msg = str(e).lower()
-        if "crosslinks optimization failed" in error_msg:
+        LOG.error(f"Sequence generation failed: {str(e)}")
+        if not isinstance(e, SequenceGenerationError):
             raise SequenceGenerationError(
-                message="Structure optimization failed",
+                message=f"Sequence generation failed: {str(e)}",
                 original_error=e,
-                error_code="SEQ_ERR_003",
-                context={
-                    "error_message": str(e),
-                    "config": ctx.config.model_dump(),
-                    "operation": "crosslinks_optimization"
-                }
+                error_code="SEQ_ERR_001"
             )
-        else:
-            raise SequenceGenerationError(
-                message="Unexpected error during sequence generation",
-                original_error=e,
-                error_code="SEQ_ERR_001",
-                context={
-                    "error_message": str(e),
-                    "config": ctx.config.model_dump(),
-                    "traceback": traceback.format_exc()
-                }
-            )
+        raise
 
 @timeit
-async def run_geometry_generation(ctx: BuildContext) -> None:
+async def run_geometry_generation(config: ColbuilderConfig, file_manager: Optional[FileManager] = None) -> Tuple[Optional[System], Path]:
     """
-    Generate fibril geometry.
-    
-    This function handles the geometry generation step of the pipeline,
-    including crystal contacts and system building.
-    
+    Generate fibril geometry or handle mixing/replacement operations.
+
     Args:
-        ctx: Build context containing configuration and state
-        
+        config: Configuration settings
+        file_manager: Optional file manager for consistent file handling
+
+    Returns:
+        Tuple containing the generated system (which might be None) and the output PDB path
+
     Raises:
-        GeometryGenerationError: If geometry generation fails
-        ValueError: If required parameters are missing
+        GeometryGenerationError: If geometry generation or mixing fails
     """
     try:
-        if ctx.config.pdb_file is None:
-            raise ValueError("No PDB file given")
-            
-        geometry_module = await import_module('colbuilder.core.geometry.main_geometry')
-        ctx.system = await geometry_module.build_geometry(ctx.config)
-    except ValueError as e:
-        if 'crystal' in str(e).lower():
+        LOG.section("Geometry Generation")
+        LOG.subsection("Building Geometry or Mixing")
+
+        current_file_manager = file_manager or FileManager(config)
+
+        # Handle mixing-only logic
+        if config.mix_bool and not config.geometry_generator:
+            from colbuilder.core.geometry.main_geometry import GeometryService
+            geometry_service = GeometryService(config, current_file_manager)
+            system, pdb_path = await geometry_service._handle_mixing_only()
+            return system, pdb_path
+
+        # Handle geometry generation (or combined geometry + mixing/replacement)
+        if not config.pdb_file:
             raise GeometryGenerationError(
-                "Crystal contacts generation failed",
-                original_error=e,
-                error_code="GEO_ERR_002"
-            ) from e
-        raise GeometryGenerationError(
-            "Invalid input parameters for geometry generation",
-            original_error=e,
-            error_code="GEO_ERR_001"
-        ) from e
-
-@timeit
-async def run_mix_geometry(ctx: BuildContext) -> None:
-    """Mix geometry components."""
-    try:
-        # Initialize a new system if one doesn't exist
-        if not ctx.system:
-            ctx.system = System()  # Create empty system for mixing
-            
-        geometry_module = await import_module('colbuilder.core.geometry.main_geometry')
-        
-        ratio_mix = (parse_ratio_mix(ctx.config.ratio_mix) 
-                    if isinstance(ctx.config.ratio_mix, str)
-                    else ctx.config.ratio_mix)
-        
-        modified_config = ColbuilderConfig(
-            **{**ctx.config.model_dump(), 'ratio_mix': ratio_mix}
-        )
-        
-        ctx.system = await geometry_module.mix_geometry(ctx.system, modified_config)
-        
-    except GeometryGenerationError:
-        raise
-    except Exception as e:
-        raise GeometryGenerationError(
-            message="Failed to mix geometry",
-            original_error=e,
-            error_code="GEO_ERR_003",
-            context={
-                "config": ctx.config.model_dump(),
-                "ratio_mix": str(ratio_mix) if 'ratio_mix' in locals() else None
-            }
-        )
-
-@timeit
-async def run_replace_geometry(ctx: BuildContext) -> None:
-    """
-    Replace crosslinks in the system with standard amino acids.
-    
-    This function handles the replacement of crosslinks with standard amino acids
-    according to a user-defined percentage, using either the system's
-    built-in replacement algorithm or an external replacement file.
-    
-    Args:
-        ctx: Build context containing configuration and state
-        
-    Raises:
-        GeometryGenerationError: If replacement fails
-        ColbuilderError: If system is not initialized
-    """
-    try:
-        LOG.info(f"Running crosslink replacement with ratio: {ctx.config.ratio_replace}%")
-        
-        # Wait to ensure all files are written before replacement
-        import time
-        time.sleep(1)
-        
-        # Import and use the replacement module
-        geometry_module = await import_module('colbuilder.core.geometry.main_geometry')
-        ctx.system = await geometry_module.replace_geometry(ctx.system, ctx.config)
-        
-    except GeometryGenerationError:
-        raise
-    except Exception as e:
-        raise GeometryGenerationError(
-            message="Failed to replace crosslinks",
-            original_error=e,
-            error_code="GEO_ERR_004",
-            context={
-                "config": ctx.config.model_dump(),
-                "error_message": str(e),
-                "traceback": traceback.format_exc()
-            }
-        )
-
-@timeit
-async def run_topology_generation(ctx: BuildContext) -> None:
-    """
-    Generate topology for the system.
-    
-    This function handles the topology generation step of the pipeline,
-    including force field validation and topology building.
-    
-    Args:
-        ctx: Build context containing configuration and state
-        
-    Raises:
-        TopologyGenerationError: If topology generation fails
-        ColbuilderError: If system is not initialized
-    """
-    try:
-        if not ctx.system:
-            raise ColbuilderError(
-                detail=ColbuilderErrorDetail(
-                    message="System not initialized for topology generation",
-                    category=ErrorCategory.TOPOLOGY,
-                    severity=ErrorSeverity.ERROR,
-                    context={"operation": "topology_generation"}
-                )
+                message="PDB file not specified for geometry generation",
+                error_code="GEO_ERR_005"
             )
-            
-        topology_module = await import_module('colbuilder.core.topology.main_topology')
-        
-        if ctx.file_manager and hasattr(topology_module, 'set_file_manager'):
-            topology_module.set_file_manager(ctx.file_manager)
-            
-        ctx.system = await topology_module.build_topology(ctx.system, ctx.config)
-        
-    except ValueError as e:
-        if "invalid force field" in str(e).lower():
-            raise TopologyGenerationError(
-                message="Invalid force field specification",
-                original_error=e,
-                error_code="TOP_ERR_001",
+
+        pdb_path = Path(config.pdb_file).resolve()
+        if not pdb_path.exists():
+            raise GeometryGenerationError(
+                message=f"PDB file not found: {pdb_path}",
+                error_code="GEO_ERR_005"
+            )
+
+        if config.contact_distance is None and not config.crystalcontacts_file:
+            raise GeometryGenerationError(
+                message="Either contact_distance or crystalcontacts_file must be provided",
+                error_code="GEO_ERR_001",
                 context={
-                    "force_field": ctx.config.force_field,
-                    "error_message": str(e)
+                    "contact_distance": config.contact_distance,
+                    "crystalcontacts_file": config.crystalcontacts_file
                 }
             )
-        raise TopologyGenerationError(
-            message=str(e),
-            error_code="TOP_ERR_001",
-            context={"config": ctx.config.model_dump()}
-        )
-    except Exception as e:
-        raise TopologyGenerationError(
-            message="Topology generation failed",
-            original_error=e,
-            error_code="TOP_ERR_001",
-            context={
-                "config": ctx.config.model_dump(),
-                "error_message": str(e)
-            }
-        )
 
-@timeit
-async def run_operations(ctx: BuildContext) -> None:
-    """
-    Run the specified operations based on the configuration.
-    
-    This function coordinates the execution of all requested operations
-    in the correct order, managing state and logging progress.
-    
-    Args:
-        ctx: Build context containing configuration and state
-        
-    Raises:
-        ColbuilderError: If any operation fails
-        SystemError: If an unexpected error occurs
-    """
-    if not ctx.file_manager:
-        ctx.file_manager = FileManager(ctx.config)
-        
-    try:
-        # Sequence Generation
-        if OperationMode.SEQUENCE in ctx.config.mode:
-            LOG.section("Generating collagen triple helix...")
-            LOG.subsection("Homology Modelling")
-            await run_sequence_generation(ctx)
-            LOG.info(
-                f"{Fore.BLUE}Homology modelling completed.\n{Style.RESET_ALL}"
-                f"{Fore.BLUE}MSA: {ctx.sequence_result[0]}\n"
-                f"Final PDB (triple helix): {ctx.sequence_result[1]}{Style.RESET_ALL}"
+        output_path, pdb_path = await build_geometry_anywhere(config, current_file_manager)
+
+        if not pdb_path.exists():
+            raise GeometryGenerationError(
+                message=f"Expected output file not found: {pdb_path}",
+                error_code="GEO_ERR_001"
             )
 
-        # Geometry Generation
-        if OperationMode.GEOMETRY in ctx.config.mode:
-            LOG.section("Generating collagen fibril...")
-            LOG.subsection("Geometry Generation")
-            await run_geometry_generation(ctx)
-            LOG.info(f"{Fore.BLUE}Geometry generation completed.{Style.RESET_ALL}")
+        try:
+            from colbuilder.core.geometry.crystal import Crystal
+            crystal = Crystal(pdb=str(pdb_path))
+            system = System(crystal=crystal)
+        except Exception as e:
+            LOG.warning(f"Could not create system object from output PDB: {e}")
+            system = None
 
-        # Mixing Operation (can run independently)
-        if OperationMode.MIX in ctx.config.mode and OperationMode.GEOMETRY not in ctx.config.mode:
-            LOG.section("Mixing geometry...")
-            LOG.subsection("Mixing Geometry")
-            await run_mix_geometry(ctx)
-            LOG.info(f"{Fore.BLUE}Mixing completed.{Style.RESET_ALL}")
+        return system, pdb_path
+
+    except Exception as e:
+        LOG.error(f"Geometry generation failed: {str(e)}")
+        if not isinstance(e, GeometryGenerationError):
+            raise GeometryGenerationError(
+                message=f"Geometry generation failed: {str(e)}",
+                original_error=e,
+                error_code="GEO_ERR_001"
+            )
+        raise
+
+@timeit
+async def run_topology_generation(config: ColbuilderConfig, system_path: Path, existing_system: Optional[System] = None, file_manager: Optional[FileManager] = None) -> Tuple[Path, Path]:
+    try:
+        # LOG.section("Topology Generation")
         
-        # Replacement Operation (only run as standalone if GEOMETRY is not enabled)
-        if OperationMode.REPLACE in ctx.config.mode and OperationMode.GEOMETRY not in ctx.config.mode:
-            LOG.section("Replacing crosslinks...")
-            LOG.subsection("Replacing Geometry")
-            await run_replace_geometry(ctx)
-            LOG.info(f"{Fore.BLUE}Replacement completed.{Style.RESET_ALL}")
+        # Initialize file manager if not provided
+        if file_manager is None:
+            file_manager = FileManager(config)
+            
+        # Identify the geometry directory
+        geometry_dir = Path(".tmp") / "geometry_gen"
+        if not geometry_dir.exists():
+            geometry_dir = Path.cwd() / ".tmp" / "geometry_gen"
+
+        if geometry_dir.exists():
+            LOG.debug(f"Found geometry directory: {geometry_dir}")
+            # Check for any .caps.pdb files in the directory
+            cap_files = list(geometry_dir.glob("**/*.caps.pdb"))
+            LOG.debug(f"Found {len(cap_files)} cap files in geometry directory")
+        else:
+            LOG.warning(f"Geometry directory not found: {geometry_dir}")
+        
+        # Use existing system if provided
+        if existing_system:
+            LOG.info(f"{Fore.BLUE}Using existing system from geometry generation{Style.RESET_ALL}")
+            system = existing_system
+            
+            # Debug info
+            model_count = len(list(system.get_models()))
+            
+            for model_id in system.get_models():
+                model = system.get_model(model_id=model_id)
+                if model:
+                    LOG.debug(f"Model {model_id} - Type: {model.type if hasattr(model, 'type') else 'Unknown'}")
+        else:
+            # Create a system object from the PDB file
+            LOG.info("Creating new system from PDB file")
+            from colbuilder.core.geometry.crystal import Crystal
+            from colbuilder.core.geometry.system import System
+            
+            crystal = Crystal(pdb=str(system_path))
+            system = System(crystal=crystal)
+        
+        # Run topology generation with the system and file manager
+        await build_topology(system, config, file_manager)
+        
+        # Topology files are created in [species]_topology_files directory
+        topology_dir = Path(f"{config.species}_topology_files")
+        if not topology_dir.exists():
+            LOG.warning(f"Topology directory not found: {topology_dir}")
+            topology_dir = Path()
+            
+        return topology_dir, system_path
+    
+    except Exception as e:
+        LOG.error(f"Topology generation failed: {str(e)}")
+        if not isinstance(e, TopologyGenerationError):
+            raise TopologyGenerationError(
+                message=f"Topology generation failed: {str(e)}",
+                original_error=e,
+                error_code="TOP_ERR_001"
+            )
+        raise
+
+async def run_pipeline(config: ColbuilderConfig) -> Dict[str, Path]:
+    """Run the complete Colbuilder pipeline based on configuration."""
+    results = {
+        "sequence_msa": None,
+        "sequence_pdb": None,
+        "geometry_pdb": None,
+        "topology_dir": None,
+    }
+    
+    try:
+        # Initialize file manager
+        file_manager = FileManager(config)
+        
+        # Track the current system state
+        current_system = None
+        
+        # Sequence Generation
+        if config.sequence_generator:
+            LOG.section("Running sequence generation")
+            sequence_msa, sequence_pdb = await run_sequence_generation(config)
+            results["sequence_msa"] = sequence_msa
+            results["sequence_pdb"] = sequence_pdb
+            
+            # Update PDB file for next steps if needed
+            if sequence_pdb and not config.pdb_file:
+                config.pdb_file = sequence_pdb
+                LOG.info(f"Using generated sequence PDB for further processing: {sequence_pdb}")
+
+        # Handle direct replacement without geometry generation
+        if config.replace_bool and not config.geometry_generator:
+            LOG.section("Running direct replacement without geometry generation")
+            from colbuilder.core.geometry.main_geometry import GeometryService
+            geometry_service = GeometryService(config, file_manager)
+            current_system, pdb_path = await geometry_service._handle_direct_replacement()
+            results["geometry_pdb"] = pdb_path
+            LOG.info(f"Direct replacement completed, output PDB: {pdb_path}")
+        
+        # Mix-only mode (no geometry generation)
+        elif config.mix_bool:
+            LOG.section("Running crosslinks mixing mode")
+            current_system, pdb_path = await run_geometry_generation(config, file_manager)
+            results["geometry_pdb"] = pdb_path
+            LOG.info(f"Mixing completed, output PDB: {pdb_path}")
+        
+        if config.geometry_generator:
+            LOG.section("Running geometry generation")
+            from colbuilder.core.geometry.main_geometry import GeometryService
+            geometry_service = GeometryService(config, file_manager)
+            
+            # Use full generation which handles both geometry and replacement
+            current_system, pdb_path = await geometry_service._handle_full_generation()
+            results["geometry_pdb"] = pdb_path
+            results["geometry_system"] = current_system  # Store the system object
+            
+            LOG.info(f"Geometry generation completed, output PDB: {pdb_path}")
 
         # Topology Generation
-        if OperationMode.TOPOLOGY in ctx.config.mode:
-            LOG.section("Generating topology...")
-            await run_topology_generation(ctx)
-            LOG.info(f"{Fore.BLUE}Topology generation completed.{Style.RESET_ALL}")
-
-    except ColbuilderError:
+        if config.topology_generator and results["geometry_pdb"]:
+            LOG.section("Running topology generation")
+            
+            # Pass the existing system to topology generation
+            if "geometry_system" in results and results["geometry_system"]:
+                topology_dir, system_path = await run_topology_generation(
+                    config, 
+                    results["geometry_pdb"],
+                    existing_system=results["geometry_system"]
+                )
+            else:
+                topology_dir, system_path = await run_topology_generation(config, results["geometry_pdb"])
+        
+        # Clean up temporary files if not in debug mode
+        if not config.debug:
+            file_manager.cleanup()
+            
+        return results
+        
+    except SequenceGenerationError as e:
+        LOG.error(f"Sequence generation error: {str(e)}")
+        e.log_error()
+        raise
+    except GeometryGenerationError as e:
+        LOG.error(f"Geometry generation error: {str(e)}")
+        e.log_error()
+        raise
+    except TopologyGenerationError as e:
+        LOG.error(f"Topology generation error: {str(e)}")
+        e.log_error()
+        raise
+    except ColbuilderError as e:
+        LOG.error(f"Colbuilder error: {str(e)}")
+        e.log_error()
         raise
     except Exception as e:
+        LOG.critical(f"Unhandled exception in pipeline: {str(e)}")
+        LOG.info(f"Exception details: {traceback.format_exc()}")
         raise SystemError(
-            message="An unexpected error occurred during operation",
+            message=f"Unhandled exception in pipeline: {str(e)}",
             original_error=e,
             error_code="SYS_ERR_001",
-            context={
-                "operation_mode": str(ctx.config.mode),
-                "config": ctx.config.model_dump(),
-                "traceback": traceback.format_exc()
-            }
+            context={"config": config.model_dump() if hasattr(config, "model_dump") else str(config)}
         )
-
-def setup_configuration(kwargs: Dict[str, Any]) -> ColbuilderConfig:
-    """
-    Set up the configuration based on input arguments.
-    
-    This function processes command line arguments and configuration
-    files to create a complete configuration object.
-    
-    Args:
-        kwargs: Command line arguments and options
-        
-    Returns:
-        Complete configuration object
-        
-    Raises:
-        ConfigurationError: If configuration setup fails
-    """
-    config_data = kwargs.copy()
-
-    # Make sure we have an absolute path for working_directory
-    if 'working_directory' in config_data:
-        config_data['working_directory'] = Path(config_data['working_directory']).resolve()
-    else:
-        config_data['working_directory'] = Path.cwd().resolve()
-    
-    # If config_file is provided, resolve it relative to the current directory
-    if config_data.get('config_file'):
-        config_file_path = Path(config_data['config_file']).resolve()
-        if not config_file_path.exists():
-            raise ConfigurationError(
-                f"Configuration file not found: {config_file_path}",
-                error_code="CFG_ERR_001"
-            )
-            
-        user_config = load_yaml_config(config_file_path)
-        
-        # Resolve any relative paths in the loaded config relative to the config file's directory
-        user_config = resolve_relative_paths(user_config, config_file_path.parent)
-        
-        config_data.update(user_config)
-
-    # Convert ratio_mix tuple to dictionary if necessary
-    if isinstance(config_data.get('ratio_mix'), tuple):
-        config_data['ratio_mix'] = {
-            item[0]: item[1] for item in config_data['ratio_mix'] 
-            if len(item) == 2
-        }
-
-    LOG.debug(f"Final configuration: {config_data}")
-    return get_config(**config_data)
 
 def log_configuration_summary(cfg: ColbuilderConfig) -> None:
     """
@@ -598,20 +417,22 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
     """
     sections = {
         "Fibril Parameters": lambda: [
+            f"Species: {cfg.species}",
             f"Contact Distance: {cfg.contact_distance}" if cfg.contact_distance else None,
             f"Fibril Length: {cfg.fibril_length}",
             "Crosslinks:",
             f"    Mix Ratio: {cfg.ratio_mix}" if cfg.mix_bool else None,
             f"    Mix Files: {cfg.files_mix}" if cfg.mix_bool else None,
-            f"    N-terminal: {cfg.n_term_type}, {cfg.n_term_combination}" if not cfg.mix_bool else None,
-            f"    C-terminal: {cfg.c_term_type}, {cfg.c_term_combination}" if not cfg.mix_bool else None
+            f"    Replace Ratio: {cfg.ratio_replace}%" if cfg.replace_bool else None,
+            f"    N-terminal: {cfg.n_term_type}, {cfg.n_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else None,
+            f"    C-terminal: {cfg.c_term_type}, {cfg.c_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else None
         ],
         "Operation Modes": lambda: [
-            "Homology \u2713" if cfg.sequence_generator else None,
-            "Geometry \u2713" if cfg.geometry_generator else None,
+            "Sequence Generation \u2713" if cfg.sequence_generator else None,
+            "Geometry Generation \u2713" if cfg.geometry_generator else None,
             "Mix Crosslinks \u2713" if cfg.mix_bool else None,
             "Replace Crosslinks \u2713" if cfg.replace_bool else None,
-            "Topology \u2713" if cfg.topology_generator else None
+            "Topology Generation \u2713" if cfg.topology_generator else None
         ]
     }
 
@@ -621,8 +442,8 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
             LOG.info(f"- {item}")
 
     if cfg.config_file:
-        LOG.info(f"Config File: {cfg.config_file}")
-    if not (cfg.mix_bool or cfg.replace_bool):
+        LOG.info(f"Config File: {cfg.config_file}") 
+    if cfg.pdb_file and (cfg.geometry_generator):
         LOG.info(f"Input File: {cfg.pdb_file}")
     LOG.info(f"Output File: {cfg.output}.pdb")
     LOG.info(f"Working Directory: {cfg.working_directory}")
@@ -641,7 +462,7 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
               default=Path.cwd(), help='Set working directory')
 @click.option('-dc', '--contact_distance', type=float,
               help='Contact distance as input for radial size of microfibril')
-@click.option('-length', '--fibril_length', type=float, default=334,
+@click.option('-length', '--fibril_length', type=float,
               help='Length of microfibril')
 @click.option('-contacts', '--crystalcontacts_file', type=click.Path(path_type=Path),
               help='Read crystalcontacts from file')
@@ -653,8 +474,8 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
               help='Solution space of optimisation problem [ d_x d_y d_z ]')
 @click.option('-mix', '--mix_bool', is_flag=True,
               help='Generate a mixed crosslinked microfibril')
-@click.option('-ratio_mix', '--ratio_mix', nargs=2, type=(str, int), multiple=True,
-              help='Ratio for mix-crosslink setup: -ratio_mix T 70 -ratio_mix D 30')
+@click.option('-ratio_mix', '--ratio_mix', type=str,
+              help='Ratio for mix-crosslink setup in format "Type:percentage Type:percentage"')
 @click.option('-files_mix', '--files_mix', type=click.Path(exists=True, dir_okay=False, path_type=Path),
               multiple=True, help='PDB-files with different crosslink-types')
 @click.option('-replace', '--replace_bool', is_flag=True,
@@ -668,13 +489,14 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
               help='Generate topology files')
 @click.option('-ff', '--force_field',
               help='Specify force field to be used, e.g. -ff amber99 OR -ff martini3')
+@click.option('-top_debug', '--topology_debug', is_flag=True,
+              help='Keep intermediate topology files for debugging')
 @click.option('--debug', is_flag=True, help='Enable debug logging')
 @click.option('--version', is_flag=True, callback=print_version,
               expose_value=False, is_eager=True,
               help="Show the version and exit.")
-
 @timeit
-def main(**kwargs: Any) -> None:
+def main(**kwargs: Any) -> int:
     """
     Main entry point for Colbuilder.
     
@@ -683,52 +505,177 @@ def main(**kwargs: Any) -> None:
     
     Args:
         **kwargs: Command line arguments and options
+        
+    Returns:
+        Exit code (0 for success, 1 for failure)
     """
-    start_time = time.time()
-    
-    LOG.title("Colbuilder")
-    LOG.info(f"{Fore.BLUE}{Style.BRIGHT}Starting Colbuilder process...")
-    LOG.debug(f"Current working directory: {Path.cwd()}")
-    LOG.debug(f"Python version: {sys.version}")
-    LOG.debug(f"Arguments: {kwargs}")
-
     try:
-        LOG.section("Configuration Setup")
-        config = setup_configuration(kwargs)
+        display_title()
         
-        file_manager = FileManager(config)
-        ctx = BuildContext(config=config, file_manager=file_manager)
+        # Store raw mix files for later
+        raw_files_mix = None
         
+        # If config file is provided, load it
+        config_file = kwargs.get('config_file')
+        if config_file:
+            config_path = Path(config_file)
+            config_dir = config_path.parent
+            
+            try:
+                file_config = load_yaml_config(config_path)
+                file_config = resolve_relative_paths(file_config, config_dir)
+                
+                # Save the raw files_mix from config if it exists
+                if 'files_mix' in file_config and file_config['files_mix']:
+                    raw_files_mix = file_config['files_mix']
+                
+                # Start with configuration from file
+                config_data = file_config
+                
+            except Exception as e:
+                LOG.error(f"Error loading configuration file: {str(e)}")
+                LOG.info(f"Exception details: {traceback.format_exc()}")
+                return 1
+        else:
+            config_data = {}
+        
+        # Override with command-line arguments if they are explicitly provided
+        for key, value in kwargs.items():
+            # Skip config_file as it's not a real config parameter
+            if key == 'config_file':
+                continue
+                
+            # Special handling for files_mix (it's a tuple from command line)
+            if key == 'files_mix' and value:
+                LOG.info(f"Command line files_mix: {value}")
+                config_data[key] = value
+                raw_files_mix = value  # Save command line value
+                continue
+                
+            # For boolean flags like --sequence_generator, only override if 
+            # explicitly set to True on command line
+            if isinstance(value, bool):
+                if value:  # Only override with True (explicit flag)
+                    config_data[key] = value
+                # Don't override with False unless no value in config
+                elif key not in config_data:
+                    config_data[key] = value
+            # For non-boolean values, override if not None
+            elif value is not None:
+                config_data[key] = value
+        
+        # Log the final configuration before validation
+        LOG.debug(f"Final configuration data before validation: {config_data}")
+        
+        # Make sure mix files are Path objects
+        if 'files_mix' in config_data and config_data['files_mix']:
+            files = []
+            for file_path in config_data['files_mix']:
+                # Convert to Path if it's a string
+                if isinstance(file_path, str):
+                    file_path = Path(file_path)
+                
+                # Make sure it's absolute
+                if not file_path.is_absolute():
+                    base_dir = config_dir if config_file else Path.cwd()
+                    file_path = (base_dir / file_path).resolve()
+                
+                # Check if file exists and add it
+                if file_path.exists():
+                    files.append(file_path)
+                    LOG.info(f"Found mix file: {file_path}")
+                else:
+                    LOG.warning(f"Mix file not found: {file_path}")
+            
+            # Update config_data
+            config_data['files_mix'] = tuple(files)
+            LOG.info(f"Final files_mix before validation: {config_data.get('files_mix')}")
+        
+        try:
+            config = validate_config(config_data)
+            
+            if config.mix_bool and (not config.files_mix or len(config.files_mix) == 0):
+                if raw_files_mix:
+                    LOG.debug(f"Using raw files_mix: {raw_files_mix}")
+                    files = []
+                    
+                    for file_path in raw_files_mix:
+                        if isinstance(file_path, str):
+                            file_path = Path(file_path)
+                        
+                        if not file_path.is_absolute():
+                            base_dir = config_dir if config_file else Path.cwd()
+                            file_path = (base_dir / file_path).resolve()
+                        
+                        files.append(file_path)
+                    
+                    config.files_mix = tuple(files)
+            
+            global_config = get_config(existing_config=config)  # Pass the validated config
+        except Exception as e:
+            LOG.error(f"Configuration setup failed: {str(e)}")
+            LOG.info(f"Exception details: {traceback.format_exc()}")
+            return 1
+        
+        # Set up debug logging if requested
+        if config.debug:
+            os.environ['COLBUILDER_DEBUG'] = '1'
+            import logging
+            logging.basicConfig(level=logging.DEBUG)
+            LOG.info("Debug mode enabled")
+        
+        # Log configuration summary
         log_configuration_summary(config)
+       
+        if config.mix_bool:
+            LOG.debug(f"Files Mix: {config.files_mix}")
+            
+            if not config.files_mix or len(config.files_mix) == 0:
+                LOG.warning("No mix files found, but mixing is enabled!")
+                
+                if raw_files_mix and config.mix_bool:
+                    LOG.info("Creating empty mix files for testing...")
+                    files = []
+                    
+                    for file_name in raw_files_mix:
+                        if isinstance(file_name, Path):
+                            file_path = file_name
+                        else:
+                            file_path = Path(file_name)
+                            
+                        if not file_path.is_absolute():
+                            file_path = (config.working_directory / file_path.name).resolve()
 
-        asyncio.run(run_operations(ctx))
-
-        end_time = time.time()
-        LOG.section("Process Complete")
-        if config.geometry_generator:
-            final_pdb = config.get_output_path(config.output, suffix=".pdb")
-            LOG.info(f"{Fore.BLUE}Final PDB fibril: {final_pdb}{Style.RESET_ALL}")
-        LOG.info(
-            f"{Fore.BLUE}Colbuilder process completed successfully "
-            f"in {end_time - start_time:.2f} seconds.{Style.RESET_ALL}"
-        )
+                        if not file_path.exists():
+                            try:
+                                LOG.info(f"Creating empty file: {file_path}")
+                                with open(file_path, 'w') as f:
+                                    f.write("REMARK This is an empty PDB file created for testing\n")
+                                    f.write("END\n")
+                                files.append(file_path)
+                            except Exception as e:
+                                LOG.error(f"Failed to create test file: {e}")
+                        else:
+                            files.append(file_path)
+                    
+                    if files:
+                        config.files_mix = tuple(files)
+                        LOG.info(f"Created test files: {config.files_mix}")
         
-        # if ctx.file_manager:
-        #     ctx.file_manager.cleanup()
-
+        # Run the pipeline
+        results = asyncio.run(run_pipeline(config))
+        
+        LOG.info(f"{Fore.MAGENTA}Done! Colbuilder completed successfully.{Style.RESET_ALL}")
+        return 0
+        
     except ColbuilderError as e:
+        LOG.error(f"Colbuilder error: {str(e)}")
         e.log_error()
-        sys.exit(1)
+        return 1
     except Exception as e:
-        LOG.error(
-            "An unexpected error occurred. Please report this issue to the developers.",
-            exc_info=True,
-            extra={
-                "error": str(e),
-                "traceback": traceback.format_exc()
-            }
-        )
-        sys.exit(1)
+        LOG.critical(f"Unhandled exception: {str(e)}")
+        LOG.info(f"Exception details: {traceback.format_exc()}")
+        return 1
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main())

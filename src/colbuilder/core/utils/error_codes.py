@@ -1,19 +1,50 @@
 """
-Colbuilder Error Codes Module
+ColBuilder Error Codes Module
 
-This module defines all error codes and their associated information for the
-Colbuilder system. Each error type includes:
-- A unique code
-- A descriptive message
-- A list of suggestions for resolution
-- Optional documentation URL
+This module defines a centralized repository of error codes and their associated information 
+for the ColBuilder system. Each error code is categorized and includes a descriptive message, 
+suggestions for resolution, and optional links to documentation. This structured approach 
+enables consistent error handling, debugging, and user guidance throughout the pipeline.
 
-Error categories:
-- System (SYS): System-level errors
-- Configuration (CFG): Configuration and setup errors
-- Sequence (SEQ): Sequence generation errors
-- Geometry (GEO): Geometry generation errors
-- Topology (TOP): Topology generation errors
+Key Features:
+--------------
+1. **Error Code Structure**:
+   - Each error is represented by a unique code (e.g., `SYS_ERR_001`).
+   - Includes a human-readable message describing the error.
+   - Provides actionable suggestions to resolve the issue.
+   - Optionally links to relevant documentation for further guidance.
+
+2. **Error Categories**:
+   - **System (SYS)**: System-level errors (e.g., resource issues, dependency failures).
+   - **Configuration (CFG)**: Errors related to configuration and setup.
+   - **Sequence (SEQ)**: Errors during sequence generation and processing.
+   - **Geometry (GEO)**: Errors during geometry generation and manipulation.
+   - **Topology (TOP)**: Errors related to topology generation and force fields.
+
+3. **Error Information**:
+   - Encapsulated in the `ErrorInfo` named tuple, which includes:
+     - `code`: Unique error identifier.
+     - `message`: Description of the error.
+     - `suggestions`: List of potential solutions.
+     - `docs_url`: Optional link to relevant documentation.
+
+Usage:
+------
+This module is used throughout the ColBuilder pipeline to provide consistent error handling 
+and user feedback. Errors can be referenced by their unique codes and include detailed 
+information for debugging and resolution.
+
+Example:
+--------
+```python
+from colbuilder.core.utils.error_codes import SYSTEM_ERRORS, ErrorInfo
+
+# Access a specific error
+error = SYSTEM_ERRORS["SYS_ERR_001"]
+print(f"Error Code: {error.code}")
+print(f"Message: {error.message}")
+print(f"Suggestions: {', '.join(error.suggestions)}")
+```
 """
 
 from typing import Dict, List, NamedTuple, Optional
@@ -314,6 +345,51 @@ TOPOLOGY_ERRORS: Dict[str, ErrorInfo] = {
             "Ensure sufficient disk space",
             "Verify topology generation completed successfully",
             "Check for conflicting file names"
+        ]
+    ),
+    "TOP_MART_001": ErrorInfo(
+        code="TOP_MART_001",
+        message="Unexpected error in Martini topology generation",
+        suggestions=[
+            "Check if Martini force field files are available",
+            "Verify Martinize2 is properly installed",
+            "Check system requirements for Martini coarse-graining"
+        ]
+    ),
+    "TOP_MART_002": ErrorInfo(
+        code="TOP_MART_002",
+        message="No models were successfully processed with Martinize2",
+        suggestions=[
+            "Check input PDB files for correct format",
+            "Verify Martinize2 installation",
+            "Check Martinize2 error messages for detailed information"
+        ]
+    ),
+    "TOP_MART_003": ErrorInfo(
+        code="TOP_MART_003",
+        message="Failed to create system PDB file",
+        suggestions=[
+            "Verify sufficient disk space",
+            "Check file permissions",
+            "Ensure model processing completed successfully"
+        ]
+    ),
+    "TOP_MART_004": ErrorInfo(
+        code="TOP_MART_004",
+        message="Failed to create system topology files",
+        suggestions=[
+            "Verify sufficient disk space",
+            "Check file permissions",
+            "Ensure model processing completed successfully"
+        ]
+    ),
+    "TOP_MART_005": ErrorInfo(
+        code="TOP_MART_005",
+        message="Error with Martini force field setup",
+        suggestions=[
+            "Verify Martinize2 is installed and in your PATH",
+            "Check the martinize2_command setting in your configuration",
+            "Ensure force field directory exists and has proper permissions"
         ]
     )
 }

@@ -78,6 +78,8 @@ The most commonly used parameters for ColBuilder configuration:
 | n_term_combination | string | N-terminal residue combination | Format: "ResNum.Chain - ResNum.Chain" | "9.C - 947.A" |
 | c_term_combination | string | C-terminal residue combination | Format: "ResNum.Chain - ResNum.Chain" | "1047.C - 104.C" |
 
+*Check available crosslinks and respective combinations at [src/colbuilder/data/sequence/crosslinks.csv](https://github.com/graeter-group/colbuilder/blob/main/src/colbuilder/data/sequence/crosslinks.csv)
+
 **Validation Rules**:
 - For human (homo_sapiens) HLKNL crosslinks, valid N-terminal combinations include: "5.B - 944.B", "9.C - 944.B", "9.C - 947.A", "947.A - 5.B"
 - For human (homo_sapiens) HLKNL crosslinks, valid C-terminal combinations include: "104.C - 1047.A", "1047.A - 98.B", "1047.C - 104.C", "1047.C - 98.B"

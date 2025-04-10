@@ -1,4 +1,71 @@
-# crosslinks.py
+"""
+Crosslinking Utilities for ColBuilder
+
+This module provides utilities for parsing, extracting, and optimizing crosslink information 
+in the ColBuilder pipeline. It includes functionality to handle crosslink positions, validate 
+data, and optimize crosslink distances using Monte Carlo algorithms and Chimera scripts.
+
+Key Features:
+--------------
+1. **Crosslink Parsing**:
+   - `parse_crosslink_position`: Converts position strings into `CrosslinkPosition` objects.
+   - Validates position formats and raises detailed exceptions for invalid inputs.
+
+2. **Crosslink Extraction**:
+   - `extract_crosslinks_from_dataframe`: Extracts crosslink pairs from a DataFrame based on 
+     terminal type, crosslink type, and residue combinations.
+   - Supports both divalent and trivalent crosslinks.
+
+3. **Crosslink Optimization**:
+   - `CrosslinkOptimizer`: Handles optimization of crosslink distances using Monte Carlo methods.
+   - Integrates with Chimera scripts to generate PDB copies and optimize structures.
+   - Tracks optimization progress, including best distances and attempt history.
+
+Usage:
+------
+This module is designed to be used as part of the ColBuilder pipeline for managing and optimizing 
+crosslinks in protein structures.
+
+Example:
+--------
+```python
+from colbuilder.core.utils.crosslinks import (
+    parse_crosslink_position,
+    extract_crosslinks_from_dataframe,
+    CrosslinkOptimizer
+)
+from pathlib import Path
+import pandas as pd
+
+# Parse a crosslink position
+position = parse_crosslink_position("10.A", "LYS", "NZ")
+print(position.position_str())  # Output: "10.A"
+
+# Extract crosslinks from a DataFrame
+crosslinks_df = pd.DataFrame({
+    "terminal": ["N", "N"],
+    "type": ["divalent", "divalent"],
+    "combination": ["LYS-ASP", "LYS-ASP"],
+    "P1": ["10.A", "25.B"],
+    "R1": ["LYS", "LYS"],
+    "A1": ["NZ", "NZ"],
+    "P2": ["25.B", "10.A"],
+    "R2": ["ASP", "ASP"],
+    "A2": ["OD1", "OD1"]
+})
+crosslinks = extract_crosslinks_from_dataframe(crosslinks_df, "N", "divalent", "LYS-ASP")
+print(len(crosslinks))  # Output: 2
+
+# Optimize crosslinks
+optimizer = CrosslinkOptimizer(crosslinks, Path("/path/to/chimera/scripts"))
+best_distance, optimized_pdb = await optimizer.optimize(
+    input_pdb=Path("input.pdb"),
+    output_pdb=Path("optimized.pdb")
+)
+print(f"Best distance: {best_distance}, Optimized PDB: {optimized_pdb}")
+```
+"""
+
 import os
 import asyncio
 import subprocess

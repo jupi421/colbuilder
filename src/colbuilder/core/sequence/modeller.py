@@ -1,23 +1,64 @@
 """
 This module provides a wrapper for MODELLER®, a program for comparative protein structure modeling.
 
-MODELLER® is a trademark of the Regents of the University of California.
-It was developed by Andrej Sali and colleagues at the University of California, San Francisco.
-For more information about MODELLER, please visit: https://salilab.org/modeller/
+MODELLER® is a trademark of the Regents of the University of California, developed by Andrej Sali 
+and colleagues at the University of California, San Francisco. For more information, visit: 
+https://salilab.org/modeller/
 
-This wrapper is designed to facilitate the use of MODELLER within the Colbuilder project,
-but it is not affiliated with or endorsed by the MODELLER developers or the University of California.
+The `ModellerWrapper` class simplifies the integration of MODELLER into the ColBuilder project, 
+allowing users to generate protein structure models from aligned sequences and template structures. 
+It supports custom residue type, topology, and parameter libraries for advanced modeling.
 
-When using this module, please ensure you comply with MODELLER's license terms and provide
-appropriate attribution in your work.
+Key Features:
+--------------
+1. **Protein Structure Modeling**:
+   - Generate 3D protein structures using aligned sequences and template PDB files.
+   - Support for custom residue types, topology, and parameter libraries.
+
+2. **Custom Segment Renaming**:
+   - Rename chain segments and renumber residues for consistency in output models.
+
+3. **Integration with ColBuilder**:
+   - Designed to work seamlessly within the ColBuilder pipeline for collagen modeling.
+
+Usage:
+------
+This module is designed to be used as part of a pipeline for generating collagen structures. 
+The main entry point is the `run_modeller` function or the `ModellerWrapper` class, which 
+handles the entire modeling process and outputs the final PDB file.
+
+Example:
+--------
+```python
+from colbuilder.core.sequence.modeller import run_modeller
+
+# Define input files and parameters
+aligned_file = "aligned_sequences.ali"
+template_pdb = "template_structure.pdb"
+output_prefix = "model_output"
+restyp_lib = "/path/to/restyp.lib"
+top_heav_lib = "/path/to/top_heav.lib"
+par_mod_lib = "/path/to/par.lib"
+
+# Run MODELLER
+output_pdb = run_modeller(
+    aligned_file=aligned_file,
+    template_pdb=template_pdb,
+    output_prefix=output_prefix,
+    restyp_lib=restyp_lib,
+    top_heav_lib=top_heav_lib,
+    par_mod_lib=par_mod_lib
+)
+
+print(f"Generated structure saved to: {output_pdb}")
+```
 """
 
-# Copyright (c) 2024, Colbuilder Development Team
+# Copyright (c) 2024, ColBuilder Development Team
 # Distributed under the terms of the Apache License 2.0
 
 import os
 from typing import Optional
-from pathlib import Path
 from modeller import Environ
 from modeller.automodel import AutoModel
 

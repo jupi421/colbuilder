@@ -106,3 +106,5 @@ colbuilder_paper_output/
 *.sh
 config.yaml
 glucosepane/
+.tmp/
+*_topology_files/

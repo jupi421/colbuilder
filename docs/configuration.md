@@ -1,17 +1,23 @@
 # ColBuilder Configuration Reference
 
 ## Table of Contents
-- [Introduction](#introduction)
-- [Configuration File Format](#configuration-file-format)
-- [Operation Mode Parameters](#operation-mode-parameters)
-- [Input Configuration Parameters](#input-configuration-parameters)
-- [Sequence Generation Parameters](#sequence-generation-parameters)
-- [Geometry Generation Parameters](#geometry-generation-parameters)
-- [Mixing and Replacement Parameters](#mixing-and-replacement-parameters)
-- [Topology Generation Parameters](#topology-generation-parameters)
-- [Common Configuration Examples](#common-configuration-examples)
-- [Parameter Interactions and Dependencies](#parameter-interactions-and-dependencies)
-- [Configuration Validation](#configuration-validation)
+- [ColBuilder Configuration Reference](#colbuilder-configuration-reference)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Configuration File Format](#configuration-file-format)
+  - [Operation Mode Parameters](#operation-mode-parameters)
+  - [Input Configuration Parameters](#input-configuration-parameters)
+  - [Sequence Generation Parameters](#sequence-generation-parameters)
+  - [Geometry Generation Parameters](#geometry-generation-parameters)
+  - [Mixing and Replacement Parameters](#mixing-and-replacement-parameters)
+  - [Topology Generation Parameters](#topology-generation-parameters)
+  - [Common Configuration Examples](#common-configuration-examples)
+    - [Basic Human Collagen Microfibril](#basic-human-collagen-microfibril)
+    - [Bovine Collagen with Trivalent Crosslinks](#bovine-collagen-with-trivalent-crosslinks)
+    - [Mixed Crosslinked Microfibril (80% Divalent + 20% Trivalent crosslink)](#mixed-crosslinked-microfibril-80-divalent--20-trivalent-crosslink)
+    - [Microfibril and Coarse-Grained Topology Generation](#microfibril-and-coarse-grained-topology-generation)
+  - [Parameter Interactions and Dependencies](#parameter-interactions-and-dependencies)
+  - [Configuration Validation](#configuration-validation)
 
 ## Introduction
 
@@ -136,7 +142,7 @@ These parameters control the sequence generation stage (homology modeling).
 **Notes**:
 - If `fasta_file` is null, ColBuilder will use built-in sequence data for the specified species.
 - The `crosslink` parameter must be set to `true` for crosslinking to be applied.
-- The residue combinations specify which residues are involved in crosslinking and must match valid combinations for the chosen species. A complete list of the species and combinations currently available can be found [here](https://github.com/graeter-group/colbuilder/blob/main/src/colbuilder/data/sequence/crosslinks.csv).
+- The residue combinations specify which residues are involved in crosslinking and must match valid combinations for the chosen species. A complete list of the species and combinations currently available can be found at [src/colbuilder/data/sequence/crosslinks.csv](https://github.com/graeter-group/colbuilder/blob/main/src/colbuilder/data/sequence/crosslinks.csv).
 - Residue combinations follow the format: `[Residue Number].[Chain] - [Residue Number].[Chain]` or `[Residue Number].[Chain] - [Residue Number].[Chain] - [Residue Number].[Chain]` for trivalent crosslinks.
 
 ## Geometry Generation Parameters

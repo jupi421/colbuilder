@@ -1,71 +1,100 @@
-# Copyright (c) 2024, Colbuilder Development Team
-# Distributed under the terms of the Apache License 2.0
- 
+"""
+Martini topology generation module.
+
+This module implements the Martini 3 force field topology generation for molecular systems,
+with a focus on collagen microfibrils. It provides functionality for:
+
+- PDB file processing and manipulation
+- Coarse-graining using Martinize2
+- GO-like potential implementation
+- System topology generation
+- File organization and management
+
+The module requires the Martinize2 tool and custom contact map utilities.
+"""
+
 import os
 import subprocess
-import logging
 import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, Union
 import asyncio
 from tqdm import tqdm
-from colbuilder.core.topology.itp import Itp
 from colorama import Fore, Style
 
+from colbuilder.core.topology.itp import Itp
 from colbuilder.core.geometry.system import System
 from colbuilder.core.utils.dec import timeit
 from colbuilder.core.utils.config import ColbuilderConfig
 from colbuilder.core.utils.exceptions import TopologyGenerationError
-from colbuilder.core.utils.martinize_finder import get_active_conda_env, find_and_install_custom_force_field, get_conda_command_with_path
+from colbuilder.core.utils.martinize_finder import (
+    get_active_conda_env, 
+    find_and_install_custom_force_field, 
+    get_conda_command_with_path
+)
 from colbuilder.core.utils.logger import setup_logger
+from colbuilder.core.utils.files import FileManager
 
 LOG = setup_logger(__name__)
 
 
 class Martini:
     """
-    Generate topology for the Martini 3 force field.
+    Martini 3 force field topology generator.
 
-    Provides functionality to merge PDB files, process chains,
-    create topology files, and generate GRO files for the Martini 3 force field.
+    This class handles the generation and manipulation of molecular topologies using
+    the Martini 3 force field, specifically designed for coarse-grained simulations
+    of collagen systems.
+
+    Attributes
+    ----------
+    system : Any
+        Molecular system being processed
+    ff : str
+        Force field name
+    is_line : tuple[str, ...]
+        Valid PDB line identifiers
+    is_chain : tuple[str, ...]
+        Valid chain identifiers
     """
 
     def __init__(self, system: Any = None, ff: Optional[str] = None):
         """
-        Initialize the Martini object.
-        
+        Initialize Martini topology generator.
+
         Parameters
         ----------
         system : Any
-            The molecular system to process
+            Molecular system to process
         ff : Optional[str]
-            The force field name
+            Force field name
         """
         self.system = system
         self.ff = ff
-        self.is_line = ('ATOM  ', 'HETATM', 'ANISOU')
+        self.is_line = ('ATOM  ', 'HETATM', 'ANISOU', 'TER   ')
         self.is_chain = ('A', 'B', 'C')
     
     def merge_pdbs(self, model_id: Optional[int] = None, cnt_model: Optional[int] = None) -> Optional[str]:
         """
-        Merge PDB files according to connect_id in system.
-        
+        Merge multiple PDB files based on system connectivity.
+
+        Combines PDB files for a given model based on its connection identifiers.
+        The merged file includes only relevant atom records and chain terminators.
+
         Parameters
         ----------
         model_id : Optional[int]
-            The identifier for the model in the system
+            Model identifier in the system
         cnt_model : Optional[int]
-            Counter for the output file name
-            
+            Counter for output file naming
+
         Returns
         -------
         Optional[str]
-            Path to the merged PDB file if successful, None otherwise
+            Path to merged PDB file if successful, None otherwise
         """
-        LOG.debug(f"Merging PDFs for model_id: {model_id}, counter: {cnt_model}")
         model = self.system.get_model(model_id=model_id)
         if model is None or model.connect is None:
-            LOG.warning(f"No model or connections found for model_id: {model_id}")
             return None
 
         output_file = f"{int(cnt_model)}.merge.pdb"
@@ -75,17 +104,14 @@ class Martini:
                 for connect_id in model.connect:
                     input_file = f"{int(model_id)}.{int(connect_id)}.CG.pdb"
                     if not os.path.exists(input_file):
-                        LOG.error(f"Input file not found: {input_file}")
                         continue
                     with open(input_file, 'r') as infile:
                         f.write("".join(line for line in infile if line[0:6] in self.is_line))
                 f.write("END")
-            LOG.debug(f"Merged PDB written to: {output_file}")
             return output_file
-        except Exception as e:
-            LOG.error(f"Error merging PDBs: {str(e)}")
+        except Exception:
             return None
-    
+
     def read_pdb(self, pdb_id: Optional[int] = None) -> List[str]:
         """
         Read PDB for Martinize2 processing.
@@ -107,15 +133,34 @@ class Martini:
             LOG.error(f"Model not found for pdb_id: {pdb_id}")
             return pdb
             
-        file_path = Path(model.type) / f"{int(pdb_id)}.caps.pdb"
-        try:
-            with open(file_path, 'r') as file:
-                pdb = [line for line in file if line[0:6] in self.is_line]
-            LOG.debug(f"Read {len(pdb)} lines from PDB file: {file_path}")
-            return pdb
-        except FileNotFoundError:
-            LOG.error(f"PDB file not found: {file_path}")
-            raise
+        if model.type:
+            file_path = Path(model.type) / f"{int(pdb_id)}.caps.pdb"
+            if file_path.exists():
+                try:
+                    with open(file_path, 'r') as file:
+                        pdb = [line for line in file if line[0:6] in self.is_line]
+                    LOG.debug(f"Read {len(pdb)} lines from PDB file: {file_path}")
+                    return pdb
+                except Exception as e:
+                    LOG.error(f"Error reading PDB file {file_path}: {str(e)}")
+        
+        alt_paths = [
+            Path(f"{int(pdb_id)}.caps.pdb"),  # Current directory
+            Path(f"./{model.type}/{int(pdb_id)}.caps.pdb") if model.type else None,  # Type directory
+        ]
+        
+        for path in alt_paths:
+            if path and path.exists():
+                try:
+                    with open(path, 'r') as file:
+                        pdb = [line for line in file if line[0:6] in self.is_line]
+                    LOG.debug(f"Read {len(pdb)} lines from PDB file: {path}")
+                    return pdb
+                except Exception as e:
+                    LOG.error(f"Error reading PDB file {path}: {str(e)}")
+        
+        LOG.error(f"PDB file not found for pdb_id: {pdb_id}")
+        return pdb
     
     def set_pdb(self, pdb: Optional[List[str]] = None) -> Tuple[List[str], List[str]]:
         """
@@ -445,10 +490,32 @@ class Martini:
         except Exception as e:
             LOG.error(f"Error translating PDB: {str(e)}")
             return []
+    
+    def write_gro(self, system: Optional[Any] = None, gro_file: Optional[str] = None, 
+                processed_models: Optional[List[int]] = None) -> None:
+        """
+        Write a GRO (Gromos87) file for the processed models.
+        
+        This is a placeholder method for API compatibility with the Amber class.
+        Martini uses PDB files primarily, but this method could be implemented
+        to convert PDB to GRO format if needed.
+
+        Parameters
+        ----------
+        system : Optional[Any]
+            The molecular system (not used in the current implementation).
+        gro_file : Optional[str]
+            Path to the output GRO file.
+        processed_models : Optional[List[int]]
+            List of processed model identifiers.
+        """
+        LOG.debug(f"Write_gro called but not implemented for Martini - using PDB format instead")
+        # This is a placeholder. If GRO output is needed, implementation would go here.
+        return None
 
 
 @timeit
-async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
+async def build_martini3(system: System, config: ColbuilderConfig, file_manager: Optional[FileManager] = None) -> Martini:
     """
     Build a Martini 3 topology for the given molecular system.
 
@@ -458,6 +525,8 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
         The molecular system to process
     config : ColbuilderConfig
         Configuration object containing settings
+    file_manager : Optional[FileManager]
+        File manager for consistent file handling
 
     Returns
     -------
@@ -471,20 +540,27 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
     """
     ff = f"{config.force_field}"
     go_epsilon = config.go_epsilon if hasattr(config, 'go_epsilon') else 9.414
+    
+    if file_manager is None:
+        file_manager = FileManager(config)
+    
+    topology_dir = file_manager.get_temp_dir("topology_gen")
+    original_dir = Path.cwd()
+    
     martini = Martini(system=system, ff=ff)
     steps = 4
     cnt_model = 0
     
-    topology_dir = Path(f"{config.species}_topology_files")
-    topology_dir.mkdir(exist_ok=True)
-    
-    source_ff_dir = config.FORCE_FIELD_DIR
-    source_contactmap_dir = source_ff_dir / "contactmap"
-
-    local_contactmap_dir = Path("contactmap")
-    local_contactmap_dir.mkdir(exist_ok=True)
-    
     try:
+        os.chdir(topology_dir)
+        
+        source_ff_dir = config.FORCE_FIELD_DIR
+        source_contactmap_dir = source_ff_dir / "contactmap"
+        
+        local_contactmap_dir = Path("contactmap")
+        local_contactmap_dir.mkdir(exist_ok=True)
+        
+        # Step 1: Center system for Martini coarse-graining
         LOG.info(f'Step 1/{steps} Centering system for Martini coarse-graining')
         try:
             system.translate_system(crystal=system.crystal, center=[0, 0, 4000])
@@ -496,9 +572,9 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                 error_code="TOP_MART_001",
                 context={"crystal": str(system.crystal)}
             )
-
-        LOG.info(f'Step 2/{steps} Setting up Martini force field files')
         
+        # Step 2: Setup Martini force field files
+        LOG.info(f'Step 2/{steps} Setting up Martini force field files')
         try:
             if not source_ff_dir.exists():
                 raise TopologyGenerationError(
@@ -507,13 +583,15 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                     context={"force_field_dir": str(source_ff_dir)}
                 )
             
+            # Copy create_goVirt.py script
             go_script = source_ff_dir / "create_goVirt.py"
             if go_script.exists():
                 shutil.copy2(go_script, Path("create_goVirt.py"))
                 LOG.debug(f"Copied create_goVirt.py from force field directory")
             else:
                 LOG.warning(f"create_goVirt.py not found in force field directory: {go_script}")
-                
+            
+            # Handle contact_map tool
             contact_map_path = local_contactmap_dir / "contact_map"
             if not contact_map_path.exists():
                 LOG.debug("Contact map tool not found in working directory, checking force field directory")
@@ -576,7 +654,7 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
             
             if not contact_map_path.exists():
                 LOG.warning("Contact map tool could not be found or built, may cause issues")
-        
+                
         except Exception as e:
             LOG.error(f"Error setting up Martini force field files: {str(e)}")
             raise TopologyGenerationError(
@@ -585,23 +663,53 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                 error_code="TOP_MART_005",
                 context={"force_field_dir": str(config.FORCE_FIELD_DIR)}
             )
-
+        
+        # Step 3: Process models with Martinize2
         LOG.info(f'Step 3/{steps} Processing models with Martinize2')
         connect_size = system.get_connect_size()
         processed_models = []
         
-        if not hasattr(config, 'martinize2_command') or config.martinize2_command is None:
+        # Check Martinize2 command availability
+        try:
+            martinize2_command = getattr(config, 'martinize2_command', None)
+            martinize2_env = getattr(config, 'martinize2_env', None)
+            use_conda_run = getattr(config, 'use_conda_run', False)
+            
+            if not martinize2_command:
+                from shutil import which
+                martinize2_cmd = which("martinize2")
+                if martinize2_cmd:
+                    LOG.debug(f"Found Martinize2 at: {martinize2_cmd}")
+                    config.martinize2_command = "martinize2"
+                else:
+                    raise TopologyGenerationError(
+                        message="Martinize2 command not found in configuration or PATH",
+                        error_code="TOP_MART_005",
+                        context={"force_field": ff}
+                    )
+            
+            LOG.debug(f"Using Martinize2 command: {config.martinize2_command}" + 
+                    (f" with conda environment: {martinize2_env}" if use_conda_run else ""))
+        except Exception as e:
+            LOG.error(f"Error checking for Martinize2 command: {str(e)}")
             raise TopologyGenerationError(
-                message="Martinize2 command not found in configuration",
+                message="Failed to configure Martinize2 command",
+                original_error=e,
                 error_code="TOP_MART_005",
                 context={"force_field": ff}
             )
         
-        LOG.debug(f"Using Martinize2 command: {config.martinize2_command}" + 
-                (f" with conda environment: {config.martinize2_env}" if config.use_conda_run else ""))
+        LOG.info(f'{Fore.BLUE}Building coarse-grained topology:{Style.RESET_ALL}')
         
-        LOG.info(f'{Fore.BLUE}-- Build coarse-grained topology:{Style.RESET_ALL}')
-
+        if len(list(system.get_models())) > 0:
+            first_model = system.get_model(model_id=list(system.get_models())[0])
+            model_type = first_model.type
+            type_dir = topology_dir / model_type
+            type_dir.mkdir(exist_ok=True, parents=True)
+            
+            LOG.info("Creating model type directory and proceeding with topology generation")
+            LOG.info(f"     Model type directory: {type_dir}")
+        
         models_list = [model_id for model_id in system.get_models()]
         for model_id in tqdm(models_list, desc="Building topology", unit="%"):
             model = system.get_model(model_id=model_id)
@@ -700,17 +808,26 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                 
             except Exception as e:
                 LOG.error(f"Error processing model {model_id}: {str(e)}")
-
+        
         if not processed_models:
             raise TopologyGenerationError(
                 message='No models were successfully processed with Martinize2',
                 error_code="TOP_MART_002"
             )
-
+        
+        # Step 4: Creating system PDB and topology
         LOG.info(f'Step 4/{steps} Creating system PDB and topology')
+        
+        output_topology_dir = file_manager.ensure_dir(f"{config.species}_{ff}_topology_files")
+        
         try:
             system_pdb = martini.get_system_pdb(size=cnt_model)
-            martini.write_pdb(pdb=system_pdb, file=f"collagen_fibril_CG_{config.species}.pdb")
+            pdb_file_path = Path(f"collagen_fibril_CG_{config.species}.pdb")
+            martini.write_pdb(pdb=system_pdb, file=str(pdb_file_path))
+            
+            if pdb_file_path.exists():
+                dest_path = file_manager.copy_to_directory(pdb_file_path, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied system PDB file to: {dest_path}")
         except Exception as e:
             raise TopologyGenerationError(
                 message='Failed to create system PDB file',
@@ -718,11 +835,36 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                 error_code="TOP_MART_003",
                 context={"output": config.species}
             )
-
+        
         try:
-            # Write topology directly to final file name
             final_topology_file = f"collagen_fibril_{config.species}.top"
             martini.write_system_topology(topology_file=final_topology_file, size=cnt_model)
+            
+            topology_file_path = Path(final_topology_file)
+            if topology_file_path.exists():
+                dest_path = file_manager.copy_to_directory(topology_file_path, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied topology file to: {dest_path}")
+            
+            for itp_file in Path().glob("col_[0-9]*.itp"):
+                dest_path = file_manager.copy_to_directory(itp_file, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied ITP file to: {dest_path}")
+            
+            for excl_file in Path().glob("col_[0-9]*_go-excl.itp"):
+                dest_path = file_manager.copy_to_directory(excl_file, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied GO-exclusion file to: {dest_path}")
+            
+            for go_site_file in Path().glob("*go-sites.itp"):
+                dest_path = file_manager.copy_to_directory(go_site_file, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied GO-sites file to: {dest_path}")
+                
+            source_martini_files = list(source_ff_dir.glob("martini_v3.0.0*"))
+            for source_file in source_martini_files:
+                dest_path = file_manager.copy_to_directory(source_file, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied Martini force field file to: {dest_path}")
+
+            if not source_martini_files:
+                LOG.warning("No Martini force field files found in source directory")
+
                 
         except Exception as e:
             raise TopologyGenerationError(
@@ -731,22 +873,34 @@ async def build_martini3(system: System, config: ColbuilderConfig) -> Martini:
                 error_code="TOP_MART_004",
                 context={"output": config.species}
             )
-
+        
         try:
-            subprocess.run('rm \#*', shell=True, check=False)
+            if not config.debug:
+                subprocess.run('rm \#*', shell=True, check=False)
         except Exception as e:
             LOG.warning(f"Error cleaning up temporary files: {str(e)}")
-
+        
         LOG.info(f"{Fore.BLUE}Martini topology generated successfully for {len(processed_models)} models.{Style.RESET_ALL}")
+        
+        # Return to original directory and cleanup
+        os.chdir(original_dir)
+        
         return martini
-
+    
+    except TopologyGenerationError:
+        # Preserve original exception while ensuring directory restoration
+        os.chdir(original_dir)
+        raise
     except Exception as e:
-        LOG.error(f"Uncaught exception in Martini topology generation: {str(e)}")
-        import traceback
-        LOG.error(f"Traceback: {traceback.format_exc()}")
+        # Handle unexpected errors, restore directory, and provide detailed context
+        os.chdir(original_dir)
         raise TopologyGenerationError(
-            message=f"Unexpected error in Martini topology generation: {str(e)}",
+            message="Unexpected error in Martini topology generation",
             original_error=e,
             error_code="TOP_MART_001",
-            context={"force_field": ff}
+            context={
+                "force_field": ff,
+                "error_details": str(e),
+                "location": "build_martini3"
+            }
         )

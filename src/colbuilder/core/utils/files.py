@@ -1,16 +1,17 @@
 """
-File management utilities for the Colbuilder system.
+File management utilities for the ColBuilder system.
 
-This module provides utilities for file operations, resource management, and progress tracking
-throughout the Colbuilder pipeline. It includes context managers for resource tracking,
-output suppression, PDB file manipulation, and a comprehensive FileManager class
-for centralized file handling.
+This module provides utilities for handling file operations, resource management, and progress 
+tracking throughout the ColBuilder pipeline. It includes context managers for resource tracking, 
+output suppression, PDB file manipulation, and a centralized `FileManager` class for consistent 
+file handling.
 """
 
 import contextlib
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
 from pathlib import Path
-from typing import Generator, Optional, Protocol, TypeVar, Any, Set, Dict, List
+from typing import Generator, Optional, Protocol, TypeVar, Any, Set, Dict, List, Callable
+import functools
 import io
 import time
 import shutil
@@ -63,43 +64,80 @@ class Operation(Protocol[OperationType]):
 
 
 @contextmanager
-def managed_resources(operation_name: str) -> Generator[None, None, None]:
+def managed_resources(resource_name=None):
     """
-    Context manager for tracking operation performance and managing resources.
+    Decorator for methods that need temporary resource management.
     
-    This context manager handles logging of operation start/end times and ensures
-    proper resource cleanup even if exceptions occur during operation execution.
+    This decorator ensures that a method properly initializes temporary
+    resources and cleans them up after execution, even if an exception occurs.
     
     Args:
-        operation_name: Name of the operation being performed
+        resource_name: Optional name for the resource category
         
-    Yields:
-        None
-        
-    Raises:
-        SystemError: If resource management fails
+    Returns:
+        Decorated method
     """
-    start_time = time.perf_counter()
-    try:
-        LOG.debug(f"Starting operation: {operation_name}")
-        yield
-    except Exception as e:
-        LOG.error(f"Error in operation {operation_name}: {str(e)}")
-        raise
-    finally:
-        try:
-            duration = time.perf_counter() - start_time
-            LOG.debug(f"{operation_name} completed in {duration:.2f} seconds")
-        except Exception as e:
-            raise SystemError(
-                message="Failed to finalize resource management",
-                original_error=e,
-                error_code="SYS_ERR_001",
-                context={
-                    "operation": operation_name,
-                    "duration": time.perf_counter() - start_time
-                }
-            )
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(self, *args, **kwargs):
+            resource_context = resource_name or func.__name__
+            LOG.debug(f"Managing resources for {resource_context}")
+            
+            original_dir = None
+            temp_dir = None
+            
+            try:
+                # Store original directory
+                original_dir = Path.cwd()
+                
+                # Create a temporary directory if needed
+                if hasattr(self, 'file_manager') and self.file_manager:
+                    temp_dir = self.file_manager.get_temp_path(resource_context, create_dir=True)
+                    if hasattr(self, 'temp_dir'):
+                        self.temp_dir = temp_dir
+                    LOG.debug(f"Created temporary directory for {resource_context}: {temp_dir}")
+                
+                # Call the decorated method
+                return await func(self, *args, **kwargs)
+                
+            except Exception as e:
+                LOG.error(f"Error in {resource_context}: {str(e)}")
+                raise
+                
+            finally:
+                # Return to original directory
+                if original_dir:
+                    os.chdir(original_dir)
+                    LOG.debug(f"Returned to original directory: {original_dir}")
+                
+                # Don't clean up if debug mode is enabled
+                if hasattr(self, 'config') and hasattr(self.config, 'debug') and self.config.debug:
+                    LOG.info(f"Debug mode enabled, preserving temporary directory: {temp_dir}")
+                    # Create a marker file in temp dir with info
+                    if temp_dir and temp_dir.exists():
+                        try:
+                            with open(temp_dir / "_DEBUG_INFO.txt", "w") as f:
+                                f.write(f"Debug information for {resource_context}\n")
+                                f.write(f"Created at: {time.ctime()}\n")
+                                f.write(f"Function: {func.__name__}\n")
+                                if hasattr(self, 'config'):
+                                    f.write(f"Configuration:\n")
+                                    for key, value in vars(self.config).items():
+                                        if not key.startswith('_'):
+                                            f.write(f"  {key}: {value}\n")
+                        except Exception as e:
+                            LOG.warning(f"Failed to create debug info file: {e}")
+                else:
+                    # Clean up unless debugging
+                    if hasattr(self, 'file_manager') and self.file_manager:
+                        LOG.debug(f"Cleaning up resources for {resource_context}")
+                        if resource_context in ["geometry_operation", "replacement", "replace_generation"]:
+                            LOG.debug(f"Skipping cleanup of important directories: {resource_context}")
+                        else:
+                            self.file_manager.cleanup()
+                
+        return wrapper
+    return decorator
 
 
 @contextmanager
@@ -233,6 +271,12 @@ class FileManager:
         temp_files: Set of temporary files to track
         temp_dirs: Set of temporary directories to track
     """
+    TEMP_DIR = '.tmp'
+    TEMP_SEQUENCE_DIR = 'sequence_gen'
+    TEMP_GEOMETRY_DIR = 'geometry_gen'
+    TEMP_REPLACEMENT_DIR = 'replace_crosslinks'
+    TEMP_MIXING_DIR = 'mixing_crosslinks'
+    TEMP_TOPOLOGY_DIR = 'topology_gen'
     
     def __init__(self, config: ColbuilderConfig) -> None:
         """
@@ -242,9 +286,40 @@ class FileManager:
             config: Colbuilder configuration
         """
         self.config: ColbuilderConfig = config
+        self.project_root = config.PROJECT_ROOT  # Use the project root from config
+        self.working_dir = Path(config.working_directory).resolve()
+        self.temp_base = self.working_dir / self.TEMP_DIR
+        self.geometry_dir = self.temp_base / self.TEMP_GEOMETRY_DIR
+        self.replacement_dir = self.temp_base / self.TEMP_REPLACEMENT_DIR
+        self.mixing_dir = self.temp_base / self.TEMP_MIXING_DIR
+        self.topology_dir = self.temp_base / self.TEMP_TOPOLOGY_DIR
+        self.sequence_dir = self.temp_base / self.TEMP_SEQUENCE_DIR
         self.temp_files: Set[Path] = set()
         self.temp_dirs: Set[Path] = set()
         
+        # Create and track standard directories
+        self._ensure_standard_dirs()
+    
+    def _ensure_standard_dirs(self) -> None:
+        """Create and track standard directories."""
+        self.temp_base.mkdir(exist_ok=True, parents=True)
+        self.temp_dirs.add(self.temp_base)
+        
+        self.geometry_dir.mkdir(exist_ok=True, parents=True)
+        self.temp_dirs.add(self.geometry_dir)
+        
+        self.replacement_dir.mkdir(exist_ok=True, parents=True)
+        self.temp_dirs.add(self.replacement_dir)
+        
+        self.mixing_dir.mkdir(exist_ok=True, parents=True)
+        self.temp_dirs.add(self.mixing_dir)
+        
+        self.topology_dir.mkdir(exist_ok=True, parents=True)
+        self.temp_dirs.add(self.topology_dir)
+        
+        self.sequence_dir.mkdir(exist_ok=True, parents=True)
+        self.temp_dirs.add(self.sequence_dir)
+    
     def get_temp_path(self, basename: str, suffix: Optional[str] = None, create_dir: bool = False) -> Path:
         """
         Get a path for a temporary file or directory.
@@ -260,24 +335,103 @@ class FileManager:
         Returns:
             Path object for the temporary file or directory
         """
-        if self.config.debug:
-            base_dir = self.config.working_directory / "temp_working_dir"
+        LOG.debug(f"Getting temp path for basename: {basename}")
+        
+        # Sanitize the basename to prevent nested .tmp directories
+        clean_basename = str(basename)
+        if clean_basename.startswith(".tmp/"):
+            LOG.debug(f"Removing leading .tmp/ from path: {clean_basename}")
+            clean_basename = clean_basename[5:]
+        
+        if ".tmp/.tmp" in clean_basename:
+            LOG.debug(f"Removing nested .tmp from path: {clean_basename}")
+            clean_basename = clean_basename.replace(".tmp/.tmp", ".tmp")
+        
+        # Handle standard directory prefixes
+        if clean_basename.startswith(self.TEMP_GEOMETRY_DIR):
+            LOG.debug(f"Using standard geometry directory for: {clean_basename}")
+            path_parts = Path(clean_basename).parts[1:]  # Skip the geometry_gen part
+            if path_parts:
+                result_path = self.geometry_dir.joinpath(*path_parts)
+            else:
+                result_path = self.geometry_dir
+        
+        elif clean_basename.startswith(self.TEMP_REPLACEMENT_DIR):
+            LOG.debug(f"Using standard replacement directory for: {clean_basename}")
+            path_parts = Path(clean_basename).parts[1:]  # Skip the replace_crosslinks part
+            if path_parts:
+                result_path = self.replacement_dir.joinpath(*path_parts)
+            else:
+                result_path = self.replacement_dir
+        
+        elif clean_basename.startswith(self.TEMP_MIXING_DIR):
+            LOG.debug(f"Using standard mixing directory for: {clean_basename}")
+            path_parts = Path(clean_basename).parts[1:]  # Skip the mixing_crosslinks part
+            if path_parts:
+                result_path = self.mixing_dir.joinpath(*path_parts)
+            else:
+                result_path = self.mixing_dir
+        
+        elif clean_basename.startswith(self.TEMP_TOPOLOGY_DIR):
+            LOG.debug(f"Using standard topology directory for: {clean_basename}")
+            path_parts = Path(clean_basename).parts[1:]  # Skip the topology_gen part
+            if path_parts:
+                result_path = self.topology_dir.joinpath(*path_parts)
+            else:
+                result_path = self.topology_dir
+        
+        elif clean_basename.startswith(self.TEMP_SEQUENCE_DIR):
+            path_parts = Path(clean_basename).parts[1:]  
+            if path_parts:
+                result_path = self.sequence_dir.joinpath(*path_parts)
+            else:
+                result_path = self.sequence_dir
+        
         else:
-            base_dir = self.config.working_directory / ".tmp"
-            
-        base_dir.mkdir(exist_ok=True, parents=True)
-        self.temp_dirs.add(base_dir)
+            # Handle other paths - determine if it's a nested path or simple filename
+            path_obj = Path(clean_basename)
+            if len(path_obj.parts) > 1:
+                # It's a nested path, create in temp base
+                result_path = self.temp_base.joinpath(*path_obj.parts)
+                LOG.info(f"Using nested path under temp base: {result_path}")
+            else:
+                # It's a simple filename
+                result_path = self.temp_base / clean_basename
+                LOG.info(f"Using simple path under temp base: {result_path}")
         
-        full_name = f"{basename}{suffix if suffix else ''}"
-        full_path = base_dir / full_name
+        # Add suffix if provided
+        if suffix:
+            result_path = Path(str(result_path) + suffix)
         
+        # Create directory if requested
         if create_dir:
-            full_path.mkdir(exist_ok=True, parents=True)
-            self.temp_dirs.add(full_path)
+            result_path.mkdir(exist_ok=True, parents=True)
+            self.temp_dirs.add(result_path)
         else:
-            self.temp_files.add(full_path)
+            # Make sure parent exists
+            result_path.parent.mkdir(exist_ok=True, parents=True)
+            self.temp_files.add(result_path)
+            LOG.info(f"Prepared file path: {result_path}")
+        
+        # Final sanity check
+        if ".tmp/.tmp" in str(result_path):
+            LOG.warning(f"Found nested .tmp in final path: {result_path}")
+            fixed_path = Path(str(result_path).replace(".tmp/.tmp", ".tmp"))
+            LOG.info(f"Fixed path to: {fixed_path}")
             
-        return full_path
+            # Update tracking if needed
+            if create_dir:
+                self.temp_dirs.remove(result_path)
+                self.temp_dirs.add(fixed_path)
+                fixed_path.mkdir(exist_ok=True, parents=True)
+            else:
+                self.temp_files.remove(result_path)
+                self.temp_files.add(fixed_path)
+                fixed_path.parent.mkdir(exist_ok=True, parents=True)
+            
+            return fixed_path
+        
+        return result_path
     
     def get_output_path(self, basename: str, suffix: Optional[str] = None, mkdir: bool = False) -> Path:
         """
@@ -302,20 +456,81 @@ class FileManager:
             
         return full_path
     
-    def cleanup(self, force: bool = False) -> None:
+    def ensure_geometry_dir(self) -> Path:
+        """
+        Ensure geometry directory exists and return its path.
+        
+        Returns:
+            Path: The path to the geometry directory
+        """
+        if not self.geometry_dir.exists():
+            self.geometry_dir.mkdir(parents=True, exist_ok=True)
+            self.temp_dirs.add(self.geometry_dir)
+            LOG.info(f"Created geometry directory: {self.geometry_dir}")
+        
+        return self.geometry_dir
+    
+    def ensure_replacement_dir(self) -> Path:
+        """
+        Ensure replacement directory exists and return its path.
+        
+        Returns:
+            Path: The path to the replacement directory
+        """
+        if not self.replacement_dir.exists():
+            self.replacement_dir.mkdir(parents=True, exist_ok=True)
+            self.temp_dirs.add(self.replacement_dir)
+            LOG.info(f"Created replacement directory: {self.replacement_dir}")
+        
+        return self.replacement_dir
+    
+    def ensure_mixing_dir(self) -> Path:
+        """
+        Ensure mixing directory exists and return its path.
+        
+        Returns:
+            Path: The path to the mixing directory
+        """
+        if not self.mixing_dir.exists():
+            self.mixing_dir.mkdir(parents=True, exist_ok=True)
+            self.temp_dirs.add(self.mixing_dir)
+            LOG.info(f"Created mixing directory: {self.mixing_dir}")
+        
+        return self.mixing_dir
+    
+    def cleanup(self, category: Optional[str] = None, force: bool = False) -> None:
         """
         Clean up temporary files and directories.
         
         Removes all tracked temporary files and directories, unless
-        in debug mode and not forced.
+        in debug mode and not forced. Always preserves the .tmp directory.
         
         Args:
+            category: Optional category of resources to clean up
             force: Whether to clean up even in debug mode
         """
+        # Skip cleanup in debug mode
         if self.config.debug and not force:
-            LOG.debug("Skipping cleanup due to debug mode")
+            LOG.info("Debug mode enabled, skipping cleanup")
+            
+            # Create a marker file in temp directories with info
+            for dir_path in self.temp_dirs:
+                try:
+                    if dir_path.exists():
+                        marker_file = dir_path / "_DEBUG_INFO.txt"
+                        with open(marker_file, 'w') as f:
+                            f.write(f"Debug information for temp directory\n")
+                            f.write(f"Created at: {time.ctime()}\n")
+                            f.write(f"Contains temporary files and directories for debugging\n")
+                            f.write(f"Configuration:\n")
+                            for key, value in vars(self.config).items():
+                                if not key.startswith('_'):
+                                    f.write(f"  {key}: {value}\n")
+                except Exception as e:
+                    LOG.warning(f"Failed to create debug info file in {dir_path}: {e}")
             return
             
+        # Normal cleanup (when debug is False)
         for file_path in self.temp_files:
             try:
                 if file_path.exists():
@@ -327,13 +542,29 @@ class FileManager:
         for dir_path in sorted(self.temp_dirs, key=lambda p: -len(str(p))):
             try:
                 if dir_path.exists():
+                    # ALWAYS preserve the main directories
+                    if dir_path in [self.temp_base, self.geometry_dir, 
+                                   self.replacement_dir, self.mixing_dir, 
+                                   self.topology_dir, self.sequence_dir]:
+                        continue
+                        
+                    # Skip certain directories in debug mode
+                    if self.config.debug and any(x in str(dir_path) for x in ['geometry_gen', 'replacement', 'D']):
+                        LOG.info(f"Preserving directory in debug mode: {dir_path}")
+                        continue
+                        
                     shutil.rmtree(dir_path)
                     LOG.debug(f"Removed temporary directory: {dir_path}")
             except Exception as e:
                 LOG.warning(f"Failed to remove temporary directory {dir_path}: {str(e)}")
                 
-        self.temp_files.clear()
-        self.temp_dirs.clear()
+        # Don't clear temp_files and temp_dirs lists to keep tracking them
+        preserved_files = {f for f in self.temp_files if f.exists()}
+        preserved_dirs = {d for d in self.temp_dirs if d.exists()}
+        
+        # Only remove tracked entries for items that were actually deleted
+        self.temp_files = preserved_files
+        self.temp_dirs = preserved_dirs
         
     def copy_to_output(self, source: Path, dest_name: Optional[str] = None) -> Path:
         """
@@ -420,32 +651,127 @@ class FileManager:
         finally:
             self.temp_dirs.add(temp_dir)
             
-    def find_file(self, filename: str, search_paths: Optional[List[Path]] = None) -> Optional[Path]:
+    def find_file(self, filename_or_path: str, search_paths: Optional[List[Path]] = None) -> Optional[Path]:
         """
         Find a file by searching in multiple locations.
         
-        Searches for a file in the provided search paths, or in standard
-        Colbuilder locations if no paths are provided.
+        Searches for a file in the provided search paths, standard Colbuilder locations,
+        and relative to the project root.
         
         Args:
-            filename: Name of the file to find
-            search_paths: Optional list of paths to search (defaults to standard locations)
+            filename_or_path: Name of the file or relative path to find
+            search_paths: Optional list of paths to search (added to standard locations)
             
         Returns:
             Path to the file if found, None otherwise
         """
-        if search_paths is None:
-            search_paths = [
-                self.config.working_directory,
-                Path.cwd(),
-                self.config.DATA_DIR,
-                self.config.HOMOLOGY_LIB_DIR,
-                self.config.PROJECT_ROOT
-            ]
+        filepath = Path(filename_or_path)
+        
+        if filepath.is_absolute() and filepath.exists():
+            return filepath
             
-        for path in search_paths:
-            full_path = path / filename
+        if search_paths is None:
+            search_paths = []
+            
+        # Add standard search locations
+        search_paths.extend([
+            self.working_dir,                 # User's current working directory
+            Path.cwd(),                       # Python process working directory
+            self.project_root,                # Project root from config
+            self.project_root / "data",       # Project data directory
+            self.project_root / "colbuilder" / "data",  # Package data directory
+            self.config.DATA_DIR,             # Data directory from config
+            self.config.HOMOLOGY_LIB_DIR,     # Homology lib directory from config
+            self.config.FORCE_FIELD_DIR       # Force field directory from config
+        ])
+        
+        # Filter out None values
+        search_paths = [p for p in search_paths if p is not None]
+        
+        for base_path in search_paths:
+            full_path = base_path / filepath
             if full_path.exists():
                 return full_path
                 
+            if len(filepath.parts) > 1:
+                filename_only = filepath.name
+                name_only_path = base_path / filename_only
+                if name_only_path.exists():
+                    return name_only_path
+                
         return None
+
+    def copy_to_directory(self, source: Path, dest_dir: Optional[Path] = None, dest_name: Optional[str] = None) -> Path:
+        """
+        Copy a file to a specified directory.
+
+        Args:
+            source (Path): Source file path.
+            dest_dir (Optional[Path]): Destination directory (defaults to the working directory).
+            dest_name (Optional[str]): Optional destination name (uses source name if not provided).
+
+        Returns:
+            Path: Path to the copied file in the destination directory.
+
+        Raises:
+            FileNotFoundError: If the source file does not exist.
+            Exception: If the copy operation fails.
+        """
+        if not source.exists():
+            raise FileNotFoundError(f"Source file not found: {source}")
+
+        dest_dir = dest_dir or self.config.working_directory
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        dest_name = dest_name or source.name
+        dest_path = dest_dir / dest_name
+
+        try:
+            shutil.copy2(source, dest_path)
+            LOG.debug(f"Copied {source} to {dest_path}")
+            return dest_path
+        except Exception as e:
+            LOG.error(f"Failed to copy {source} to {dest_path}: {str(e)}")
+            raise
+
+    def get_type_dir(self, model_type: str, parent_dir: Optional[Path] = None) -> Path:
+        """
+        Get or create the directory for a specific model type.
+
+        Args:
+            model_type (str): The type of the model (e.g., "D", "NC").
+            parent_dir (Optional[Path]): Optional parent directory (defaults to geometry_dir).
+
+        Returns:
+            Path: Path to the directory for the specified model type.
+
+        Raises:
+            FileNotFoundError: If the directory cannot be created or accessed.
+        """
+        try:
+            base_dir = parent_dir or self.geometry_dir
+
+            type_dir = base_dir / model_type
+
+            type_dir.mkdir(parents=True, exist_ok=True)
+            self.temp_dirs.add(type_dir)
+            LOG.info(f"Using type directory: {type_dir}")
+
+            return type_dir
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to locate or create type directory for model type: {model_type}") from e
+
+    def get_temp_dir(self, dirname: str) -> Path:
+        """
+        Get a temporary directory path and create the directory.
+        
+        This is a convenience wrapper around get_temp_path with create_dir=True.
+        
+        Args:
+            dirname: Name for the directory
+            
+        Returns:
+            Path to the created temporary directory
+        """
+        temp_dir = self.get_temp_path(dirname, create_dir=True)
+        return temp_dir

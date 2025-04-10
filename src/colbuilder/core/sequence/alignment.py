@@ -1,10 +1,62 @@
-# Copyright (c) 2024, Colbuilder Development Team
+"""
+This module handles the alignment of input sequences with template sequences, specifically for 
+collagen triple helices. It includes functionality for processing hydroxyprolines, staggering 
+sequences, and generating outputs compatible with MUSCLE® and MODELLER®.
+
+Key Features:
+--------------
+1. **Sequence Alignment**:
+   - Align input sequences amongst themselves using MUSCLE.
+   - Align input multiple sequence alignment (MSA) with template sequences.
+
+2. **Hydroxyproline Processing**:
+   - Identify and process hydroxyprolines (OLC: O) in sequences.
+   - Restore hydroxyprolines in aligned sequences using position mapping.
+
+3. **Staggering and Formatting**:
+   - Add stagger to sequences based on collagen register configuration (A: 0, B: +1, C: +2).
+   - Equalize sequence lengths by padding with gaps ('-').
+
+4. **Output Generation**:
+   - Generate MSA files in FASTA format.
+   - Generate MODELLER-compatible alignment files for structure modeling.
+
+5. **MUSCLE Integration**:
+   - Automatically detect MUSCLE version and execute alignment commands.
+   - Handle errors and ensure compatibility with different MUSCLE versions.
+
+Usage:
+------
+This module is designed to be used as part of a pipeline for aligning collagen sequences. 
+The main entry point is the `align_sequences` function, which performs all alignment steps 
+and outputs the final MSA and MODELLER-formatted files.
+
+Example:
+--------
+```python
+from pathlib import Path
+from colbuilder.core.sequence.alignment import align_sequences
+
+# Define input files
+input_fasta = Path("input_sequences.fasta")
+template_fasta = Path("template_sequences.fasta")
+output_prefix = "aligned_output"
+template_pdb = Path("template_structure.pdb")
+
+# Perform alignment
+msa_output, modeller_output = align_sequences(input_fasta, template_fasta, output_prefix, template_pdb)
+
+print(f"MSA file saved to: {msa_output}")
+print(f"MODELLER alignment file saved to: {modeller_output}")
+```
+"""
+
+# Copyright (c) 2024, ColBuilder Development Team
 # Distributed under the terms of the Apache License 2.0
 
 import os
 import subprocess
 import tempfile
-import shutil
 from typing import List, Dict, Tuple
 import typing as t
 from Bio import SeqIO
@@ -19,11 +71,6 @@ LOG = setup_logger(__name__)
 
 class Alignment:
     """
-    A class to manage sequence alignment processes.
-
-    This class handles the alignment of input with template sequences,
-    including processing of hydroxyprolines and staggering of sequences characteristic of collagen triple helices.
-
     Attributes:
         input_fasta (Path): Path to the input FASTA file.
         template_fasta (Path): Path to the template FASTA file.
@@ -67,13 +114,6 @@ class Alignment:
 
         self.hydroxyproline_positions: Dict[str, Dict[str, List[int]]] = {"template": {}, "input": {}}
         self.temp_dir = tempfile.mkdtemp()
-
-    def __del__(self):
-        """Clean up temporary directory on object deletion."""
-        try:
-            shutil.rmtree(self.temp_dir)
-        except Exception as e:
-            LOG.warning(f"Failed to delete temporary directory {self.temp_dir}: {str(e)}")
 
     def add_stagger_to_sequences(self, sequences: List[SeqRecord]) -> List[SeqRecord]:
         """

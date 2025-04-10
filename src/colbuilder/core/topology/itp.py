@@ -12,40 +12,49 @@ LOG = setup_logger(__name__)
 
 
 class Itp:
-    """
-    Merge ITP files from the Martini 3 force field and Go-like potentials.
+    """Class for managing molecular topology files in the Martini 3 force field format.
     
-    This class provides functionality to read, process, and merge the topology files
-    from Martini 3 force fields with Go-like potentials, as well as to handle crosslinking.
+    This class handles reading, processing, and merging topology files that combine
+    Martini 3 force field parameters with Go-like potentials. It supports handling of:
+    - Multiple molecular components and their connections
+    - Position restraints and various bonded interactions
+    - Go-model interactions and exclusions
+    - Virtual sites and crosslinking between components
+    
+    The class maintains separate data structures for initial component-wise storage
+    and final merged topologies, ensuring proper index handling and connectivity.
     """
 
-    def __init__(self, system: Any = None, model_id: Optional[int] = None):
-        """
-        Initialize the Itp object.
+    def __init__(self, system: Any = None, model_id: Optional[int] = None) -> None:
+        """Initialize a new topology processor instance.
         
-        Parameters
-        ----------
-        system : Any
-            The molecular system to process
-        model_id : Optional[int]
-            The identifier for the specific model to process
+        Args:
+            system: The molecular system containing component and connectivity information
+            model_id: Unique identifier for the molecular model being processed
+            
+        The initialization creates empty data structures for:
+        - Component-wise storage (atoms, bonds, angles, etc.)
+        - Final merged topology elements
+        - Crosslinking information and virtual site mappings
         """
         self.system = system
-        self.molecule = self.allocate(model_id=model_id)
-        self.mol_ends = self.allocate(model_id=model_id)
-        self.atoms = self.allocate(model_id=model_id)
-        self.posres = self.allocate(model_id=model_id)
-        self.bonds = self.allocate(model_id=model_id)
-        self.constraints = self.allocate(model_id=model_id)
-        self.angles = self.allocate(model_id=model_id)
-        self.exclusions = self.allocate(model_id=model_id)
-        self.go_exclusions = self.allocate(model_id=model_id)
-        self.dihedrals = self.allocate(model_id=model_id)
-        self.virtual_sites = self.allocate(model_id=model_id)
-        self.go_table = self.allocate(model_id=model_id)
-        self.pairs = self.allocate(model_id=model_id)
         
-        # Merged data structures
+        # Component-wise storage arrays
+        self.molecule: List[List[Any]] = self.allocate(model_id=model_id)
+        self.mol_ends: List[List[Any]] = self.allocate(model_id=model_id)
+        self.atoms: List[List[Any]] = self.allocate(model_id=model_id)
+        self.posres: List[List[Any]] = self.allocate(model_id=model_id)
+        self.bonds: List[List[Any]] = self.allocate(model_id=model_id)
+        self.constraints: List[List[Any]] = self.allocate(model_id=model_id)
+        self.angles: List[List[Any]] = self.allocate(model_id=model_id)
+        self.exclusions: List[List[Any]] = self.allocate(model_id=model_id)
+        self.go_exclusions: List[List[Any]] = self.allocate(model_id=model_id)
+        self.dihedrals: List[List[Any]] = self.allocate(model_id=model_id)
+        self.virtual_sites: List[List[Any]] = self.allocate(model_id=model_id)
+        self.go_table: List[List[Any]] = self.allocate(model_id=model_id)
+        self.pairs: List[List[Any]] = self.allocate(model_id=model_id)
+        
+        # Final merged topology structures
         self.final_atoms: List[List[Any]] = []
         self.final_posres: List[List[Any]] = []
         self.final_bonds: List[List[Any]] = []
@@ -58,48 +67,39 @@ class Itp:
         self.final_virtual_sites: List[List[Any]] = []
         self.final_pairs: List[List[Any]] = []
         
+        # Crosslinking and virtual site mapping
         self.crosslink_bonds: List[Any] = []
         self.vs_to_col: Dict[str, str] = {}
         self.delta_merge: int = 0
-        self.no_line: Tuple[str, ...] = ('[', '\n', '#endif\n', '#ifdef', '#ifndef', '#include', ';[', ';')
-        
-        LOG.debug(f"Initialized ITP processor for model {model_id}")
+        self.no_line: Tuple[str, ...] = (
+            '[', '\n', '#endif\n', '#ifdef', '#ifndef', '#include', ';[', ';'
+        )
 
     def allocate(self, model_id: Optional[int] = None) -> List[List[Any]]:
-        """
-        Allocate storage arrays based on the number of connections in the model.
+        """Create storage arrays based on the number of molecular connections.
         
-        Parameters
-        ----------
-        model_id : Optional[int]
-            The identifier for the model
+        Args:
+            model_id: Identifier for the molecular model
             
-        Returns
-        -------
-        List[List[Any]]
-            A list of empty lists, one for each connection
+        Returns:
+            A list of empty lists, with one list per molecular connection
+            in the specified model
         """
         size = len(self.system.get_model(model_id=model_id).connect)
-        LOG.debug(f"Allocated {size} storage arrays for model {model_id}")
         return [[] for _ in range(size)]
 
     def read_model(self, model_id: Optional[int] = None, system: Optional[Any] = None) -> None:
-        """
-        Read and merge all connected ITP files for a single model.
+        """Read and merge all connected ITP files for a single model.
         
-        Processes all connected components of a model, reading their
-        ITP files, exclusion files, and Go-table files.
+        Processes all ITP components, exclusion files, and Go-table files for a model's
+        connections. The system parameter is reserved for future implementation.
         
-        Parameters
-        ----------
-        model_id : Optional[int]
-            The identifier for the model
-        system : Optional[Any]
-            The molecular system (not used in current implementation)
+        Args:
+            model_id: Unique identifier for the model to process
+            system: Reserved for future system-level configuration (not currently used)
         """
         cnt_con = 0
         connect_ids = self.system.get_model(model_id=model_id).connect
-        LOG.debug(f"Reading model {model_id} with {len(connect_ids)} connections")
         
         for connect_id in connect_ids:
             self.read_itp(model_id=model_id, connect_id=connect_id, cnt_con=cnt_con)
@@ -107,23 +107,25 @@ class Itp:
             self.read_table(model_id=model_id, connect_id=connect_id, cnt_con=cnt_con)
             cnt_con += 1
 
-    def read_itp(self, model_id: Optional[int] = None, connect_id: Optional[int] = None, cnt_con: Optional[int] = None) -> None:
-        """
-        Read a single ITP file and parse its contents into data structures.
+    def read_itp(self, model_id: Optional[int] = None, connect_id: Optional[int] = None, 
+                 cnt_con: Optional[int] = None) -> None:
+        """Read and parse a single ITP (Interaction Parameter) file.
         
-        Parameters
-        ----------
-        model_id : Optional[int]
-            The identifier for the model
-        connect_id : Optional[int]
-            The identifier for the connection
-        cnt_con : Optional[int] 
-            The counter for the connection (array index)
+        Reads an ITP file for a specific connection and parses its contents into 
+        appropriate data structures. Handles various section types including atoms,
+        bonds, angles, dihedrals, and other molecular topology parameters.
+        
+        Args:
+            model_id: Identifier for the model being processed
+            connect_id: Identifier for the specific connection
+            cnt_con: Counter index for the current connection
+            
+        Raises:
+            FileNotFoundError: If the specified ITP file cannot be found
         """
         itp_path = f'col_{int(model_id)}.{int(connect_id)}.itp'
-        LOG.debug(f"Reading ITP file: {itp_path}")
-        
         bonded_type = ''
+        
         try:
             with open(itp_path, 'r') as f:
                 for line in f:
@@ -132,11 +134,11 @@ class Itp:
                     
                     self.molecule[cnt_con].append(line)
                     
-                    # Determine section type
+                    # Parse section headers
                     if line == '[ atoms ]\n':
                         bonded_type = 'atoms'
                     elif line == '[ position_restraints ]\n':
-                        self.mol_ends[cnt_con] = int(self.molecule[cnt_con][len(self.molecule[cnt_con])-3].split(' ')[0])
+                        self.mol_ends[cnt_con] = int(self.molecule[cnt_con][-3].split(' ')[0])
                         bonded_type = 'posres'
                     elif line == '[ bonds ]\n':
                         bonded_type = 'bonds'
@@ -155,6 +157,7 @@ class Itp:
                     if line.split(' ')[0] not in self.no_line:
                         tokens = [k for k in line.split(' ') if k and k != '\n']
                         
+                        # Store tokens in appropriate data structure based on section type
                         if bonded_type == 'atoms':
                             self.atoms[cnt_con].append(tokens)
                         elif bonded_type == 'posres':
@@ -172,28 +175,27 @@ class Itp:
                             self.exclusions[cnt_con].append(tokens)
                         elif bonded_type == 'dihedrals':
                             self.dihedrals[cnt_con].append(tokens)
-                            
-            LOG.debug(f"Finished reading ITP file: {itp_path}")
-                
+                        
         except FileNotFoundError:
             LOG.error(f"ITP file not found: {itp_path}")
             raise
 
-    def read_excl(self, model_id: Optional[int] = None, connect_id: Optional[int] = None, cnt_con: Optional[int] = None) -> None:
-        """
-        Read a Go-exclusion file for a specific connection.
-        
-        Parameters
-        ----------
-        model_id : Optional[int]
-            The identifier for the model
-        connect_id : Optional[int]
-            The identifier for the connection
-        cnt_con : Optional[int]
-            The counter for the connection (array index)
+    def read_excl(self, model_id: Optional[int] = None, connect_id: Optional[int] = None, 
+                  cnt_con: Optional[int] = None) -> None:
+        """Read and parse a Go-model exclusion file.
+
+        Processes exclusion definitions that specify which atom pairs should be 
+        excluded from non-bonded interactions in the Go-model potential.
+
+        Args:
+            model_id: Identifier for the model being processed
+            connect_id: Identifier for the specific molecular connection
+            cnt_con: Connection counter used for array indexing
+
+        Raises:
+            FileNotFoundError: If the specified exclusion file cannot be found
         """
         excl_path = f'col_{int(model_id)}.{int(connect_id)}_go-excl.itp'
-        LOG.debug(f"Reading exclusion file: {excl_path}")
         
         try:
             with open(excl_path, 'r') as f:
@@ -203,27 +205,26 @@ class Itp:
                         if tokens:
                             self.go_exclusions[cnt_con].append(tokens)
                             
-            LOG.debug(f"Finished reading exclusion file: {excl_path}")
-                
         except FileNotFoundError:
             LOG.error(f"Exclusion file not found: {excl_path}")
             raise
 
-    def read_table(self, model_id: Optional[int] = None, connect_id: Optional[int] = None, cnt_con: Optional[int] = None) -> None:
-        """
-        Read a Go-table file for a specific connection.
-        
-        Parameters
-        ----------
-        model_id : Optional[int]
-            The identifier for the model
-        connect_id : Optional[int]
-            The identifier for the connection
-        cnt_con : Optional[int]
-            The counter for the connection (array index)
+    def read_table(self, model_id: Optional[int] = None, connect_id: Optional[int] = None, 
+                   cnt_con: Optional[int] = None) -> None:
+        """Read and parse a Go-model interaction table file.
+
+        Processes tabulated potential parameters that define the Go-model interactions
+        between specific atom pairs.
+
+        Args:
+            model_id: Identifier for the model being processed
+            connect_id: Identifier for the specific molecular connection
+            cnt_con: Connection counter used for array indexing
+
+        Raises:
+            FileNotFoundError: If the specified table file cannot be found
         """
         table_path = f'col_{int(model_id)}.{int(connect_id)}_go-table.itp'
-        LOG.debug(f"Reading Go-table file: {table_path}")
         
         try:
             with open(table_path, 'r') as f:
@@ -233,103 +234,95 @@ class Itp:
                         if tokens:
                             self.go_table[cnt_con].append(tokens)
                             
-            LOG.debug(f"Finished reading Go-table file: {table_path}")
-                
         except FileNotFoundError:
             LOG.error(f"Go-table file not found: {table_path}")
             raise
 
     def go_to_pairs(self, model_id: Optional[int] = None) -> None:
-        """
-        Convert Go-table entries to pair interactions.
-        
-        Processes all connections of a model, matching virtual sites
-        to column atoms and generating pair interactions.
-        
-        Parameters
-        ----------
-        model_id : Optional[int]
-            The identifier for the model
+        """Convert Go-model table entries to pair interactions.
+
+        Processes all molecular connections in a model to:
+        1. Map virtual sites to corresponding column atoms
+        2. Generate pair interaction parameters from Go-model definitions
+
+        Args:
+            model_id: Identifier for the model being processed
         """
         num_connections = len(self.system.get_model(model_id=model_id).connect)
-        LOG.debug(f"Converting Go interactions to pairs for model {model_id} with {num_connections} connections")
         
         for cnt_con in range(num_connections):
             self.match_vs_to_pairs(cnt_con=cnt_con)
             self.get_pairs(cnt_con=cnt_con)
 
     def match_vs_to_pairs(self, cnt_con: Optional[int] = None) -> None:
+        """Map virtual sites to their corresponding column atoms.
+        
+        Creates a mapping dictionary that associates virtual site IDs with 
+        their corresponding column atom indices. This mapping is used for 
+        converting Go-model interactions into pair parameters.
+        
+        Args:
+            cnt_con: Counter index for the current molecular connection
         """
-        Match virtual sites from Go-model to pair descriptions.
-        
-        Creates a mapping from virtual site IDs to column atom indices.
-        
-        Parameters
-        ----------
-        cnt_con : Optional[int]
-            The counter for the connection (array index)
-        """
-        LOG.debug(f"Matching virtual sites to column atoms for connection {cnt_con}")
-        
         for atom_entry in self.atoms[cnt_con]:
             if atom_entry[1].startswith('col'):
                 self.vs_to_col[atom_entry[1]] = atom_entry[0]
-                atom_entry[1] = 'col'  # Replace the ID with generic 'col'
+                atom_entry[1] = 'col'
 
     def get_pairs(self, cnt_con: Optional[int] = None) -> None:
+        """Generate pair interactions from Go-model table entries.
+        
+        Processes each Go-model table entry to create pair interaction parameters.
+        Each pair entry contains:
+        - Mapped atom indices for both interaction partners
+        - Interaction parameters from the Go-table
+        - Original virtual site IDs for reference
+        
+        Args:
+            cnt_con: Counter index for the current molecular connection
+            
+        Note:
+            The pair entry format follows: [atom1, atom2, param1, ..., param6, vs1_id, vs2_id]
+            where atom1/2 are mapped column indices and vs1/2_id are original virtual site IDs
         """
-        Generate pair interactions from Go-table entries.
-        
-        Converts Go-table entries into pair interaction definitions using
-        the virtual site to column mapping.
-        
-        Parameters
-        ----------
-        cnt_con : Optional[int]
-            The counter for the connection (array index)
-        """
-        LOG.debug(f"Generating pairs from Go-table for connection {cnt_con}")
-        
         for table_entry in self.go_table[cnt_con]:
-            vs1 = table_entry[0]
-            vs2 = table_entry[1]
+            vs1, vs2 = table_entry[0:2]
             
             pair_entry = [
-                self.vs_to_col[vs1],
-                self.vs_to_col[vs2],
-                table_entry[2],
-                table_entry[3],
-                table_entry[4],
-                table_entry[5],
-                table_entry[6],
-                table_entry[7],
-                vs1,
-                vs2
+                self.vs_to_col[vs1],    # First atom index
+                self.vs_to_col[vs2],    # Second atom index
+                *table_entry[2:8],      # Interaction parameters
+                vs1,                    # Original virtual site ID 1
+                vs2                     # Original virtual site ID 2
             ]
             
             self.pairs[cnt_con].append(pair_entry)
 
     def merge_topology(self, cnt_con: Optional[int] = None) -> None:
+        """Merge a connection's topology with the accumulated topology.
+        
+        Processes a single molecular connection's topology data and merges it into
+        the final topology structures. Handles index adjustments and special cases
+        for different interaction types.
+        
+        Args:
+            cnt_con: Counter index for the current molecular connection being merged
+            
+        Note:
+            The method updates indices using delta_merge to ensure proper connectivity
+            across merged components. Special handling is provided for:
+            - Flexible bonds (force constant 1000000)
+            - Different dihedral types (6, 7, 8, or 10 parameter entries)
+            - Virtual sites and exclusions that require string formatting
         """
-        Merge a connection's topology with the accumulated topology.
-        
-        Adjusts indices to account for previous connections and
-        merges the current connection's topology into the final structures.
-        
-        Parameters
-        ----------
-        cnt_con : Optional[int]
-            The counter for the connection (array index)
-        """
-        LOG.debug(f"Merging topology for connection {cnt_con}")
-        
         # Update index offset based on previous connection
         if cnt_con != 0:
             self.delta_merge += self.mol_ends[cnt_con-1]
         
-        # Process atoms
+        # Process atoms with index adjustment
         merged_atoms = [
-            [int(a[0])+self.delta_merge, a[1], a[2], a[3], a[4], int(a[5])+self.delta_merge, a[6]] 
+            [int(a[0])+self.delta_merge, a[1], a[2], a[3], a[4], 
+             int(a[5])+self.delta_merge, a[6]] 
             for a in self.atoms[cnt_con]
         ]
         self.final_atoms.extend(merged_atoms)
@@ -341,7 +334,7 @@ class Itp:
         ]
         self.final_posres.extend(merged_posres)
         
-        # Process bonds
+        # Process bonds and separate flexible bonds
         merged_bonds = [
             [int(b[0])+self.delta_merge, int(b[1])+self.delta_merge, b[2], b[3], b[4]] 
             for b in self.bonds[cnt_con]
@@ -354,40 +347,38 @@ class Itp:
         
         # Process angles
         merged_angles = [
-            [int(a[0])+self.delta_merge, int(a[1])+self.delta_merge, int(a[2])+self.delta_merge, a[3], a[4], a[5]+'\n'] 
+            [int(a[0])+self.delta_merge, int(a[1])+self.delta_merge, 
+             int(a[2])+self.delta_merge, a[3], a[4], a[5]+'\n'] 
             for a in self.angles[cnt_con]
         ]
         self.final_angles.extend(merged_angles)
         
         # Process dihedrals based on entry length
         merged_dihedrals = []
-        
-        if self.dihedrals[cnt_con] and len(self.dihedrals[cnt_con][1]) == 8:
-            for dih in self.dihedrals[cnt_con]:
-                if len(dih) == 8:
-                    merged_dih = [
-                        int(dih[0])+self.delta_merge, int(dih[1])+self.delta_merge,
-                        int(dih[2])+self.delta_merge, int(dih[3])+self.delta_merge,
-                        dih[4], dih[5], dih[6], dih[7]
-                    ]
+        if self.dihedrals[cnt_con]:
+            dihedral_length = len(self.dihedrals[cnt_con][1])
+            
+            if dihedral_length == 8:
+                for dih in self.dihedrals[cnt_con]:
+                    indices = [int(idx)+self.delta_merge for idx in dih[:4]]
+                    merged_dih = [*indices, *dih[4:]]
                     merged_dihedrals.append(merged_dih)
-                elif len(dih) == 10:
-                    merged_dih = [
-                        int(dih[0])+self.delta_merge, int(dih[1])+self.delta_merge,
-                        int(dih[2])+self.delta_merge, int(dih[3])+self.delta_merge,
-                        dih[4], dih[5], dih[6], dih[7], dih[8], dih[9]
-                    ]
-                    merged_dihedrals.append(merged_dih)
-        elif self.dihedrals[cnt_con] and len(self.dihedrals[cnt_con][1]) == 7:
-            merged_dihedrals = [
-                [int(d[0])+self.delta_merge, int(d[1])+self.delta_merge, int(d[2])+self.delta_merge, int(d[3])+self.delta_merge, d[4], d[5], d[6]] 
-                for d in self.dihedrals[cnt_con] if len(d) == 7
-            ]
-        elif self.dihedrals[cnt_con] and len(self.dihedrals[cnt_con][1]) == 6:
-            merged_dihedrals = [
-                [int(d[0])+self.delta_merge, int(d[1])+self.delta_merge, int(d[2])+self.delta_merge, int(d[3])+self.delta_merge, d[4], d[5]] 
-                for d in self.dihedrals[cnt_con] if len(d) == 6
-            ]
+                    
+            elif dihedral_length == 7:
+                merged_dihedrals = [
+                    [int(d[0])+self.delta_merge, int(d[1])+self.delta_merge,
+                     int(d[2])+self.delta_merge, int(d[3])+self.delta_merge,
+                     d[4], d[5], d[6]] 
+                    for d in self.dihedrals[cnt_con]
+                ]
+                
+            elif dihedral_length == 6:
+                merged_dihedrals = [
+                    [int(d[0])+self.delta_merge, int(d[1])+self.delta_merge,
+                     int(d[2])+self.delta_merge, int(d[3])+self.delta_merge,
+                     d[4], d[5]] 
+                    for d in self.dihedrals[cnt_con]
+                ]
         
         self.final_dihedrals.extend(merged_dihedrals)
         
@@ -400,14 +391,16 @@ class Itp:
         
         # Process virtual sites
         merged_vsites = [
-            [str(int(v[0])+self.delta_merge), str(int(1)), str(int(v[2])+self.delta_merge)+'\n'] 
+            [str(int(v[0])+self.delta_merge), str(int(1)), 
+             str(int(v[2])+self.delta_merge)+'\n'] 
             for v in self.virtual_sites[cnt_con]
         ]
         self.final_virtual_sites.extend(merged_vsites)
         
         # Process Go exclusions
         merged_go_excl = [
-            [int(e[0])+self.delta_merge, int(e[1])+self.delta_merge, e[2], int(e[3])+self.delta_merge, int(e[4])+self.delta_merge] 
+            [int(e[0])+self.delta_merge, int(e[1])+self.delta_merge, e[2],
+             int(e[3])+self.delta_merge, int(e[4])+self.delta_merge] 
             for e in self.go_exclusions[cnt_con]
         ]
         self.final_go_exclusions.extend(merged_go_excl)
@@ -415,145 +408,134 @@ class Itp:
         # Process exclusions
         merged_excl = []
         for excl in self.exclusions[cnt_con]:
-            merged_entry = [str(int(idx)+self.delta_merge) for idx in excl if idx != '']
+            merged_entry = [str(int(idx)+self.delta_merge) for idx in excl if idx]
             if merged_entry:
                 merged_entry[-1] += '\n'
                 merged_excl.append(merged_entry)
-        
         self.final_exclusions.extend(merged_excl)
         
         # Process pairs
         merged_pairs = [
             [int(p[0])+self.delta_merge, int(p[1])+self.delta_merge, p[2], 
-             format(float(p[3]), '.10f'), format(float(p[4]), '.10f'), ';', p[-2], p[-1]+'\n'] 
+             format(float(p[3]), '.10f'), format(float(p[4]), '.10f'),
+             ';', p[-2], p[-1]+'\n'] 
             for p in self.pairs[cnt_con]
         ]
         self.final_pairs.extend(merged_pairs)
 
-    def make_topology(self, model_id: Optional[int] = None, cnt_model: Optional[int] = None) -> None:
+    def make_topology(self, model_id: Optional[int] = None, 
+                 cnt_model: Optional[int] = None) -> None:
+        """Create a complete topology by merging connections and adding crosslinks.
+        
+        Creates a complete molecular topology by:
+        1. Initializing crosslink structures (if multiple connections present)
+        2. Merging all component topologies with proper index adjustments
+        3. Writing the final topology and exclusion files
+        
+        Args:
+            model_id: Identifier for the molecular model being processed
+            cnt_model: Counter index used for output file naming
+            
+        Note:
+            For single-connection models, empty crosslink structures are created.
+            For multi-connection models, crosslinks are generated using the
+            Crosslink class.
         """
-        Create a complete topology by merging all connections and adding crosslinks.
-        
-        Processes all connections of a model, merges their topologies,
-        and writes the final topology and exclusion files.
-        
-        Parameters
-        ----------
-        model_id : Optional[int]
-            The identifier for the model
-        cnt_model : Optional[int] 
-            The counter for the model (for output naming)
-        """
-        LOG.debug(f"Making topology for model {model_id} (counter {cnt_model})")
-        
-        # Initialize crosslink bonded structures
+        # Initialize crosslink structures based on connection count
         if len(self.system.get_model(model_id=model_id).connect) == 1:
             self.crosslink_bonded = {k: [] for k in ['bonds', 'angles', 'dihedrals']}
         else:
             crosslinker = Crosslink(cnt_model=cnt_model)
             self.crosslink_bonded = crosslinker.set_crosslink_bonded(cnt_model=cnt_model)
         
-        # Merge topologies from all connections
+        # Merge all connection topologies
         for cnt_con in range(len(self.system.get_model(model_id=model_id).connect)):
             self.merge_topology(cnt_con=cnt_con)
         
-        # Write output files
+        # Write final topology files
         self.write_topology(cnt_model=cnt_model)
         self.write_excl(cnt_model=cnt_model)
 
     def write_topology(self, cnt_model: Optional[int] = None) -> None:
-        """
-        Write the merged topology to an ITP file.
-        
-        Parameters
-        ----------
-        cnt_model : Optional[int]
-            The counter for the model (for output naming)
+        """Write the complete molecular topology to an ITP file.
+
+        Creates a structured topology file containing all merged molecular components
+        and their interactions. The file includes sections for:
+        - Molecular type definition
+        - Atoms and their properties
+        - Position restraints (POSRES conditional)
+        - Bonds and flexible bonds (FLEXIBLE conditional)
+        - Crosslink bonds and angles
+        - Pair interactions
+        - Constraints (non-FLEXIBLE conditional)
+        - Virtual sites
+        - Angles and dihedrals
+        - Exclusions
+
+        Args:
+            cnt_model: Model counter used for output file naming
+
+        Raises:
+            PermissionError: If writing to the output file is not permitted
+            Exception: For other file operation errors
         """
         output_path = f'col_{int(cnt_model)}.itp'
-        LOG.debug(f"Writing merged topology to {output_path}")
         
         try:
             with open(output_path, 'w') as f:
-                # Header and molecule type
                 f.write('; Merging of topologies for models due to system\n')
                 f.write('[ moleculetype ]\n')
                 f.write(f'col_{cnt_model} 1\n')
                 
-                # Atoms section
                 f.write('\n\n[ atoms ]\n')
                 for atom in self.final_atoms:
                     f.write('{:>7}{:>7}{:>7}{:>7}{:>7}{:>7}{:>7}\n'.format(
-                        atom[0], atom[1], atom[2], atom[3], atom[4], atom[5], atom[6]
+                        *[atom[i] for i in range(7)]
                     ))
                 
-                # Position restraints section
                 f.write('\n[ position_restraints ]\n')
                 f.write('#ifdef POSRES\n')
                 for posre in self.final_posres:
                     f.write(" ".join(str(i) for i in posre))
                 f.write('#endif\n')
                 
-                # Bonds section
                 f.write('\n[ bonds ]\n')
                 for bond in self.final_bonds:
                     f.write(" ".join(str(i) for i in bond))
                 
-                # Flexible bonds section
                 f.write('#ifdef FLEXIBLE\n; side chain flexible\n')
                 for flex_bond in self.final_flex_bonds:
                     f.write(" ".join(str(i) for i in flex_bond))
                 f.write('#endif\n')
                 
-                # Crosslink bonds section
-                f.write('; crosslink bonds \n')
-                for crosslink_bond in self.crosslink_bonded['bonds']:
-                    f.write(" ".join(str(i) for i in crosslink_bond))
+                self._write_crosslinks(f, 'bonds')
                 
-                # Pairs section
-                f.write('\n[ pairs ]\n')
-                for pair in self.final_pairs:
-                    f.write(" ".join(str(i) for i in pair))
+                for section, items in [
+                    ('pairs', self.final_pairs),
+                    ('constraints', self.final_constraints),
+                    ('virtual_sitesn', self.final_virtual_sites),
+                    ('angles', self.final_angles)
+                ]:
+                    f.write(f'\n[ {section} ]\n')
+                    if section == 'constraints':
+                        f.write('#ifndef FLEXIBLE\n')
+                    for item in items:
+                        f.write(" ".join(str(i) for i in item))
+                    if section == 'constraints':
+                        f.write('#endif\n')
                 
-                # Constraints section
-                f.write('\n[ constraints ]\n')
-                f.write('#ifndef FLEXIBLE\n')
-                for constraint in self.final_constraints:
-                    f.write(" ".join(str(i) for i in constraint))
-                f.write('#endif\n')
+                self._write_crosslinks(f, 'angles')
                 
-                # Virtual sites section
-                f.write('\n[ virtual_sitesn ]\n')
-                for vsite in self.final_virtual_sites:
-                    f.write(" ".join(str(i) for i in vsite))
-                
-                # Angles section
-                f.write('\n[ angles ]\n')
-                for angle in self.final_angles:
-                    f.write(" ".join(str(i) for i in angle))
-                
-                # Crosslink angles section
-                f.write('; crosslink angles \n')
-                for crosslink_angle in self.crosslink_bonded['angles']:
-                    f.write(" ".join(str(i) for i in crosslink_angle))
-                
-                # Dihedrals section
                 f.write('\n[ dihedrals ]\n')
                 for dihedral in self.final_dihedrals:
                     f.write(" ".join(str(i) for i in dihedral))
                 
-                # Crosslink dihedrals section
-                f.write('; crosslink dihedrals \n')
-                for crosslink_dihedral in self.crosslink_bonded['dihedrals']:
-                    f.write(" ".join(str(i) for i in crosslink_dihedral))
+                self._write_crosslinks(f, 'dihedrals')
                 
-                # Exclusions section
                 f.write('\n[ exclusions ]\n')
                 for exclusion in self.final_exclusions:
                     f.write(" ".join(str(i) for i in exclusion))
-                
-            LOG.debug(f"     Successfully wrote merged topology to {output_path}")
-            
+                    
         except PermissionError:
             LOG.error(f"Permission denied when writing to topology file: {output_path}")
             raise
@@ -561,29 +543,41 @@ class Itp:
             LOG.error(f"Error writing topology file: {str(e)}")
             raise
 
-    def write_excl(self, cnt_model: Optional[int] = None) -> None:
-        """
-        Write the merged Go-exclusions to an ITP file.
+    def _write_crosslinks(self, f: Any, section: str) -> None:
+        """Helper method to write crosslink sections to the topology file.
         
-        Parameters
-        ----------
-        cnt_model : Optional[int]
-            The counter for the model (for output naming)
+        Args:
+            f: File handle to write to
+            section: Section name ('bonds', 'angles', or 'dihedrals')
+        """
+        f.write(f'; crosslink {section} \n')
+        for item in self.crosslink_bonded[section]:
+            f.write(" ".join(str(i) for i in item))
+
+    def write_excl(self, cnt_model: Optional[int] = None) -> None:
+        """Write the merged Go-exclusions to an ITP file.
+        
+        Creates a file containing exclusion definitions for Go-model interactions,
+        specifying which atom pairs should be excluded from non-bonded interactions.
+        Each exclusion entry is written in space-separated format.
+        
+        Args:
+            cnt_model: Model counter used for output file naming
+            
+        Raises:
+            PermissionError: If writing to the output file is not permitted
+            Exception: For other file operation errors
         """
         output_path = f'col_{cnt_model}_go-excl.itp'
-        LOG.debug(f"Writing Go-exclusions to {output_path}")
         
         try:
             with open(output_path, 'w') as f:
                 f.write(';[ exclusions ]\n')
                 for exclusion in self.final_go_exclusions:
-                    for idx, item in enumerate(exclusion):
-                        if idx < len(exclusion) - 1:
-                            f.write(f"{item} ")
-                    f.write('\n')
-                    
-            LOG.debug(f"     Successfully wrote Go-exclusions to {output_path}")
-            
+                    # Write space-separated items, ensuring no trailing space
+                    exclusion_str = ' '.join(str(item) for item in exclusion)
+                    f.write(f"{exclusion_str}\n")
+                
         except PermissionError:
             LOG.error(f"Permission denied when writing to exclusion file: {output_path}")
             raise

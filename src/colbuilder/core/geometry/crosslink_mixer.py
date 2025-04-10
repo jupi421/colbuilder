@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Union, Any, Tuple
 import shutil
 from colorama import Fore, Style
 import os
+import traceback
 
 from colbuilder.core.geometry.crystal import Crystal
 from colbuilder.core.geometry.system import System
@@ -21,15 +22,63 @@ from colbuilder.core.utils.exceptions import ColbuilderError
 LOG = setup_logger(__name__)
 
 class CrosslinkMixer:
-    """Class for mixing different crosslink types in collagen systems."""
-    
+    """
+    A class for mixing and managing different crosslink types in collagen microfibrils.
+
+    The CrosslinkMixer handles the generation, modification, and mixing of collagen systems
+    with different crosslink types (e.g., divalent and trivalent). It manages:
+    - Crystal structure transformations
+    - System building from PDB files
+    - Crosslink mixing according to specified ratios
+    - Terminal capping of collagen models
+    - Length control of the resulting fibril
+
+    Attributes
+    ----------
+    path_wd : Optional[Path]
+        Working directory for temporary and output files
+    fibril_length : Optional[float]
+        Length of the collagen microfibril in nanometers
+    contact_distance : Optional[float]
+        Distance threshold for identifying crystal contacts in Angstroms
+    crystalcontacts_file : str
+        Base filename for crystal contacts (default: 'crystalcontacts_from_colbuilder')
+
+    Methods
+    -------
+    mix(system, config, temp_dir)
+        Main method to mix different crosslink types according to ratios
+    _build_system(crystal, crystalcontacts)
+        Build a system from crystal structure and contacts
+    _cap_system(system, crosslink_type, temp_dir)
+        Add terminal caps to collagen models
+    _matrixset_system(system)
+        Update system coordinates and cut to specified length
+
+    Examples
+    --------
+    >>> mixer = CrosslinkMixer()
+    >>> config = ColbuilderConfig(
+    ...     ratio_mix={"D": 80, "T": 20},
+    ...     files_mix=["human-D.pdb", "human-T.pdb"],
+    ...     fibril_length=40.0
+    ... )
+    >>> system = await mixer.mix(None, config)
+
+    Notes
+    -----
+    - Requires proper PDB files with collagen triple helix structures
+    - Crystal contacts are handled for space group 1 only
+    - Fibril length is specified in nanometers
+    - Contact distance is specified in Angstroms
+    """
+
     def __init__(self):
-        LOG.debug("debug: Initializing CrosslinkMixer")
+        """Initialize CrosslinkMixer with default values."""
         self.path_wd: Optional[Path] = None
         self.fibril_length: Optional[float] = None
         self.contact_distance: Optional[float] = None
         self.crystalcontacts_file: str = 'crystalcontacts_from_colbuilder'
-        LOG.debug("debug: CrosslinkMixer initialized successfully")
     
     @staticmethod
     def _ensure_pdb_extension(filename: str) -> str:
@@ -39,26 +88,38 @@ class CrosslinkMixer:
         return filename
     
     @staticmethod
-    def _build_system(crystal: Crystal, crystalcontacts: CrystalContacts) -> System:
+    def _build_system(crystal: Crystal, crystalcontacts: Optional[CrystalContacts] = None) -> System:
         """Build a system from crystal and crystal contacts."""
-        LOG.debug("Building system of models")
         system = System(crystal=crystal, crystalcontacts=crystalcontacts)
         
-        transformation = system.crystalcontacts.read_t_matrix()
-        unit_cell: Dict[float, Any] = {
-            k: system.crystal.get_s_matrix(t_matrix=transformation[k])
-            for k in transformation
-        }
-        
-        from colbuilder.core.geometry.model import Model
-        for key_m in transformation:
-            model = Model(
-                id=key_m,
-                transformation=transformation[key_m],
-                unit_cell=unit_cell[key_m],
+        if crystalcontacts is None:
+            LOG.warning("No crystal contacts provided. Adding a default model.")
+            from colbuilder.core.geometry.model import Model
+            default_transformation = crystal.get_default_transformation()
+            default_unit_cell = crystal.get_s_matrix(t_matrix=default_transformation)
+            default_model = Model(
+                id=0,
+                transformation=default_transformation,
+                unit_cell=default_unit_cell,
                 pdb_file=crystal.pdb_file
             )
-            system.add_model(model=model)
+            system.add_model(model=default_model)
+        else:
+            transformation = system.crystalcontacts.read_t_matrix()
+            unit_cell: Dict[float, Any] = {
+                k: system.crystal.get_s_matrix(t_matrix=transformation[k])
+                for k in transformation
+            }
+            
+            from colbuilder.core.geometry.model import Model
+            for key_m in transformation:
+                model = Model(
+                    id=key_m,
+                    transformation=transformation[key_m],
+                    unit_cell=unit_cell[key_m],
+                    pdb_file=crystal.pdb_file
+                )
+                system.add_model(model=model)
         
         LOG.debug(f"Built system with {len(system.get_models())} models")
         return system
@@ -87,10 +148,10 @@ class CrosslinkMixer:
         LOG.debug(f'     Writing {self.crystalcontacts_file}')
         crystalcontacts = CrystalContacts(self.crystalcontacts_file)
         
-        LOG.debug(f'     Building system')
+        LOG.info(f'     Building system')
         system = self._build_system(crystal=crystal, crystalcontacts=crystalcontacts)
         
-        LOG.debug(f'     Connecting system')
+        LOG.info(f'     Connecting system')
         system, connect = self._connect_system(system=system, connect_file=connect_file)
         
         has_crosslinks = any(
@@ -100,13 +161,13 @@ class CrosslinkMixer:
         )
         
         if has_crosslinks:
-            LOG.debug(f'     Optimizing system')
+            LOG.info(f'     Optimizing system')
             optimizer = Optimizer(system=system, solution_space=solution_space)
             system = optimizer.run_optimize(system=system, connect=connect)
             system, connect = self._connect_system(system=system, connect_file=connect_file)
             crystalcontacts.crystalcontacts_file = self.crystalcontacts_file + '_opt'
         else:
-            LOG.debug(f'     Skipping optimization for non-crosslinked system')
+            LOG.info(f'     Skipping optimization for non-crosslinked system')
         
         return system, crystalcontacts, connect
     
@@ -122,34 +183,55 @@ class CrosslinkMixer:
                 connect_id=key_m,
                 connect=system_connect[key_m]
             )
-        
-        LOG.debug("Crosslink connections identified")
+    
         return system, connect
     
-    @staticmethod
-    def _cap_system(system: System, crosslink_type: str) -> Caps:
+    def _cap_system(self, system: System, crosslink_type: str, temp_dir: Optional[Path] = None) -> Caps:
         """Add caps to the system."""
-        LOG.debug("Capping models in the system with terminal groups")
-        caps = Caps(system=system)
-        
-        for idx in system.get_models():
-            pdb_id = int(idx)
-            pdb_file = f"{pdb_id}.pdb"
-            if not os.path.exists(pdb_file):
-                LOG.warning(f"PDB file {pdb_file} not found. Model IDs: {list(system.get_models())}")
-                continue
-            caps.read_residues(pdb_id=pdb_id)
-            caps.add_caps(pdb_id=pdb_id, crosslink_type=crosslink_type)
+         
+        if temp_dir is None:
+            LOG.warning(f"No temporary directory provided for capping. Using current directory.")
+            temp_dir = Path.cwd()
             
-        LOG.debug("Caps added to models")
-        return caps
+        caps_dir = temp_dir / str(crosslink_type)
+        if not caps_dir.exists():
+            caps_dir.mkdir(parents=True, exist_ok=True)
+            LOG.debug(f"Created caps directory: {caps_dir}")
+            
+        original_dir = os.getcwd()
+        try:
+            os.chdir(caps_dir)
+            
+            caps = Caps(system=system)
+            
+            model_ids = list(system.get_models())
+            
+            for idx in model_ids:
+                try:
+                    pdb_id = int(float(idx))
+                    pdb_file = f"{pdb_id}.pdb"
+                    
+                    if not os.path.exists(pdb_file):
+                        LOG.warning(f"PDB file {pdb_file} not found in {caps_dir}.")
+                        continue
+                    caps.read_residues(pdb_id=pdb_id)
+                    caps.add_caps(pdb_id=pdb_id, crosslink_type=crosslink_type)
+                except Exception as e:
+                    LOG.error(f"Error processing caps for model {idx}: {str(e)}")
+            
+            return caps
+            
+        except Exception as e:
+            LOG.error(f"Error in capping operation: {str(e)}")
+            LOG.debug(f"Traceback: {traceback.format_exc()}")
+            raise
+        finally:
+            os.chdir(original_dir)
     
     def _matrixset_system(self, system: System) -> System:
         """Update system after cutting to specified length."""
-        LOG.debug(f"Setting system after cutting fibril")
         
         id_file = Path(f"{self.crystalcontacts_file}_opt_id.txt")
-        LOG.debug(f"Looking for ID file: {id_file}")
         
         if not id_file.exists():
             raise FileNotFoundError(f"Crystal contacts ID file not found: {id_file}")
@@ -173,21 +255,52 @@ class CrosslinkMixer:
         LOG.debug(f"System cut from {initial_models} to {len(system.get_models())} models")
         return system
 
-    async def mix(self, system: Optional[System], config: ColbuilderConfig) -> System:
+    async def mix(self, system: Optional[System], config: ColbuilderConfig, temp_dir: Optional[Path] = None) -> System:
         """Main method to mix different crosslink types."""
-        LOG.info("Starting mix method")
+        original_dir = os.getcwd()
+        
         try:
-            self.path_wd = Path(config.working_directory)
+            if not system:
+                system = System()
+
+            self.path_wd = temp_dir if temp_dir else Path(config.working_directory)
+            if not self.path_wd.exists():
+                self.path_wd.mkdir(parents=True, exist_ok=True)
+            
+            os.chdir(self.path_wd)
+            
             self.fibril_length = config.fibril_length
             self.contact_distance = config.contact_distance
             
-            # Set up mixing parameters first
-            mix_setup = config.ratio_mix
-            mix_pdb = dict(zip(mix_setup.keys(), config.files_mix))
+            if isinstance(config.ratio_mix, str):
+                ratio_dict = {}
+                for part in config.ratio_mix.split():
+                    if ':' in part:
+                        key, value = part.split(':')
+                        try:
+                            ratio_dict[key] = int(value)
+                        except ValueError:
+                            LOG.error(f"Invalid ratio value in {part}")
+                            ratio_dict[key] = 0
+                config.ratio_mix = ratio_dict
+                
+            if not config.ratio_mix or not isinstance(config.ratio_mix, dict):
+                LOG.error(f"Invalid ratio_mix format in config: {config.ratio_mix}")
+                raise ValueError(f"ratio_mix must be a dictionary, got {type(config.ratio_mix)}")
+            
+            LOG.debug(f"Mix setup: {Fore.MAGENTA}{config.ratio_mix} ('TypeA': %, 'TypeB': %){Style.RESET_ALL}")
+            
+            if not config.files_mix or len(config.files_mix) < len(config.ratio_mix):
+                LOG.error(f"Not enough files in files_mix: {config.files_mix}")
+                raise ValueError(f"files_mix must contain at least {len(config.ratio_mix)} files")
+            
+            mix_pdb = {}
+            for i, key in enumerate(config.ratio_mix.keys()):
+                if i < len(config.files_mix):
+                    mix_pdb[key] = config.files_mix[i]
             
             LOG.info(f'Step 1/2 Generating mix setup')
             
-            # Check if we need to initialize system
             if system.get_size() == 0:
                 first_pdb = str(config.files_mix[0])
                 if first_pdb.endswith('.pdb'):
@@ -199,7 +312,6 @@ class CrosslinkMixer:
                 
                 chimera = Chimera(config, str(self.path_wd / first_pdb))
                 
-                # Build initial system
                 system, crystalcontacts, connect = self._build_from_contactdistance(
                     self.path_wd,
                     first_pdb,
@@ -210,73 +322,113 @@ class CrosslinkMixer:
                     crystal
                 )
                 
-                # Write crystalcontacts file
                 LOG.debug(f'Writing {crystalcontacts.crystalcontacts_file}')
                 crystalcontacts.write_crystalcontacts(
                     system=system, 
                     crystalcontacts_file=crystalcontacts.crystalcontacts_file
                 )
                 
-                LOG.debug(f"Initial system built, proceeding with mixing")
             else:
                 LOG.debug("Using provided system")
             
             system_size = system.get_size()
-            connect_file = Path('connect_from_colbuilder')
             
-            LOG.debug(f"System size: {system_size}")
-            LOG.debug(f"Crystalcontacts file: {system.crystalcontacts.crystalcontacts_file}")
+            if hasattr(system, 'crystalcontacts') and system.crystalcontacts:
+                LOG.debug(f"Crystalcontacts file: {system.crystalcontacts.crystalcontacts_file}")
             
-            for key in list(mix_setup.keys()):
-                Crystal(pdb=str(mix_pdb[key])).translate_crystal(
-                    pdb=str(mix_pdb[key]),
-                    translate=[0, 0, 4000]
-                )
-                chimera = Chimera(config, str(self.path_wd / mix_pdb[key]))
+            for key in list(config.ratio_mix.keys()):
+                if key not in mix_pdb:
+                    LOG.warning(f"No PDB file mapped for type {key}, skipping")
+                    continue
                 
-                LOG.info(f' System {key}:')
-                LOG.info(f'     Generating system from {mix_pdb[key]} {Fore.BLUE}...{Style.RESET_ALL}')
+                pdb_file = mix_pdb[key]
+
+                pdb_path = Path(pdb_file)
+                if not pdb_path.exists():
+                    pdb_path = self.path_wd / pdb_file
+                    if not pdb_path.exists():
+                        LOG.error(f"PDB file not found: {pdb_file}")
+                        raise FileNotFoundError(f"PDB file not found: {pdb_file}")
+                
+                crystal = Crystal(pdb=str(pdb_path))
+                crystal.translate_crystal(pdb=str(pdb_path), translate=[0, 0, 4000])
+                
+                chimera = Chimera(config, str(pdb_path))
+                
+                LOG.info(f' - System {key}:')
+                LOG.info(f'     Generating system from {pdb_file}')
+
+                crystalcontacts_file = (
+                    system.crystalcontacts.crystalcontacts_file 
+                    if hasattr(system, 'crystalcontacts') and system.crystalcontacts 
+                    else self.crystalcontacts_file
+                )
+                
+                if not Path(crystalcontacts_file).exists() and not Path(f"{crystalcontacts_file}.txt").exists():
+                    LOG.error(f"Crystalcontacts file not found: {crystalcontacts_file}")
+                    raise FileNotFoundError(f"Crystalcontacts file not found: {crystalcontacts_file}")
+
+                fibril_length_nm = float(self.fibril_length) 
                 
                 chimera.matrixset(
-                    pdb=str(mix_pdb[key]),
-                    crystalcontacts=str(system.crystalcontacts.crystalcontacts_file),
+                    pdb=str(pdb_path),
+                    crystalcontacts=str(crystalcontacts_file),
                     system_size=system_size,
-                    fibril_length=self.fibril_length
+                    fibril_length=fibril_length_nm
                 )
                 
-                LOG.info(f'     Cutting system to {self.fibril_length} nm')
+                LOG.info(f'     Cutting system to {fibril_length_nm} nm')
                 system = self._matrixset_system(system)
+
+                type_dir = temp_dir / str(key)
+                type_dir.mkdir(parents=True, exist_ok=True)
+                
+                for model_id in system.get_models():
+                    model_id_int = int(float(model_id))
+                    source_pdb = Path(f"{model_id_int}.pdb")
+                    target_pdb = type_dir / f"{model_id_int}.pdb"
+                    
+                    if source_pdb.exists():
+                        try:
+                            shutil.copy2(source_pdb, target_pdb)
+                            LOG.debug(f"Copied model PDB file: {source_pdb} -> {target_pdb}")
+                        except Exception as e:
+                            LOG.error(f"Failed to copy model PDB file for model {model_id}: {str(e)}")
+                    else:
+                        LOG.warning(f"Transformed PDB file not found for model {model_id}: {source_pdb}")
                 
                 LOG.info(f'     Adding caps')
-                dir_path = self.path_wd / key
-                if dir_path.exists():
-                    shutil.rmtree(dir_path)
-                dir_path.mkdir(exist_ok=True)
-                self._cap_system(system, key)
+                self._cap_system(system, key, temp_dir)
             
             LOG.info(f'Step 2/2 Mixing systems')
-            mix_ = Mix(ratio_mix=mix_setup, system=system)
-            system = mix_.add_mix(system=system)
             
-            connect_file_path = Path('connect_from_colbuilder.txt')
+            mix_ = Mix(ratio_mix=config.ratio_mix, system=system)
+            system = mix_.add_mix(system=system)
+
+            type_counts = {}
+            for model_id in system.get_models():
+                model = system.get_model(model_id=model_id)
+                model_type = getattr(model, 'type', 'UNKNOWN')
+                type_counts[model_type] = type_counts.get(model_type, 0) + 1
+
+                if not hasattr(model, 'transformation') or model.transformation is None:
+                    LOG.warning(f"Model {model_id} has no transformation matrix after mixing")
+            
+            connect_file_path = self.path_wd / 'connect_from_colbuilder.txt'
             LOG.debug(f'Writing connect file {connect_file_path}')
             Connect(system=system).write_connect(system=system, connect_file=connect_file_path)
-        
-            pdb_out_path = Path(config.output) if config.output else Path(f'{config.output}.pdb')
-            system.write_pdb(pdb_out=pdb_out_path, fibril_length=self.fibril_length)
-        
+
+            temp_pdb = self.path_wd / (config.output if config.output else "collagen_fibril")
+            LOG.debug(f"Writing temporary output PDB to {temp_pdb}")
+            system.write_pdb(pdb_out=temp_pdb, fibril_length=self.fibril_length, temp_dir=temp_dir)
+            
             return system
             
         except Exception as e:
-            LOG.debug(f"debug: Exception in mix: {str(e)}")
-            LOG.debug(f"debug: Exception type: {type(e)}")
-            try:
-                os.chdir(self.path_wd)
-            except:
-                pass
-            LOG.debug("Full state at error:")
-            LOG.debug(f"Has system: {system is not None}")
-            if system:
-                LOG.debug(f"System size: {system.get_size()}")
-                LOG.debug(f"Has crystalcontacts: {hasattr(system, 'crystalcontacts')}")
+            LOG.error(f"Exception in mix: {str(e)}")
+            LOG.error(f"Exception type: {type(e)}")
+            LOG.debug(f"Traceback: {traceback.format_exc()}")
             raise
+            
+        finally:
+            os.chdir(original_dir)
