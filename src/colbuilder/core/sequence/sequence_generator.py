@@ -392,12 +392,14 @@ class SequenceGenerator:
         try:
             n_suffix = f"N_{self.config.n_term_type}" if self.config.n_term_type else "N_NONE"
             c_suffix = f"C_{self.config.c_term_type}" if self.config.c_term_type else "C_NONE"
-            output_pdb_crosslinked = f"{file_prefix}_{n_suffix}_{c_suffix}_temp.pdb"
+            h_suffix = f"H_{self.config.h_term_type}" if self.config.h_term_type else "H_NONE"
+            output_pdb_crosslinked = f"{file_prefix}_{n_suffix}_{c_suffix}_{h_suffix}_temp.pdb"
             
             LOG.info(f"Step 3/{self.steps} Applying crosslinks to structure")
             
             n_crosslinks = [c for c in self._crosslinks if c.terminal_type == 'N']
             c_crosslinks = [c for c in self._crosslinks if c.terminal_type == 'C']
+            h_crosslinks = [c for c in self._crosslinks if c.terminal_type == 'H']
             
             def get_crosslink_data(crosslink):
                 data = {
@@ -418,15 +420,18 @@ class SequenceGenerator:
             
             n_crosslink_data = None if not n_crosslinks else get_crosslink_data(n_crosslinks[0])
             c_crosslink_data = None if not c_crosslinks else get_crosslink_data(c_crosslinks[0])
+            h_crosslink_data = None if not h_crosslinks else get_crosslink_data(h_crosslinks[0])
             
             LOG.debug(f"N-terminal crosslink data: {n_crosslink_data}")
             LOG.debug(f"C-terminal crosslink data: {c_crosslink_data}")
+            LOG.debug(f"H-terminal crosslink data: {h_crosslink_data}")
             
             result_path = Path(apply_crosslinks(
                 str(input_pdb),
                 output_pdb_crosslinked,
                 n_crosslink_data,
                 c_crosslink_data,
+                h_crosslink_data,
                 self.config
             ))
             
@@ -447,7 +452,8 @@ class SequenceGenerator:
                 error_code="SEQ_ERR_002",
                 context={
                     "n_crosslinks": str(n_crosslinks) if 'n_crosslinks' in locals() else None,
-                    "c_crosslinks": str(c_crosslinks) if 'c_crosslinks' in locals() else None
+                    "c_crosslinks": str(c_crosslinks) if 'c_crosslinks' in locals() else None,
+                    "h_crosslinks": str(h_crosslinks) if 'h_crosslinks' in locals() else None
                 }
             )
         except SequenceGenerationError:
@@ -462,7 +468,8 @@ class SequenceGenerator:
                     "input_pdb": str(input_pdb),
                     "file_prefix": file_prefix,
                     "n_terminal_type": self.config.n_term_type,
-                    "c_terminal_type": self.config.c_term_type
+                    "c_terminal_type": self.config.c_term_type,
+                    "h_terminal_type": self.config.h_term_type
                 }
             )
 
@@ -515,6 +522,19 @@ class SequenceGenerator:
                 if c_crosslinks:
                     self._crosslinks.extend(c_crosslinks)
                     LOG.debug(f"Loaded {len(c_crosslinks)} C-terminal crosslinks")
+
+            if self.config.h_term_type:
+                LOG.debug(f"Loading H-terminal crosslinks of type: {self.config.h_term_type}")
+                h_crosslinks = extract_crosslinks_from_dataframe(
+                    species_crosslinks,
+                    "H",
+                    self.config.h_term_type,
+                    self.config.h_term_combination
+                )
+                if h_crosslinks:
+                    self._crosslinks.extend(h_crosslinks)
+                    LOG.debug(f"Loaded {len(h_crosslinks)} H-terminal crosslinks")
+                
                 
             if not self._crosslinks:
                 LOG.warning("No crosslinks were loaded despite crosslinks being enabled")
@@ -530,7 +550,8 @@ class SequenceGenerator:
                     "crosslinks_file": str(self.config.CROSSLINKS_FILE),
                     "species": self.config.species,
                     "n_term_type": self.config.n_term_type,
-                    "c_term_type": self.config.c_term_type
+                    "c_term_type": self.config.c_term_type,
+                    "h_term_type": self.config.h_term_type
                 }
             )
             
@@ -540,7 +561,8 @@ class SequenceGenerator:
             if self.config.crosslink and self._crosslinks:
                 n_suffix = f"N_{self.config.n_term_type}" if self.config.n_term_type else "N_NONE"
                 c_suffix = f"C_{self.config.c_term_type}" if self.config.c_term_type else "C_NONE"
-                file_prefix = f"{file_prefix}_{n_suffix}_{c_suffix}"
+                h_suffix = f"H_{self.config.h_term_type}" if self.config.h_term_type else "H_NONE"
+                file_prefix = f"{file_prefix}_{n_suffix}_{c_suffix}_{h_suffix}"
                 
             dis_output_name = f"{file_prefix}_disoriented.pdb"
             dis_output_path = Path.cwd() / dis_output_name

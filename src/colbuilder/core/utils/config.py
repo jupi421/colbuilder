@@ -145,8 +145,10 @@ class ColbuilderConfig(BaseModel):
     crosslink: bool = Field(default=False, description="Apply crosslinks")
     n_term_type: Optional[str] = Field(None, description="N-terminal type")
     c_term_type: Optional[str] = Field(None, description="C-terminal type")
+    h_term_type: Optional[str] = Field(None, description="H-terminal type")
     n_term_combination: Optional[str] = Field(None, description="N-terminal combination")
     c_term_combination: Optional[str] = Field(None, description="C-terminal combination")
+    h_term_combination: Optional[str] = Field(None, description="H-terminal combination")
 
     # Fibril geometry generation mode
     geometry_generator: bool = Field(default=False, description="Run geometry generation")

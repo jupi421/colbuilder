@@ -254,6 +254,7 @@ class CrosslinkOptimizer:
                 
                 LOG.debug("Current distance: {:2f} Å".format(total_distance))
             
+            print(f"total distance {total_distance}, {CRITICAL_DISTANCE_THRESHOLD}")
             if total_distance > CRITICAL_DISTANCE_THRESHOLD:
                 raise SequenceGenerationError(
                     "Crosslinks optimization failed",

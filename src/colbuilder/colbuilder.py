@@ -425,7 +425,8 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
             f"    Mix Files: {cfg.files_mix}" if cfg.mix_bool else None,
             f"    Replace Ratio: {cfg.ratio_replace}%" if cfg.replace_bool else None,
             f"    N-terminal: {cfg.n_term_type}, {cfg.n_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else None,
-            f"    C-terminal: {cfg.c_term_type}, {cfg.c_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else None
+            f"    C-terminal: {cfg.c_term_type}, {cfg.c_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else None,
+            f"    H-terminal: {cfg.h_term_type}, {cfg.h_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else None
         ],
         "Operation Modes": lambda: [
             "Sequence Generation \u2713" if cfg.sequence_generator else None,

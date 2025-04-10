@@ -122,7 +122,7 @@ def parse_crosslink_info(crosslink_row: Optional[pd.Series]) -> List[Tuple[str, 
     return parsed_crosslinks
 
 @timeit
-def apply_crosslinks(input_pdb: str, output_pdb: str, n_crosslink: Optional[pd.Series], c_crosslink: Optional[pd.Series], cfg: ColbuilderConfig) -> str:
+def apply_crosslinks(input_pdb: str, output_pdb: str, n_crosslink: Optional[pd.Series], c_crosslink: Optional[pd.Series], h_crosslink: Optional[pd.Series], cfg: ColbuilderConfig) -> str:
     """
     Apply crosslinks to a PDB file using MODELLER.
 
@@ -131,6 +131,7 @@ def apply_crosslinks(input_pdb: str, output_pdb: str, n_crosslink: Optional[pd.S
         output_pdb (str): Path to output PDB file.
         n_crosslink (Optional[pd.Series]): N-terminal crosslink information.
         c_crosslink (Optional[pd.Series]): C-terminal crosslink information.
+        h_crosslink (Optional[pd.Series]): H-terminal crosslink information.
         cfg (ColbuilderConfig): Configuration object.
 
     Returns:
@@ -139,13 +140,14 @@ def apply_crosslinks(input_pdb: str, output_pdb: str, n_crosslink: Optional[pd.S
     Raises:
         Exception: If an error occurs during crosslink application.
     """
-    if n_crosslink is None and c_crosslink is None:
+    if n_crosslink is None and c_crosslink and h_crosslink is None:
         LOG.warning("No crosslinks provided. Skipping crosslink application.")
         return input_pdb
     
     try:
         LOG.debug(f"N-terminal crosslink: {n_crosslink}")
         LOG.debug(f"C-terminal crosslink: {c_crosslink}")
+        LOG.debug(f"H-terminal crosslink: {h_crosslink}")
         
         env = Environ(rand_seed=-8123, restyp_lib_file=str(cfg.RESTYP_LIB_PATH), copy=None)
         env.io.atom_files_directory = ["."]
@@ -156,7 +158,8 @@ def apply_crosslinks(input_pdb: str, output_pdb: str, n_crosslink: Optional[pd.S
         def patches(mdl) -> None:
             mdl.rename_segments(segment_ids=["A", "B", "C"], renumber_residues=[1, 1, 1])
             
-            all_patches = parse_crosslink_info(n_crosslink) + parse_crosslink_info(c_crosslink)
+            all_patches = parse_crosslink_info(n_crosslink) + parse_crosslink_info(c_crosslink) + parse_crosslink_info(h_crosslink) 
+
             LOG.debug(f"All patches to be applied: {all_patches}")
 
             for patch_type, chain_id, resnum in all_patches:
@@ -167,7 +170,8 @@ def apply_crosslinks(input_pdb: str, output_pdb: str, n_crosslink: Optional[pd.S
         mdl = complete_pdb(env, input_pdb, special_patches=patches)
         mdl.write(file=output_pdb)
 
-        all_patches = parse_crosslink_info(n_crosslink) + parse_crosslink_info(c_crosslink)
+        all_patches = parse_crosslink_info(n_crosslink) + parse_crosslink_info(c_crosslink) + parse_crosslink_info(h_crosslink) 
+
         for patch_type, chain_id, resnum in all_patches:
             rename_residue_in_pdb(output_pdb, chain_id, resnum, patch_type)
         

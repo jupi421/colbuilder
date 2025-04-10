@@ -128,8 +128,8 @@ class CrosslinkPair:
     terminal_type: str = field(default="N")
     
     def __post_init__(self):
-        if self.terminal_type not in {'N', 'C'}:
-            raise ValueError(f"Terminal type must be N or C, got {self.terminal_type}")
+        if self.terminal_type not in {'N', 'C', 'H'}:
+            raise ValueError(f"Terminal type must be N, C or H, got {self.terminal_type}")
             
     @property
     def is_trivalent(self) -> bool:

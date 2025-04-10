@@ -1062,9 +1062,12 @@ def optimize_structure(initial_pdb: str,
    save_pdb(structures['copy2'], 'optimized_copy2.pdb')
    
    total_distance = 0
+   foo = 0
    for crosslink in crosslinks:
         dist1, dist2 = get_distances(structures, crosslink)
         total_distance += dist1
+        print(f"{total_distance}, {dist1}, {iteration}")
+        foo += 1
         if crosslink['R3']['type'] == "NONE":
             LOG.debug(f"Final distance: {crosslink['R1']['type']}-{crosslink['R2']['type']} = {dist1:.2f}")
         else:
