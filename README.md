@@ -121,7 +121,7 @@ To verify your installation and run a basic example:
 
 2. **Create a basic configuration file** (save as `config.yaml`):
    ```yaml
-   # Basic human collagen microfibril configuration
+   # Basic human collagen microfibril configuration   
    species: "homo_sapiens"
    sequence_generator: true
    geometry_generator: true
@@ -161,7 +161,6 @@ sequence_generator: true     # Generate sequence from species
 geometry_generator: true     # Generate fibril geometry
 topology_generator: false    # Generate topology files
 debug: false                 # Enable debug mode
-working_directory: "./"      # Working directory for inputs/outputs
 
 # Input Configuration
 species: "homo_sapiens"      # Species for collagen sequence
@@ -192,7 +191,7 @@ crystalcontacts_optimize: false  # Optimize crystal contacts during generation
 mix_bool: false              # Enable mixing of different crosslink types
 ratio_mix: "A:70 B:30"       # Format: "Type:percentage Type:percentage"
 files_mix:                   # Required if mix_bool is true
- - "collagen-molecule-crosslinkA.pdb" # PDB file of collagen molecule with type A crosslinks
+ - "collagen-molecule-crosslinkA.pdb" # PDB file of collagen molecule with type A crosslinks (created by only setting squence and crosslinks = true (please look at the examples))
  - "collagen-molecule-crosslinkB.pdb" # PDB file of collagen molecule with type B crosslinks
 
 # Replacement Options (for fewer crosslinks)
@@ -244,7 +243,7 @@ contact_distance: 15
 colbuilder --config_file config_bovine_crosslinked.yaml
 ```
 
-#### Creating a Mixed Crosslinked (80% Divalent + 20% Trivalent) Human Collagen Microfibril
+#### Creating a Mixed Crosslinked (80% Divalent + 20% Trivalent) Human Collagen Microfibril from Collagen Molecules
 
 ```yaml
 # config_mixed_crosslinks.yaml
