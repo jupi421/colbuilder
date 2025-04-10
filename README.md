@@ -121,8 +121,7 @@ To verify your installation and run a basic example:
 
 2. **Create a basic configuration file** (save as `config.yaml`):
    ```yaml
-   # Basic human collagen microfibril configuration
-   working_directory: "./"     
+   # Basic human collagen microfibril configuration   
    species: "homo_sapiens"
    sequence_generator: true
    geometry_generator: true
@@ -162,7 +161,6 @@ sequence_generator: true     # Generate sequence from species
 geometry_generator: true     # Generate fibril geometry
 topology_generator: false    # Generate topology files
 debug: false                 # Enable debug mode
-working_directory: "./"      # Working directory for inputs/outputs
 
 # Input Configuration
 species: "homo_sapiens"      # Species for collagen sequence
@@ -213,7 +211,6 @@ For a complete list of configuration options, see the [detailed documentation](h
 
 ```yaml
 # config_human_basic.yaml
-working_directory: "./"      
 species: "homo_sapiens"
 sequence_generator: true
 geometry_generator: true
@@ -230,7 +227,6 @@ colbuilder --config_file config_human_basic.yaml
 
 ```yaml
 # config_bovine_crosslinked.yaml
-working_directory: "./"  
 species: "bos_taurus"
 sequence_generator: true
 geometry_generator: true
