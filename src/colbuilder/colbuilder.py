@@ -443,8 +443,6 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
 
     if cfg.config_file:
         LOG.info(f"Config File: {cfg.config_file}") 
-    # if cfg.pdb_file and not (cfg.mix_bool or cfg.replace_bool):
-    #     LOG.info(f"Input File: {cfg.pdb_file}")
     if cfg.pdb_file and (cfg.geometry_generator):
         LOG.info(f"Input File: {cfg.pdb_file}")
     LOG.info(f"Output File: {cfg.output}.pdb")
@@ -491,6 +489,8 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
               help='Generate topology files')
 @click.option('-ff', '--force_field',
               help='Specify force field to be used, e.g. -ff amber99 OR -ff martini3')
+@click.option('-top_debug', '--topology_debug', is_flag=True,
+              help='Keep intermediate topology files for debugging')
 @click.option('--debug', is_flag=True, help='Enable debug logging')
 @click.option('--version', is_flag=True, callback=print_version,
               expose_value=False, is_eager=True,

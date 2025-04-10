@@ -12,11 +12,11 @@ from typing import Any, Optional, Set, List
 import shutil
 from colorama import init, Fore, Style
 
+from colbuilder.core.utils.files import FileManager, managed_resources
 from colbuilder.core.geometry.system import System
 from colbuilder.core.topology.amber import Amber, build_amber99
 from colbuilder.core.topology.martini import Martini, build_martini3
 from colbuilder.core.utils.dec import timeit
-from colbuilder.core.utils.files import FileManager, managed_resources
 from colbuilder.core.utils.config import ColbuilderConfig
 from colbuilder.core.utils.exceptions import (
     TopologyGenerationError
@@ -27,12 +27,18 @@ LOG = setup_logger(__name__)
 
 REQUIRED_FF_FILES: List[str] = ['residuetypes.dat', 'specbond.dat']
 TEMP_FILES_TO_CLEAN: Set[str] = {
-    '*.itp', '*.CG.pdb', '*.merge.pdb', 'create_goVirt.py',
-    'tmp.pdb', '*.top', 'map.*', 'contactmap', 'amber99*', '*.dat'
+    'col_*.*_go-*.itp', 
+    'col_*.*.itp', 
+    'col_[0-9]*_go-sites.itp',
+    'col_[0-9]*_go-table.itp',
+    'col_[0-9]*_go-harm.itp',
+    'go-table.itp',
+    'col_go-sites.itp',
+    '*.CG.pdb',
+    'D'
 }
 
-
-def cleanup_temporary_files(ff_name: str, temp_patterns: Set[str]) -> None:
+def cleanup_temporary_files(ff_name: str, temp_patterns: Set[str], search_dirs: Optional[List[Path]] = None) -> None:
     """
     Remove temporary files and directories created during topology generation.
     
@@ -42,32 +48,44 @@ def cleanup_temporary_files(ff_name: str, temp_patterns: Set[str]) -> None:
         Force field directory name to be cleaned up
     temp_patterns : Set[str]
         Patterns matching temporary files and directories to remove
+    search_dirs : Optional[List[Path]]
+        List of specific directories to search in. If None, searches in current directory
     """
     try:
-        for pattern in temp_patterns:
-            if "*" not in pattern:
-                path_obj = Path(pattern)
-                if path_obj.exists():
-                    if path_obj.is_dir():
-                        shutil.rmtree(path_obj)
-                    else:
-                        os.remove(path_obj)
-            else:
-                for matched_path in Path().glob(pattern):
-                    if matched_path.is_dir():
-                        shutil.rmtree(matched_path)
-                    else:
-                        os.remove(matched_path)
+        # Use current directory if no search dirs specified
+        dirs_to_search = search_dirs if search_dirs else [Path()]
+        
+        for search_dir in dirs_to_search:
+            if not search_dir.exists():
+                LOG.warning(f"Search directory does not exist: {search_dir}")
+                continue
                 
-        copied_ff_dir = Path(ff_name)
-        if copied_ff_dir.exists():
-            shutil.rmtree(copied_ff_dir)
+            for pattern in temp_patterns:
+                if "*" not in pattern:
+                    path_obj = search_dir / pattern
+                    if path_obj.exists():
+                        if path_obj.is_dir():
+                            shutil.rmtree(path_obj)
+                        else:
+                            os.remove(path_obj)
+                else:
+                    for matched_path in search_dir.glob(pattern):
+                        if matched_path.is_dir():
+                            shutil.rmtree(matched_path)
+                        else:
+                            os.remove(matched_path)
+        
+        # Handle force field directory cleanup
+        for search_dir in dirs_to_search:
+            copied_ff_dir = search_dir / ff_name
+            if copied_ff_dir.exists():
+                shutil.rmtree(copied_ff_dir)
             
     except Exception as e:
         LOG.warning(f"Error during cleanup: {str(e)}")
 
 
-def setup_topology_directory(system_name: str) -> Path:
+def setup_topology_directory(system_name: str, ff_name: str) -> Path:
     """
     Create and prepare a directory for topology file generation.
     
@@ -81,7 +99,7 @@ def setup_topology_directory(system_name: str) -> Path:
     Path
         Path to the created topology directory
     """
-    topology_dir = Path(f"{system_name}_topology_files")
+    topology_dir = Path(f"{system_name}_{ff_name}_topology_files")
     topology_dir.mkdir(exist_ok=True)
     return topology_dir
 
@@ -190,7 +208,7 @@ async def build_topology(system: System, config: ColbuilderConfig, file_manager:
             for top_file in Path().glob(f"collagen_fibril_*.top"):
                 file_manager.copy_to_directory(top_file, dest_dir=output_topology_dir)
                 
-            for itp_file in Path().glob("*.itp"):
+            for itp_file in Path().glob("col_[0-9]*.itp"):
                 file_manager.copy_to_directory(itp_file, dest_dir=output_topology_dir)
                     
             LOG.info(f"{Fore.BLUE}Topology files written at: {output_topology_dir}{Style.RESET_ALL}")
@@ -199,8 +217,9 @@ async def build_topology(system: System, config: ColbuilderConfig, file_manager:
             
         finally:
             os.chdir(original_dir)
-            if not config.debug:
-                cleanup_temporary_files(config.force_field, TEMP_FILES_TO_CLEAN)
+            search_dirs = [topology_dir, output_topology_dir]
+            if not config.topology_debug:
+                cleanup_temporary_files(config.force_field, TEMP_FILES_TO_CLEAN, search_dirs=search_dirs)
             
     except TopologyGenerationError:
         raise

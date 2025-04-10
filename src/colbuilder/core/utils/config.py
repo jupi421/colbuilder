@@ -135,7 +135,7 @@ class ColbuilderConfig(BaseModel):
     # Operation mode 
     mode: Optional[OperationMode] = Field(None, description="Operation mode")
     debug: bool = Field(default=False, description="Enable debug logging")
-    working_directory: Path = Field(default=Path.cwd(), description="Working directory")
+    working_directory: Optional[Path] = Field(default=Path.cwd(), description="Working directory")
     config_file: Optional[Path] = Field(None, description="YAML configuration file")
     
     # PDB file generation mode (from sequence)
@@ -184,6 +184,7 @@ class ColbuilderConfig(BaseModel):
     # Topology generation mode
     topology_generator: bool = Field(default=False, description="Generate topology files")
     force_field: Optional[str] = Field(None, description="Force field to be used")
+    topology_debug: Optional[bool] = Field(default=False, description="Save all intermediate files used in building topology")
     martinize2_command: Optional[str] = Field(None, description="Detected Martinize2 command")
     martinize2_env: Optional[str] = Field(None, description="Detected Martinize2 environment")
     use_conda_run: bool = Field(default=False, description="Whether to use conda run for Martinize2")

@@ -679,7 +679,7 @@ async def build_martini3(system: System, config: ColbuilderConfig, file_manager:
                 from shutil import which
                 martinize2_cmd = which("martinize2")
                 if martinize2_cmd:
-                    LOG.info(f"Found Martinize2 at: {martinize2_cmd}")
+                    LOG.debug(f"Found Martinize2 at: {martinize2_cmd}")
                     config.martinize2_command = "martinize2"
                 else:
                     raise TopologyGenerationError(
@@ -708,7 +708,7 @@ async def build_martini3(system: System, config: ColbuilderConfig, file_manager:
             type_dir.mkdir(exist_ok=True, parents=True)
             
             LOG.info("Creating model type directory and proceeding with topology generation")
-            LOG.info(f"Model type directory: {type_dir}")
+            LOG.info(f"     Model type directory: {type_dir}")
         
         models_list = [model_id for model_id in system.get_models()]
         for model_id in tqdm(models_list, desc="Building topology", unit="%"):
@@ -818,7 +818,7 @@ async def build_martini3(system: System, config: ColbuilderConfig, file_manager:
         # Step 4: Creating system PDB and topology
         LOG.info(f'Step 4/{steps} Creating system PDB and topology')
         
-        output_topology_dir = file_manager.ensure_dir(f"{config.species}_topology_files")
+        output_topology_dir = file_manager.ensure_dir(f"{config.species}_{ff}_topology_files")
         
         try:
             system_pdb = martini.get_system_pdb(size=cnt_model)
@@ -845,17 +845,26 @@ async def build_martini3(system: System, config: ColbuilderConfig, file_manager:
                 dest_path = file_manager.copy_to_directory(topology_file_path, dest_dir=output_topology_dir)
                 LOG.debug(f"Copied topology file to: {dest_path}")
             
-            for itp_file in Path().glob("col_*.itp"):
+            for itp_file in Path().glob("col_[0-9]*.itp"):
                 dest_path = file_manager.copy_to_directory(itp_file, dest_dir=output_topology_dir)
                 LOG.debug(f"Copied ITP file to: {dest_path}")
             
-            for excl_file in Path().glob("col_*_go-excl.itp"):
+            for excl_file in Path().glob("col_[0-9]*_go-excl.itp"):
                 dest_path = file_manager.copy_to_directory(excl_file, dest_dir=output_topology_dir)
                 LOG.debug(f"Copied GO-exclusion file to: {dest_path}")
             
             for go_site_file in Path().glob("*go-sites.itp"):
                 dest_path = file_manager.copy_to_directory(go_site_file, dest_dir=output_topology_dir)
                 LOG.debug(f"Copied GO-sites file to: {dest_path}")
+                
+            source_martini_files = list(source_ff_dir.glob("martini_v3.0.0*"))
+            for source_file in source_martini_files:
+                dest_path = file_manager.copy_to_directory(source_file, dest_dir=output_topology_dir)
+                LOG.debug(f"Copied Martini force field file to: {dest_path}")
+
+            if not source_martini_files:
+                LOG.warning("No Martini force field files found in source directory")
+
                 
         except Exception as e:
             raise TopologyGenerationError(

@@ -665,14 +665,11 @@ class FileManager:
         Returns:
             Path to the file if found, None otherwise
         """
-        # Convert string to Path if necessary
         filepath = Path(filename_or_path)
         
-        # First, check if it's an absolute path
         if filepath.is_absolute() and filepath.exists():
             return filepath
             
-        # Initialize standard search paths if none provided
         if search_paths is None:
             search_paths = []
             
@@ -691,21 +688,17 @@ class FileManager:
         # Filter out None values
         search_paths = [p for p in search_paths if p is not None]
         
-        # Try finding the file in each search path
         for base_path in search_paths:
-            # Try with the filepath as provided
             full_path = base_path / filepath
             if full_path.exists():
                 return full_path
                 
-            # If filepath has multiple parts, also try with just the filename
             if len(filepath.parts) > 1:
                 filename_only = filepath.name
                 name_only_path = base_path / filename_only
                 if name_only_path.exists():
                     return name_only_path
                 
-        # File not found
         return None
 
     def copy_to_directory(self, source: Path, dest_dir: Optional[Path] = None, dest_name: Optional[str] = None) -> Path:
@@ -756,13 +749,10 @@ class FileManager:
             FileNotFoundError: If the directory cannot be created or accessed.
         """
         try:
-            # Use the provided parent_dir or geometry_dir as the base
             base_dir = parent_dir or self.geometry_dir
-            
-            # Define the type directory
+
             type_dir = base_dir / model_type
 
-            # Create the directory if it doesn't exist
             type_dir.mkdir(parents=True, exist_ok=True)
             self.temp_dirs.add(type_dir)
             LOG.info(f"Using type directory: {type_dir}")
@@ -784,5 +774,4 @@ class FileManager:
             Path to the created temporary directory
         """
         temp_dir = self.get_temp_path(dirname, create_dir=True)
-        LOG.debug(f"Created temporary directory: {temp_dir}")
         return temp_dir
