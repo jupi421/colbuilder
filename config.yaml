@@ -1,9 +1,9 @@
 # Operation Mode
 mode: null
 config_file: null
-sequence_generator: false
-geometry_generator: true
-topology_generator: true
+sequence_generator: true
+geometry_generator: false
+topology_generator: false
 debug: false
 working_directory: "./"
 
@@ -48,4 +48,4 @@ replace_file: homo_sapiens.pdb   # "rattus_norvegicus.pdb"   # Optional: Path to
 
 # Topology Options
 force_field: "martini3"  # Options: "amber99", "martini3"
-topology_debug: true     # Set to true to save all intermediate files for topology generation
+topology_debug: false     # Set to true to save all intermediate files for topology generation

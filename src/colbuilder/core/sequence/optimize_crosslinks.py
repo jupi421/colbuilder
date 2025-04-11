@@ -1028,6 +1028,9 @@ def optimize_structure(initial_pdb: str,
        'copy2': load_pdb(copy2_pdb)
    }
    
+   save_pdb(structures['copy1'], 'initial_copy1.pdb') 
+   save_pdb(structures['copy2'], 'initial_copy2.pdb')
+
    crosslinks = select_best_matching_crosslinks(structures, crosslink_info)
    
    master_tracker = TransformationTracker()
