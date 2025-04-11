@@ -29,7 +29,7 @@
   - [Example Workflows](#example-workflows)
     - [Creating a Basic Human Collagen Microfibril](#creating-a-basic-human-collagen-microfibril)
     - [Generating a Crosslinked Bovine Microfibril](#generating-a-crosslinked-bovine-microfibril)
-    - [Creating a Mixed Crosslinked (80% Divalent + 20% Trivalent) Human Collagen Microfibril](#creating-a-mixed-crosslinked-80-divalent--20-trivalent-human-collagen-microfibril)
+    - [Creating a Mixed Crosslinked (80% Divalent + 20% Trivalent) Human Collagen Microfibril from Collagen Molecules](#creating-a-mixed-crosslinked-80-divalent--20-trivalent-human-collagen-microfibril-from-collagen-molecules)
     - [Generating a Coarse-Grained Topology File for MD Simulation](#generating-a-coarse-grained-topology-file-for-md-simulation)
 - [📚 Documentation](#-documentation)
 - [🤝 Contributing](#-contributing)
@@ -90,7 +90,7 @@ conda install -c conda-forge libnetcdf==4.7.3
 
 #### muscle (Multiple Sequence Alignment)
 ```bash
-conda install muscle
+conda install bioconda::muscle
 ```
 
 #### UCSF Chimera
