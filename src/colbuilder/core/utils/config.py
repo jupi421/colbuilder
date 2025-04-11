@@ -245,7 +245,8 @@ class ColbuilderConfig(BaseModel):
             data['working_directory'] = Path.cwd().resolve()
             
         super().__init__(**data)
-        self.ratio_mix = self._convert_ratio_mix(self.ratio_mix)
+        if self.mix_bool and self.ratio_mix is not None:
+            self.ratio_mix = self._convert_ratio_mix(self.ratio_mix)
         self.solution_space = self._convert_to_tuple(self.solution_space)
         self.files_mix = tuple(self.files_mix) if self.files_mix else None
         self.set_mode()
