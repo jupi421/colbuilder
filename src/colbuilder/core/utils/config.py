@@ -170,9 +170,12 @@ class ColbuilderConfig(BaseModel):
    
     # Mix crosslinks mode
     mix_bool: bool = Field(default=False, description="Generate a mixed crosslinked microfibril")
-    ratio_mix: Union[str, Dict[str, int]] = Field(default={}, description="Ratio mix for crosslinks")
-    files_mix: Union[List[Path], Tuple[Path, ...]] = Field(
-        default=(),
+    ratio_mix: Optional[Union[str, Dict[str, int]]] = Field(
+        default=None,
+        description="Ratio mix for crosslinks"
+    )
+    files_mix: Optional[Union[List[Path], Tuple[Path, ...]]] = Field(
+        default=None,
         description="PDB files with different crosslink types"
     )
     
@@ -244,7 +247,7 @@ class ColbuilderConfig(BaseModel):
         super().__init__(**data)
         self.ratio_mix = self._convert_ratio_mix(self.ratio_mix)
         self.solution_space = self._convert_to_tuple(self.solution_space)
-        self.files_mix = tuple(self.files_mix)
+        self.files_mix = tuple(self.files_mix) if self.files_mix else None
         self.set_mode()
     
     def get_project_data_path(self, relative_path: str) -> Path:
@@ -412,7 +415,7 @@ class ColbuilderConfig(BaseModel):
     @field_validator('files_mix', mode='before')
     def validate_files_mix(cls, value):
         """Validate files mix format."""
-        return tuple(value)
+        return tuple(value) if value else None
 
     @property
     def ratio_mix(self) -> Dict[str, int]:
@@ -540,6 +543,16 @@ class ColbuilderConfig(BaseModel):
     def validate_mix_config(cls, values):
         """Validate mixing configuration including fibril_length."""
         if values.mix_bool:
+            if values.ratio_mix is None:
+                raise ConfigurationError(
+                    "ratio_mix is required when mix_bool is True",
+                    error_code="CFG_ERR_004"
+                )
+            if not values.files_mix:
+                raise ConfigurationError(
+                    "files_mix is required when mix_bool is True",
+                    error_code="CFG_ERR_004"
+                )
             if values.fibril_length is None:
                 values.fibril_length = values.get('fibril_length', 40.0)  # Default to 40 for mixing
             LOG.debug(f"Validated fibril_length for mixing: {values.fibril_length}")
