@@ -45,7 +45,8 @@ TRANSLATIONS = [
     # (-2, 0, -2),  # D2 =For strand 3 (pink)
     # (-1, 0, -1),  # D1 = For strand 4 (purple)
     (0, 0, 0),      # D0 = For strand 5 (orange) - reference position
-    (-5, 0, -4),    # D5 = For strand 1 (blue) - bottom (5-1 interactions)
+    (-2, 0, -1),  # D1 = For strand 4 (purple)
+    #(-5, 0, -4),    # D5 = For strand 1 (blue) - bottom (5-1 interactions)
 ]
 
 input_pdb = os.environ.get('INPUT_PDB')

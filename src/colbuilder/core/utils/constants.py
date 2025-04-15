@@ -48,7 +48,7 @@ from typing import Final
 MAX_OPTIMIZATION_ATTEMPTS: Final = 3
 MAX_TRIVALENT_DISTANCE: Final = 7.0
 MAX_DIVALENT_DISTANCE: Final = 5.0
-CRITICAL_DISTANCE_THRESHOLD: Final = 9.0
+CRITICAL_DISTANCE_THRESHOLD: Final = 15 #9.0
 
 # File operation constants
 TEMP_FILE_SUFFIX: Final = "_temp"
