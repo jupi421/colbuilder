@@ -537,7 +537,11 @@ class SequenceGenerator:
     async def _finalize_output(self, input_pdb: Path, file_prefix: str) -> Path:
         """Finalize output files and perform crosslink optimization if needed."""
         try:
-            if self.config.crosslink and self._crosslinks:
+            if not self.config.crosslink:
+                n_suffix = f"N_NONE"
+                c_suffix = f"C_NONE"
+                file_prefix = f"{file_prefix}_{n_suffix}_{c_suffix}"
+            elif self.config.crosslink and self._crosslinks:
                 n_suffix = f"N_{self.config.n_term_type}" if self.config.n_term_type else "N_NONE"
                 c_suffix = f"C_{self.config.c_term_type}" if self.config.c_term_type else "C_NONE"
                 file_prefix = f"{file_prefix}_{n_suffix}_{c_suffix}"
@@ -573,7 +577,7 @@ class SequenceGenerator:
                 })
                 
             else:
-                LOG.info("No optimization needed, preparing final output")
+                LOG.info("No crosslinks optimization needed, preparing final output...")
                 shutil.copy2(dis_output_path, final_output_path)
                 update_pdb_header(final_output_path, str(self.config.pdb_first_line))
             

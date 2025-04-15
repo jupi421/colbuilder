@@ -55,6 +55,9 @@ class Chimera(object):
         
         pdb_full_path = os.path.abspath(pdb)
         script_path = os.path.join(self.chimera_dir, 'matrixget.py')
+
+        if crystalcontacts.endswith('.txt'):
+            crystalcontacts = crystalcontacts[:-4]
         
         env = os.environ.copy()
         env['PDB_FILE'] = pdb_full_path
@@ -85,10 +88,14 @@ class Chimera(object):
         
         pdb_full_path = os.path.abspath(pdb)
         script_path = os.path.join(self.chimera_dir, 'matrixset.py')
+        
+        crystalcontacts_str = str(crystalcontacts)
+        if crystalcontacts_str.endswith('.txt'):
+            crystalcontacts_str = crystalcontacts_str[:-4]
 
         env = os.environ.copy()
         env['PDB_FILE'] = pdb_full_path
-        env['CRYSTALCONTACTS_FILE'] = crystalcontacts
+        env['CRYSTALCONTACTS_FILE'] = crystalcontacts_str
         env['SYSTEM_SIZE'] = str(system_size)
         env['FIBRIL_LENGTH'] = str(fibril_length)
 
@@ -110,7 +117,7 @@ class Chimera(object):
             LOG.error(f"Chimera stderr: {result.stderr.decode()}")
             raise RuntimeError(f"Chimera command failed: {result.stderr.decode()}")
 
-        expected_file = f"{crystalcontacts}_id.txt"
+        expected_file = f"{crystalcontacts_str}_id.txt"
         if os.path.exists(expected_file):
             LOG.debug(f"File created successfully: {expected_file}")
             with open(expected_file, 'r') as f:

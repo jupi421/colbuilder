@@ -18,11 +18,11 @@ import shutil
 import os
 from colorama import Fore, Style
 
-from ..utils.exceptions import GeometryGenerationError
-from ..utils.logger import setup_logger
-from ..utils.config import ColbuilderConfig
-from ..utils.dec import timeit
-from ..utils.files import FileManager
+from colbuilder.core.utils.exceptions import GeometryGenerationError
+from colbuilder.core.utils.logger import setup_logger
+from colbuilder.core.utils.config import ColbuilderConfig
+from colbuilder.core.utils.dec import timeit
+from colbuilder.core.utils.files import FileManager
 
 from .crystal import Crystal
 from .system import System
@@ -174,7 +174,6 @@ class CrystalBuilder:
                     caps.read_residues(pdb_id=pdb_id)
                     caps.add_caps(pdb_id=pdb_id, crosslink_type=model_type, temp_dir=geometry_dir)
             else:
-                LOG.info(f"System has no crosslinks, using standard capping")
                 caps = Caps(system=system)
                 for idx in system.get_models():
                     pdb_id = int(idx)
@@ -187,11 +186,9 @@ class CrystalBuilder:
                         
                     caps.read_residues(pdb_id=pdb_id)
                     caps.add_caps(pdb_id=pdb_id, crosslink_type="NC", temp_dir=geometry_dir)
-                    LOG.info(f"Added standard caps to model {pdb_id}")
 
             LOG.info(f"Step 7/{self.steps} Writing final structure")
             output_path = self.file_manager.get_output_path(config.output, ".pdb")
-            LOG.debug(f"Writing final structure to: {output_path}")
 
             system.write_pdb(
                 pdb_out=output_path,
@@ -620,7 +617,7 @@ class CrystalBuilder:
         )
         
         if not needs_opt:
-            LOG.info("System has no crosslinks, optimization not needed")
+            LOG.debug("System has no crosslinks, optimization not needed")
         
         return needs_opt
 

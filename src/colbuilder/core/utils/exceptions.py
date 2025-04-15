@@ -171,41 +171,47 @@ class ColbuilderError(Exception):
         suggestions, and affected files using the appropriate
         log level based on error severity.
         """
+        # Make sure we're using the properly initialized logger
+        from colbuilder.core.utils.logger import setup_logger
+        LOG = setup_logger(__name__)
+        
         log_level = {
             ErrorSeverity.INFO: LOG.info,
             ErrorSeverity.WARNING: LOG.warning,
             ErrorSeverity.ERROR: LOG.error,
             ErrorSeverity.CRITICAL: LOG.critical
         }.get(self.detail.severity, LOG.error)
-
+        
         # Log main error message
         log_level(f"[{self.detail.category.name}] {self.detail.message}")
-
+        
         # Log technical details if available
         if self.detail.technical_details:
             LOG.debug(f"Technical details: {self.detail.technical_details}")
-
+        
         # Log original error traceback if available
         if self.original_error:
             LOG.debug("Original error traceback:")
-            LOG.debug(traceback.format_exception(
+            tb_lines = traceback.format_exception(
                 type(self.original_error),
                 self.original_error,
                 self.original_error.__traceback__
-            ))
-
+            )
+            for line in tb_lines:
+                LOG.debug(line.rstrip())
+        
         # Log suggestions
         if self.detail.suggestions:
             LOG.info("Suggestions for resolution:")
             for suggestion in self.detail.suggestions:
                 LOG.info(f"- {suggestion}")
-
+        
         # Log affected files
         if self.detail.affected_files:
             LOG.debug("Affected files:")
             for file in self.detail.affected_files:
                 LOG.debug(f"- {file}")
-
+        
         # Log documentation link
         if self.detail.docs_url:
             LOG.info(f"For more information, visit: {self.detail.docs_url}")

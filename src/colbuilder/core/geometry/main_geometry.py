@@ -10,14 +10,15 @@ import time
 import shutil
 import traceback
 import asyncio
+import logging
 import copy
 from pathlib import Path
 from typing import Optional, Set, List, Union, Tuple, Dict
 
-from ..utils.exceptions import GeometryGenerationError
-from ..utils.config import ColbuilderConfig
-from ..utils.logger import setup_logger
-from ..utils.files import FileManager, managed_resources
+from colbuilder.core.utils.exceptions import GeometryGenerationError
+from colbuilder.core.utils.config import ColbuilderConfig
+from colbuilder.core.utils.logger import setup_logger
+from colbuilder.core.utils.files import FileManager, managed_resources
 from .crystal_builder import CrystalBuilder
 from .crosslink_mixer import CrosslinkMixer
 from .geometry_replacer import CrosslinkReplacer
@@ -251,7 +252,6 @@ class GeometryService:
             replacement_dir: Path = self.file_manager.ensure_replacement_dir()
             LOG.debug(f"Using replacement directory: {replacement_dir}")
             
-            # Validate and copy replacement file
             replace_path: Path = Path(self.config.replace_file)
             if not replace_path.exists():
                 raise GeometryGenerationError(
@@ -259,26 +259,21 @@ class GeometryService:
                     error_code="GEO_ERR_004"
                 )
             
-            # Copy file to replacement directory
             local_replace: Path = replacement_dir / replace_path.name
             shutil.copy2(replace_path, local_replace)
             LOG.debug(f"Copied replacement file to: {local_replace}")
             
-            # Create temporary config with local paths
             temp_config: ColbuilderConfig = self.config.copy()
             temp_config.replace_file = local_replace
             temp_config.working_directory = replacement_dir
             
-            # Make sure replacer service has the file manager
             self.replacer_service.file_manager = self.file_manager
             
-            # Perform replacement operation
             LOG.info(f"Performing direct replacement using file: {replace_path.name}")
             system: Optional[System]
             output_pdb: Optional[Path]
             system, output_pdb = await self.replacer_service.replace_direct(temp_config, replacement_dir)
             
-            # Copy result to output location
             if output_pdb and output_pdb.exists():
                 final_pdb: Path = self.file_manager.get_output_path(self.config.output, ".pdb")
                
@@ -308,6 +303,7 @@ class GeometryService:
     async def _handle_full_generation(self) -> Tuple[Optional[System], Optional[Path]]:
         """
         Handle full geometry generation with optional mixing and replacement.
+        Avoids redundant PDB writing when possible.
 
         Returns:
             Tuple[Optional[System], Optional[Path]]: Generated system and output PDB path
@@ -322,11 +318,9 @@ class GeometryService:
             LOG.debug(f"Using geometry directory for generation: {geometry_dir}")
             
             self.temp_dir = geometry_dir
-            
-            # Change to the geometry directory
+
             os.chdir(geometry_dir)
 
-            # Create a copy of the config for this operation
             temp_config = self.config.copy()
             if self.config.pdb_file:
                 pdb_path = Path(self.config.pdb_file)
@@ -344,51 +338,39 @@ class GeometryService:
 
             system = None
             output_pdb_path = None
+            final_temp_dir = geometry_dir  
 
             # Perform geometry generation
             if temp_config.geometry_generator:
                 LOG.info(f'{Fore.MAGENTA}Geometry mode: building system from crystal{Style.RESET_ALL}')
-                # Make sure crystal service uses the same file manager
                 self.crystal_service.set_file_manager(self.file_manager)
                 system = await self.crystal_service.build(temp_config)
                 
                 geometry_only_system = copy.deepcopy(system)
                 
-                output_prefix = temp_config.output or temp_config.species
-                
-                # Save geometry-only output
-                if system:
-                    model_type = system.get_model(model_id=0.0).type if hasattr(system.get_model(model_id=0.0), 'type') else "D"
-                    geometry_pdb_path = geometry_dir / f"{output_prefix}.pdb"
+                if not (temp_config.mix_bool or temp_config.replace_bool):
+                    output_prefix = temp_config.output or temp_config.species
+                    output_pdb_path = geometry_dir / f"{output_prefix}.pdb"
+
+                    import logging
+                    original_level = LOG.level
+                    try:
+                        LOG.setLevel(logging.ERROR)  # Suppress non-error messages
+                        system.write_pdb(
+                            pdb_out=output_pdb_path,
+                            fibril_length=temp_config.fibril_length,
+                            cleanup=False,
+                            temp_dir=geometry_dir
+                        )
+                    finally:
+                        LOG.setLevel(original_level)
                     
-                    geometry_only_system.write_pdb(
-                        pdb_out=output_prefix,
-                        fibril_length=temp_config.fibril_length,
-                        cleanup=False,
-                        temp_dir=geometry_dir
-                    )
-                    
-                    if geometry_pdb_path.exists():
-                        try:
-                            residue_counts = {}
-                            with open(geometry_pdb_path, 'r') as f:
-                                for line in f:
-                                    if line.startswith(("ATOM", "HETATM")) and len(line) >= 20:
-                                        resname = line[17:20].strip()
-                                        residue_counts[resname] = residue_counts.get(resname, 0) + 1
-                            
-                        except Exception as e:
-                            LOG.warning(f"Error analyzing geometry-only PDB: {e}")
-                        
-                        # Copy to output directory
-                        self.file_manager.copy_to_output(geometry_pdb_path)
-                    else:
-                        LOG.warning(f"Geometry-only PDB file not found at expected path: {geometry_pdb_path}")
+                    final_pdb = self.file_manager.copy_to_output(output_pdb_path)
+                    return system, final_pdb
 
             # Perform mixing if required
             if temp_config.mix_bool and system:
                 LOG.section("Mixing geometry...")
-                # Use the dedicated mixing directory
                 mixing_dir = self.file_manager.ensure_mixing_dir()
                 system = await self.mixer_service.mix(system, temp_config, mixing_dir)
                 LOG.info("Mixing completed.")
@@ -397,10 +379,8 @@ class GeometryService:
             if temp_config.replace_bool and system:
                 LOG.section("Replacing crosslinks...")
                 
-                # Get model type
                 model_type = system.get_model(model_id=0.0).type if hasattr(system.get_model(model_id=0.0), 'type') else "D"
                 
-                # Analyze pre-replacement residue counts
                 geometry_type_dir = geometry_dir / model_type
                 if geometry_type_dir.exists():
                     pre_replacement_counts = {}
@@ -413,25 +393,22 @@ class GeometryService:
                                     resname = line[17:20].strip()
                                     pre_replacement_counts[resname] = pre_replacement_counts.get(resname, 0) + 1
                                     
-                # Get the replacement directory from FileManager
                 replacement_dir = self.file_manager.ensure_replacement_dir()
                 LOG.debug(f"Using replacement directory: {replacement_dir}")
                 
                 self.replacer_service.file_manager = self.file_manager
                 
-                # Perform replacement
                 system = await self.replacer_service.replace_in_system(system, temp_config, replacement_dir)
                 
-                # Get paths to key directories
                 replacement_type_dir = replacement_dir / model_type
                 
-                # Check replacement directory for caps files
                 if replacement_type_dir.exists():
                     caps_files = list(replacement_type_dir.glob("*.caps.pdb"))
                     
                     if caps_files:
                         output_prefix = temp_config.output or temp_config.species
                         output_pdb_path = replacement_dir / f"{output_prefix}.pdb"
+                        final_temp_dir = replacement_dir
                         
                         system.write_pdb(
                             pdb_out=output_pdb_path,
@@ -442,6 +419,7 @@ class GeometryService:
                         
                         if output_pdb_path.exists():
                             try:
+                                # Analyze post-replacement residue counts
                                 post_replacement_counts = {}
                                 with open(output_pdb_path, 'r') as f:
                                     for line in f:
@@ -452,7 +430,6 @@ class GeometryService:
                             except Exception as e:
                                 LOG.warning(f"Error analyzing output PDB: {e}")
                             
-                            # Copy the final PDB to the output directory
                             final_pdb = self.file_manager.copy_to_output(output_pdb_path)
                             LOG.info(f"Final PDB with replacements written to: {final_pdb}")
                             return system, final_pdb
@@ -460,22 +437,41 @@ class GeometryService:
                         LOG.warning("No caps files found in replacement directory. Falling back to geometry directory.")
                 else:
                     LOG.warning(f"Replacement type directory not found: {replacement_type_dir}")
-                
-                # Use the geometry directory as fallback
+                    
+                # If we get here, replacement was requested but replacement directory didn't have caps
+                # Write to the geometry directory instead
                 output_prefix = temp_config.output or temp_config.species
                 output_pdb_path = geometry_dir / f"{output_prefix}.pdb"
                 
+                LOG.info(f"Writing system with replacements to geometry directory: {output_pdb_path}")
                 system.write_pdb(
-                    pdb_out=output_prefix,
+                    pdb_out=output_pdb_path,
                     fibril_length=temp_config.fibril_length,
                     cleanup=False,
                     temp_dir=geometry_dir
                 )
                 
-                # Copy to output
                 if output_pdb_path.exists():
                     final_pdb = self.file_manager.copy_to_output(output_pdb_path)
-                    LOG.info(f"Final PDB copied to: {final_pdb}")
+                    LOG.info(f"Final PDB with replacements copied to: {final_pdb}")
+                    return system, final_pdb
+
+            # Write the final system PDB if we've done mixing (since replacement handles its own writing)
+            if system and temp_config.mix_bool:
+                output_prefix = temp_config.output or temp_config.species
+                output_pdb_path = final_temp_dir / f"{output_prefix}.pdb"
+                
+                LOG.info(f"Writing final mixed system PDB to {output_pdb_path}")
+                system.write_pdb(
+                    pdb_out=output_prefix,
+                    fibril_length=temp_config.fibril_length,
+                    cleanup=False,
+                    temp_dir=final_temp_dir
+                )
+                
+                if output_pdb_path.exists():
+                    final_pdb = self.file_manager.copy_to_output(output_pdb_path)
+                    LOG.info(f"Final mixed PDB copied to: {final_pdb}")
                     return system, final_pdb
                 else:
                     LOG.error(f"Output PDB not found at: {output_pdb_path}")
@@ -483,15 +479,16 @@ class GeometryService:
                         message="Failed to create output PDB file",
                         error_code="GEO_ERR_012"
                     )
-
-            # Write the final system (no replacement was done)
+                    
+            # If we reach this point, something unusual happened - we have a system but no PDB was written
+            # This is a fallback to ensure we always have a PDB file
             if system:
                 output_prefix = temp_config.output or temp_config.species
                 output_pdb_path = geometry_dir / f"{output_prefix}.pdb"
                 
-                LOG.info(f"Writing final system PDB to {output_pdb_path}")
+                LOG.warning(f"No PDB was written earlier, writing fallback PDB to {output_pdb_path}")
                 system.write_pdb(
-                    pdb_out=output_prefix,
+                    pdb_out=output_pdb_path,
                     fibril_length=temp_config.fibril_length,
                     cleanup=False,
                     temp_dir=geometry_dir
@@ -499,15 +496,13 @@ class GeometryService:
                 
                 if output_pdb_path.exists():
                     final_pdb = self.file_manager.copy_to_output(output_pdb_path)
+                    LOG.info(f"Fallback PDB copied to: {final_pdb}")
                     return system, final_pdb
-                else:
-                    LOG.warning(f"Output PDB file not found at expected path: {output_pdb_path}")
-                    raise GeometryGenerationError(
-                        message="Failed to create output PDB file",
-                        error_code="GEO_ERR_012"
-                    )
-
-            return None, None
+                    
+            # Final fallback in case the system exists but no PDB could be written
+            LOG.error("Failed to generate a valid PDB file")
+            return system, None
+            
         except Exception as e:
             LOG.error(f"Error during full generation: {str(e)}")
             import traceback
@@ -657,8 +652,7 @@ async def build_geometry_anywhere(config: ColbuilderConfig, file_manager: Option
                     message=f"Expected output file not found: {output_pdb_path}",
                     error_code="GEO_ERR_001"
                 )
-                
-            LOG.info(f"{Fore.BLUE}Geometry generation completed successfully. Output: {output_pdb_path}{Style.RESET_ALL}")
+               
             return geometry_dir, output_pdb_path
             
         finally:
@@ -776,6 +770,7 @@ async def replace_geometry(system: System, config: ColbuilderConfig) -> Optional
                 output_prefix = temp_config.output
                 
             output_pdb_path = replace_dir / f"{output_prefix}.pdb"
+            LOG.info(f"Writing final system PDB to {output_pdb} - main_geometry l781")
             system.write_pdb(
                 pdb_out=output_prefix, 
                 fibril_length=temp_config.fibril_length, 

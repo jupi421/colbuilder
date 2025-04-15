@@ -3,9 +3,9 @@ species: "homo_sapiens"
 sequence_generator: true
 geometry_generator: true
 crosslink: true
+n_term_type: "HLKNL"                # Crosslink type in terminal N
+c_term_type: "HLKNL"                # Crosslink type in terminal C
+n_term_combination: "9.C - 947.A"   # Crosslink position. Example: "9.C - 947.A" for resnum 9 in chainID C and resnum 947 in chainID A
+c_term_combination: "1047.C - 104.C"
 fibril_length: 60.0
 contact_distance: 20
-n_term_type: "HLKNL"
-c_term_type: "HLKNL"
-n_term_combination: "9.C - 947.A"
-c_term_combination: "1047.C - 104.C"
