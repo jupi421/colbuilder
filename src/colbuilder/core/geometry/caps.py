@@ -116,36 +116,23 @@ class Caps:
         if not os.path.exists(pdb_file):
             LOG.info(f"PDB file not found: {pdb_file}")
             raise FileNotFoundError(f"PDB file not found: {pdb_file}")
-        else:
-            LOG.debug(f"Found PDB file: {os.path.abspath(pdb_file)}")
         
-        # Determine context and set output directory accordingly
         if temp_dir is None:
-            # Default case - use current directory
             output_dir = cwd.resolve()
-            LOG.debug(f"No temp_dir provided, using current directory: {output_dir}")
         else:
             temp_dir = Path(temp_dir).resolve()
             
             # Check if we're already in a mix context (D or T directory)
             if temp_dir.name in ['D', 'T'] and 'mix_crosslinks' in str(temp_dir):
-                # We're already in a mix type directory, use it directly
                 output_dir = temp_dir
-                LOG.debug(f"Already in mix type directory: {output_dir}")
             elif 'geometry_gen' in str(temp_dir) and not 'mix_crosslinks' in str(temp_dir):
-                # We're in geometry_gen context, create type directory
                 model_type = crosslink_type or "NC"
                 type_dir = temp_dir / model_type
                 if not type_dir.exists():
                     type_dir.mkdir(parents=True, exist_ok=True)
                 output_dir = type_dir
-                LOG.debug(f"Geometry context, created type directory: {output_dir}")
             else:
-                # Other context, use provided directory
                 output_dir = temp_dir
-                LOG.debug(f"Using provided directory: {output_dir}")
-        
-        LOG.debug(f"Using output directory: {output_dir}")
         
         if not output_dir.exists():
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -162,8 +149,7 @@ class Caps:
         cmd.save('tmp.pdb')
         cmd.delete(name=str(pdb_id))
         caps_output_file = output_dir / f"{pdb_id}.caps.pdb"
-        LOG.debug(f"Writing caps file to: {caps_output_file}")
-        
+
         result = self.write_caps(pdb='tmp.pdb', pdb_id=pdb_id, output_dir=output_dir)
         return result
 
@@ -186,7 +172,6 @@ class Caps:
             raise FileNotFoundError(f"Temporary PDB file not found: {pdb}")
 
         output_file = output_dir / f"{pdb_id}.caps.pdb"
-        LOG.debug(f"Writing capped PDB file to {output_file}")
 
         with open(pdb, 'r') as f_in, open(output_file, 'w') as f_out:
             for line in f_in:

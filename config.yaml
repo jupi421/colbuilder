@@ -1,7 +1,7 @@
 # Operation Mode
 mode: null
 config_file: null
-sequence_generator: true
+sequence_generator: false
 geometry_generator: true
 topology_generator: false
 debug: false
@@ -17,15 +17,15 @@ species: "homo_sapiens"  # Available options:
 
 # Sequence Settings
 fasta_file: null # Provide custom fasta file if not choosing an available species. If null, will be auto-generated based on species.
-crosslink: false
+crosslink: true
 n_term_type: "DPL"                # Crosslink type in terminal N
-c_term_type: NONE                 # Crosslink type in terminal C
+c_term_type: "DPL"                 # Crosslink type in terminal C
 n_term_combination: "9.C - 5.B - 944.B" #"9.C - 947.A"   # Crosslink position. Example: "9.C - 947.A" for resnum 9 in chainID C and resnum 947 in chainID A
-c_term_combination: NONE
+c_term_combination: "1047.C - 1047.A - 104.C"
 
 
 # Geometry Parameters
-pdb_file: null #homosapiens_N_NONE_C_NONE.pdb # Set to null if sequence_generator is true
+pdb_file: homosapiens_N_HLKNL_C_HLKNL.pdb #homosapiens_N_NONE_C_NONE.pdb # Set to null if sequence_generator is true
 contact_distance: 25                      # Contact distance in Angstroms
 fibril_length: 40                         # Fibril length in nm
 crystalcontacts_file: null                # Optional: Path to a file containing crystal contacts
@@ -37,15 +37,15 @@ mix_bool: false
 ratio_mix: "D:80 T:20"  # Format: "Type:percentage (0-100) Type:percentage (0-100)"
 # Example: "D:80 T:20" means 80% Divalent and 20% Trivalent crosslinks
 files_mix:              # Required if mix_bool is true
-  - "human-D.pdb"       # Divalent
-  - "human-T.pdb"       # Trivalent
+  - "homosapiens_N_HLKNL_C_HLKNL.pdb"       # Divalent
+  - "homosapiens_N_DPL_C_DPL.pdb"       # Trivalent
   # Example: "human-D.pdb" and "human-T.pdb" are the PDB files for collagen triple helices with Divalent and Trivalent crosslinks respectively
 
 # Replacement Options (for less crosslinks)
-replace_bool: false  # Set to true to enable replacement of crosslinks
+replace_bool: true  # Set to true to enable replacement of crosslinks
 ratio_replace: 30    # Percentage of crosslinks to replace with standard amino acids (0-100)
 replace_file: homo_sapiens.pdb   # "rattus_norvegicus.pdb"   # Optional: Path to a file containing specific crosslinks to replace
 
 # Topology Options
 force_field: "martini3"  # Options: "amber99", "martini3"
-topology_debug: false     # Set to true to save all intermediate files for topology generation
+topology_debug: true     # Set to true to save all intermediate files for topology generation

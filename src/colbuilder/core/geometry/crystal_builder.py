@@ -98,7 +98,7 @@ class CrystalBuilder:
                         system.get_model(model_id=model).delete_connect(connect_id=connect)
                 connect_after = len(list(system.get_model(model_id=model).connect))
                 if connect_before != connect_after:
-                    LOG.debug(f"Removed {connect_before - connect_after} connections from model {model}")
+                    pass
         
         models_after = len(list(system.get_models()))
         return system
@@ -162,6 +162,7 @@ class CrystalBuilder:
             if has_crosslinks:
                 LOG.debug(f"System has crosslinks, using crosslink capping")
                 caps = Caps(system=system)
+                LOG.debug(f"Writing capped PDB files to {geometry_dir}")
                 for idx in system.get_models():
                     pdb_id = int(idx)
                     pdb_file = f"{pdb_id}.pdb"
@@ -170,11 +171,13 @@ class CrystalBuilder:
                     if not pdb_path.exists():
                         LOG.warning(f"PDB file {pdb_file} not found. Model IDs: {list(system.get_models())}")
                         continue
-                        
                     caps.read_residues(pdb_id=pdb_id)
+
                     caps.add_caps(pdb_id=pdb_id, crosslink_type=model_type, temp_dir=geometry_dir)
             else:
                 caps = Caps(system=system)
+                
+                LOG.debug(f"Writing capped PDB files to {geometry_dir}")
                 for idx in system.get_models():
                     pdb_id = int(idx)
                     pdb_file = f"{pdb_id}.pdb"

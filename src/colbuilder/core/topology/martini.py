@@ -587,7 +587,6 @@ async def build_martini3(system: System, config: ColbuilderConfig, file_manager:
             go_script = source_ff_dir / "create_goVirt.py"
             if go_script.exists():
                 shutil.copy2(go_script, Path("create_goVirt.py"))
-                LOG.debug(f"Copied create_goVirt.py from force field directory")
             else:
                 LOG.warning(f"create_goVirt.py not found in force field directory: {go_script}")
             
@@ -600,22 +599,18 @@ async def build_martini3(system: System, config: ColbuilderConfig, file_manager:
                 if source_executable.exists():
                     shutil.copy2(source_executable, contact_map_path)
                     contact_map_path.chmod(contact_map_path.stat().st_mode | 0o111)
-                    LOG.debug(f"Copied contact_map executable from {source_executable}")
                 else:
                     LOG.debug("Contact map executable not found in force field directory, trying to copy source files")
                     
                     for src_file in source_contactmap_dir.glob("*.c"):
                         shutil.copy2(src_file, local_contactmap_dir / src_file.name)
-                        LOG.debug(f"Copied source file: {src_file.name}")
                     
                     for header_file in source_contactmap_dir.glob("*.h"):
                         shutil.copy2(header_file, local_contactmap_dir / header_file.name)
-                        LOG.debug(f"Copied header file: {header_file.name}")
                     
                     source_makefile = source_contactmap_dir / "Makefile"
                     if source_makefile.exists():
                         shutil.copy2(source_makefile, local_contactmap_dir / "Makefile")
-                        LOG.debug(f"Copied Makefile from contactmap directory")
                         
                         LOG.debug("Building contact map tool from source")
                         make_process = await asyncio.create_subprocess_shell(
@@ -635,7 +630,6 @@ async def build_martini3(system: System, config: ColbuilderConfig, file_manager:
                         source_makefile = source_ff_dir / "Makefile"
                         if source_makefile.exists():
                             shutil.copy2(source_makefile, Path("Makefile"))
-                            LOG.debug(f"Copied Makefile from force field directory")
                             
                             LOG.debug("Building contact map tool from source")
                             make_process = await asyncio.create_subprocess_shell(

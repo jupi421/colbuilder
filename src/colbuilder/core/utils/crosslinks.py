@@ -233,6 +233,7 @@ class CrosslinkOptimizer:
             crosslink_info = self._prepare_crosslink_info()
             
             max_total_distance = self._get_distance_threshold()
+            LOG.debug(f"Maximum distance threshold: {max_total_distance} Å")
             
             current_input = input_pdb
             total_distance = float('inf')

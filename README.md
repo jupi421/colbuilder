@@ -325,6 +325,8 @@ colbuilder --config_file config_bovine_crosslinked.yaml
 species: "homo_sapiens"
 sequence_generator: false
 geometry_generator: false
+contact_distance: 25                      
+fibril_length: 40 
 mix_bool: true
 ratio_mix: "D:80 T:20"
 files_mix:
@@ -341,10 +343,12 @@ colbuilder --config_file config_mixed_crosslinks.yaml
 ```yaml
 # config_topology.yaml
 species: "homo_sapiens"
-sequence_generator: false`
+sequence_generator: false
 geometry_generator: true
 topology_generator: true
 pdb_file: "path/to/template_collagen_molecule.pdb"
+contact_distance: 30                      
+fibril_length: 40 
 force_field: "martini3"
 ```
 

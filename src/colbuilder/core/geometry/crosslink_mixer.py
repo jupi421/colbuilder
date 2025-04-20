@@ -206,6 +206,7 @@ class CrosslinkMixer:
             
             model_ids = list(system.get_models())
             
+            LOG.debug(f"    Writing capped PDB files to {caps_dir}")
             for idx in model_ids:
                 try:
                     pdb_id = int(float(idx))
@@ -251,8 +252,7 @@ class CrosslinkMixer:
                 for connect in list(system.get_model(model_id=model).connect):
                     if connect not in contacts:
                         system.get_model(model_id=model).delete_connect(connect_id=connect)
-        
-        LOG.debug(f"System cut from {initial_models} to {len(system.get_models())} models")
+    
         return system
 
     async def mix(self, system: Optional[System], config: ColbuilderConfig, temp_dir: Optional[Path] = None) -> System:
@@ -391,7 +391,6 @@ class CrosslinkMixer:
                     if source_pdb.exists():
                         try:
                             shutil.copy2(source_pdb, target_pdb)
-                            LOG.debug(f"Copied model PDB file: {source_pdb} -> {target_pdb}")
                         except Exception as e:
                             LOG.error(f"Failed to copy model PDB file for model {model_id}: {str(e)}")
                     else:

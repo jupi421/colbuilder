@@ -68,9 +68,9 @@ def read_crosslink(pdb_file: Union[str, Path]) -> List[Crosslink]:
     
     with open(pdb_path, 'r') as f:
         for line in f:
-            if ((line[17:20] == ('LYX' or 'LXY' or 'LYY' or 'LXX') and line[13:16] == ('C13' or 'C12')) or
-                (line[17:20] == ('LY3' or 'LX3' or 'L3Y' or 'L2Y' or 'L3X' or 'L2X') and line[13:15] == 'CG') or
-                (line[17:20] == ('LY2' or 'LX2') and line[13:15] == 'CB')):
+            if ((line[17:20] in ('LYX', 'LXY', 'LYY', 'LXX') and line[13:16] in ('C13', 'C12')) or
+                (line[17:20] in ('LY3', 'LX3', 'L3Y', 'L2Y', 'L3X', 'L2X') and line[13:15] == 'CG') or
+                (line[17:20] in ('LY2', 'LX2') and line[13:15] == 'CB')):
                 crosslinks.append(Crosslink(
                     resid=line[22:26].strip(),
                     resname=line[17:20],
@@ -78,8 +78,8 @@ def read_crosslink(pdb_file: Union[str, Path]) -> List[Crosslink]:
                     position=[float(line[29:38]), float(line[38:46]), float(line[46:56])],
                     type='T'
                 ))
-            elif ((line[17:20] == ('L4Y' or 'L4X' or 'LY4' or 'LX4') and line[13:15] == 'CE') or
-                  (line[17:20] == ('L5Y' or 'L5X' or 'LY5' or 'LX5') and line[13:15] == 'NZ')):
+            elif ((line[17:20] in ('L4Y', 'L4X', 'LY4', 'LX4') and line[13:15] == 'CE') or
+                  (line[17:20] in ('L5Y', 'L5X', 'LY5', 'LX5') and line[13:15] == 'NZ')):
                 crosslinks.append(Crosslink(
                     resid=line[22:26].strip(),
                     resname=line[17:20],
@@ -87,8 +87,8 @@ def read_crosslink(pdb_file: Union[str, Path]) -> List[Crosslink]:
                     position=[float(line[29:38]), float(line[38:46]), float(line[46:56])],
                     type='D'
                 ))
-            elif ((line[17:20] == ('LGX' or 'LPS') and line[13:15] == 'CE') or
-                  (line[17:20] == ('AGS' or 'APD') and line[13:15] == 'NZ')):
+            elif ((line[17:20] in ('LGX', 'LPS') and line[13:15] == 'CE') or
+                  (line[17:20] in ('AGS', 'APD') and line[13:15] == 'NZ')):
                 crosslinks.append(Crosslink(
                     resid=line[22:26].strip(),
                     resname=line[17:20],

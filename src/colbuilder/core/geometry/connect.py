@@ -68,8 +68,7 @@ class Connect:
                 if self.get_connect(ref_model=system.get_model(model_id=ref_model),
                                     model=system.get_model(model_id=model)):
                     self.pairs[ref_model].append(model)
-        
-        LOG.debug(f"Established connections: {self.pairs}")
+       
         return self.merge_contacts(pairs=self.pairs)
 
     def merge_contacts(self, pairs: Dict[float, List[float]]) -> Dict[float, List[float]]:
@@ -84,8 +83,7 @@ class Connect:
                     self.connect[model].add(ref_key)
         
         self.connect = {k: sorted(v) for k, v in self.connect.items()}
-        
-        LOG.debug(f"Merged connections: {self.connect}")
+       
         return self.clean_contacts(contactpairs=self.connect)
 
     def get_external_connect_file(self, system: Any, connect_file: Optional[Path] = None) -> Any:

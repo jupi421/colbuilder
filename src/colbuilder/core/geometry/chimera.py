@@ -71,9 +71,6 @@ class Chimera(object):
         
         result = subprocess.run(' '.join(chimera_command), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         
-        LOG.debug("Chimera stdout: %s", result.stdout.decode())
-        LOG.debug("Chimera stderr: %s", result.stderr.decode())
-        
         if result.returncode != 0:
             LOG.error(f"Chimera command failed with return code {result.returncode}")
             LOG.error(f"Chimera stdout: {result.stdout.decode()}")
@@ -104,12 +101,9 @@ class Chimera(object):
             '--script', script_path
         ]
         
-        LOG.debug(f"Running command: {' '.join(chimera_command)}")
+        LOG.debug(f"    Running command: {' '.join(chimera_command)}")
         
         result = subprocess.run(' '.join(chimera_command), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-        
-        LOG.debug("Chimera stdout: %s", result.stdout.decode())
-        LOG.debug("Chimera stderr: %s", result.stderr.decode())
         
         if result.returncode != 0:
             LOG.error(f"Chimera command failed with return code {result.returncode}")
@@ -119,11 +113,11 @@ class Chimera(object):
 
         expected_file = f"{crystalcontacts_str}_id.txt"
         if os.path.exists(expected_file):
-            LOG.debug(f"File created successfully: {expected_file}")
+            LOG.debug(f"    File created successfully: {expected_file}")
             with open(expected_file, 'r') as f:
-                LOG.debug(f"File contents: {f.read()}")
+                pass
         else:
-            LOG.error(f"File not created: {expected_file}")
+            LOG.error(f"    File not created: {expected_file}")
             raise FileNotFoundError(f"Expected file not created: {expected_file}")
 
         return result
@@ -156,10 +150,11 @@ class Chimera(object):
             
             LOG.debug(f"Chimera command completed with return code: {result.returncode}")
             if result.stdout:
-                LOG.debug(f"Chimera stdout: {result.stdout}")
+                # LOG.debug(f"Chimera stdout: {result.stdout}")
+                pass
             if result.stderr:
-                LOG.debug(f"Chimera stderr: {result.stderr}")
-            
+                # LOG.debug(f"Chimera stderr: {result.stderr}")
+                pass
             return result
         except Exception as e:
             LOG.error(f"Error executing Chimera command: {str(e)}")

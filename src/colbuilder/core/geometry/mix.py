@@ -162,9 +162,6 @@ class Mix:
             
             type_assignments[chosen_type] += len(component)
             
-            if len(component) > 5:
-                LOG.debug(f"Assigned type {chosen_type} to large component with {len(component)} models")
-        
         # Apply the assigned types to each model
         for model_id in model_ids:
             if model_id in assigned_types:
@@ -183,7 +180,6 @@ class Mix:
                             connected_model = self.system.get_model(model_id=connect_id)
                             connected_model.type = model_type
                             connected_model.crosslink_type = model_type
-                            LOG.debug(f"  - Also set type {model_type} for connected model {connect_id}")
                         except Exception as e:
                             LOG.warning(f"  - Could not set type for connected model {connect_id}: {e}")
             else:

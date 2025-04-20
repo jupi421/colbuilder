@@ -245,7 +245,7 @@ class CrosslinkReplacer:
                                     resname = line[17:20].strip()
                                     
                                     if resname in ['L4Y', 'L5Y', 'L4X', 'L5X', 'LY4', 'LY5', 'LX4', 'LX5',
-                                                'LGX', 'LPS', 'AGS', 'APD', 'DHL', 'HYL']:
+                                                'LGX', 'LPS', 'AGS', 'APD']:
                                         f.write(f"{model_id}|{line}")
                                         crosslink_count += 1
                                         
@@ -312,8 +312,7 @@ class CrosslinkReplacer:
             # Define crosslink pair types we're looking for
             pair_types = [
                 (['L4Y', 'L4X', 'LY4', 'LX4'], ['L5Y', 'L5X', 'LY5', 'LX5']),
-                (['LGX', 'LPS'], ['AGS', 'APD']),
-                (['DHL'], ['HYL'])
+                (['LGX', 'LPS'], ['AGS', 'APD'])
             ]
             
             # Group residues by type
@@ -339,8 +338,6 @@ class CrosslinkReplacer:
                 for resname in type2_list:
                     if resname in residues_by_type:
                         type2_residues.extend(residues_by_type[resname])
-                
-                LOG.debug(f"Looking for pairs between {type1_list} ({len(type1_residues)}) and {type2_list} ({len(type2_residues)})")
                 
                 if not type1_residues or not type2_residues:
                     continue
@@ -706,7 +703,6 @@ class CrosslinkReplacer:
                                 instruction = f"{int(model_id)}.caps.pdb LYS {cross.resid} {cross.chain}\n"
                                 f.write(instruction)
                                 instruction_count += 1
-                                LOG.debug(f"Added replacement instruction: {instruction.strip()}")
                             else:
                                 LOG.warning(f"Crosslink in model {model_id} missing required attributes (resname, resid, or chain)")
                 
@@ -773,10 +769,7 @@ class CrosslinkReplacer:
             source_locations = [loc for loc in source_locations if loc and loc.exists()]
             
             for loc in source_locations:
-                LOG.debug(f"Search location: {loc}")
-                
                 caps_files = list(loc.glob("*.caps.pdb"))
-                LOG.debug(f"Found {len(caps_files)} caps files in {loc}")
                 
                 for caps_file in caps_files:
                     try:
@@ -788,13 +781,11 @@ class CrosslinkReplacer:
                             if not target.exists():
                                 shutil.copy2(caps_file, target)
                                 copied_count += 1
-                                LOG.debug(f"Copied {caps_file} to {target}")
                     except Exception as e:
-                        LOG.debug(f"Error processing caps file {caps_file}: {e}")
+                        LOG.error(f"Error processing caps file {caps_file}: {e}")
                 
                 if copied_count < len(model_ids):
                     regular_pdbs = list(loc.glob("*.pdb"))
-                    LOG.debug(f"Found {len(regular_pdbs)} regular PDB files in {loc}")
                     
                     for pdb_file in regular_pdbs:
                         if any(x in pdb_file.name for x in ["_geom_only", "_original", "output"]):
@@ -809,7 +800,6 @@ class CrosslinkReplacer:
                                 if not target.exists():
                                     shutil.copy2(pdb_file, target)
                                     copied_count += 1
-                                    LOG.debug(f"Copied {pdb_file} to {target} (renamed to caps)")
                         except Exception as e:
                             # Ignore errors for files that don't match our pattern
                             continue
@@ -822,7 +812,6 @@ class CrosslinkReplacer:
                 for source_dir in source_locations:
                     for model_id in sorted(missing_models):
                         pattern = f"**/{model_id}*.pdb"
-                        LOG.debug(f"Searching {source_dir} with pattern: {pattern}")
                         matching_files = list(source_dir.glob(pattern))
                         
                         for found_file in matching_files:
@@ -833,7 +822,6 @@ class CrosslinkReplacer:
                                         shutil.copy2(found_file, target)
                                         copied_count += 1
                                         missing_models.remove(model_id)
-                                        LOG.debug(f"Found missing model {model_id} at {found_file}")
                                         break
                                     except Exception as e:
                                         LOG.warning(f"Error copying file {found_file}: {e}")
@@ -1076,11 +1064,11 @@ class CrosslinkReplacer:
                 
             cmd = f"chimera --nogui --silent --script \"{swapaa_script} {base_file_str} {system_type_path}\""
             
-            LOG.debug(f"Running command: {cmd}")
+            LOG.debug(f"    Running command: {cmd}")
             
             result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             
-            LOG.debug(f"Chimera returned: {result.returncode}")
+            LOG.debug(f"    Chimera returned: {result.returncode}")
             
             if result.returncode != 0:
                 LOG.error(f"Chimera failed with return code {result.returncode}")
@@ -1286,8 +1274,7 @@ class CrosslinkReplacer:
         # Define which residue types should be paired together
         pair_types = [
             (['L4Y', 'L4X', 'LY4', 'LX4'], ['L5Y', 'L5X', 'LY5', 'LX5']),
-            (['LGX', 'LPS'], ['AGS', 'APD']),
-            (['DHL'], ['HYL'])
+            (['LGX', 'LPS'], ['AGS', 'APD'])
         ]
         
         pairs = []
@@ -1302,8 +1289,6 @@ class CrosslinkReplacer:
             for resname in type2_list:
                 if resname in crosslinks_by_type:
                     type2_crosslinks.extend(crosslinks_by_type[resname])
-            
-            LOG.debug(f"Looking for pairs between {type1_list} ({len(type1_crosslinks)}) and {type2_list} ({len(type2_crosslinks)})")
             
             if not type1_crosslinks or not type2_crosslinks:
                 continue

@@ -197,13 +197,13 @@ class GeometryService:
             
             # Generate output PDB
             output_pdb: Path = self.file_manager.get_output_path(self.config.output, ".pdb")
-            LOG.info(f"{Fore.BLUE}Writing mixed system to {output_pdb}{Style.RESET_ALL}")
+            # LOG.info(f"{Fore.BLUE}Writing mixed system to {output_pdb}{Style.RESET_ALL}")
             
-            system.write_pdb(
-                pdb_out=output_pdb, 
-                fibril_length=self.config.fibril_length, 
-                temp_dir=mixing_dir
-            )
+            # system.write_pdb(
+            #     pdb_out=output_pdb, 
+            #     fibril_length=self.config.fibril_length, 
+            #     temp_dir=mixing_dir
+            # )
             
             return mixing_dir, output_pdb
             

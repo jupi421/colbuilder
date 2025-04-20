@@ -93,11 +93,23 @@ from colbuilder.core.topology.main_topology import build_topology
 # Disable logging propagation for certain modules that might be doubling output
 def configure_loggers():
     """Configure external loggers to prevent duplicated output."""
+    # Only disable propagation for specific loggers causing duplicates
+    # Instead of disabling all geometry loggers:
+    problematic_loggers = [
+        # Add specific logger names that are causing duplicates
+        # 'colbuilder.core.geometry.specific_module_causing_duplicates'
+    ]
+    
+    for logger_name in problematic_loggers:
+        logger = logging.getLogger(logger_name)
+        logger.propagate = False
+        
+    # Make sure all other loggers have handlers or propagate properly
     for logger_name in logging.root.manager.loggerDict:
-        # If any module is creating excessive logs, add it here
-        if logger_name.startswith('colbuilder.core.geometry'):
+        if logger_name not in problematic_loggers and not logger_name.startswith('colbuilder'):
             logger = logging.getLogger(logger_name)
-            logger.propagate = False
+            if logger.level == logging.NOTSET:
+                logger.setLevel(logging.WARNING)
             
 def copy_config_to_tmp(config_file_path: Path, tmp_dir: Path) -> Optional[Path]:
     """
@@ -215,7 +227,6 @@ async def run_geometry_generation(config: ColbuilderConfig, file_manager: Option
         GeometryGenerationError: If geometry generation or mixing fails
     """
     try:
-        LOG.section("Geometry Generation")
         LOG.subsection("Building Geometry or Mixing")
 
         current_file_manager = file_manager or FileManager(config)
@@ -454,8 +465,8 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
             f"    Mix Ratio: {cfg.ratio_mix}" if cfg.mix_bool else None,
             f"    Mix Files: {cfg.files_mix}" if cfg.mix_bool else None,
             f"    Replace Ratio: {cfg.ratio_replace}%" if cfg.replace_bool else None,
-            f"    N-terminal: {cfg.n_term_type}, {cfg.n_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else f" N-terminal: No crosslinks",
-            f"    C-terminal: {cfg.c_term_type}, {cfg.c_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else f" C-terminal: No crosslinks"
+            f"    N-terminal: {cfg.n_term_type}, {cfg.n_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else f" N-terminal: No additional crosslinks",
+            f"    C-terminal: {cfg.c_term_type}, {cfg.c_term_combination}" if (cfg.crosslink and not cfg.mix_bool) else f" C-terminal: No additional crosslinks"
         ],
         "Operation Modes": lambda: [
             "Sequence Generation \u2713" if cfg.sequence_generator else None,
@@ -479,29 +490,23 @@ def log_configuration_summary(cfg: ColbuilderConfig) -> None:
     LOG.info(f"Working Directory: {cfg.working_directory}")
 
 def initialize_logging(debug=False, working_dir=None, config_file=None):
-    """
-    Initialize logging system and create .tmp directory.
-    Always copies config if provided, regardless of debug mode.
-    
-    Args:
-        debug: Whether to enable debug output
-        working_dir: Working directory to place .tmp in
-        config_file: Path to config file to be copied
-        
-    Returns:
-        Root logger instance
-    """
     # Set up tmp directory
     tmp_dir = working_dir / '.tmp'
     tmp_dir.mkdir(parents=True, exist_ok=True)
     
-    # Copy config if provided (always, not just in debug mode)
+    # Copy config if provided
     if config_file:
         copy_config_to_tmp(config_file, tmp_dir)
     
     # Set debug flag for environment
     if debug:
         os.environ['COLBUILDER_DEBUG'] = '1'
+        
+        # Set DEBUG level for all colbuilder loggers
+        for logger_name in logging.root.manager.loggerDict:
+            if logger_name.startswith('colbuilder'):
+                logger = logging.getLogger(logger_name)
+                logger.setLevel(logging.DEBUG)
     
     # Initialize root logger
     from colbuilder.core.utils.logger import initialize_root_logger
@@ -597,6 +602,7 @@ def main(**kwargs: Any) -> int:
                 
                 # Save the raw files_mix from config if it exists
                 if 'files_mix' in file_config and file_config['files_mix']:
+                    LOG.debug(f"{file_config['files_mix']}")
                     raw_files_mix = file_config['files_mix']
                 
                 config_data = file_config
@@ -615,7 +621,7 @@ def main(**kwargs: Any) -> int:
                 continue
                 
             # Special handling for files_mix (it's a tuple from command line)
-            if key == 'files_mix' and value:
+            elif key == 'files_mix' and value:
                 LOG.info(f"Command line files_mix: {value}")
                 config_data[key] = value
                 raw_files_mix = value 
@@ -623,13 +629,13 @@ def main(**kwargs: Any) -> int:
                 
             # For boolean flags like --sequence_generator, only override if 
             # explicitly set to True on command line
-            if isinstance(value, bool):
-                if value: 
-                    config_data[key] = value
-                elif key not in config_data:
-                    config_data[key] = value
-            elif value is not None:
-                config_data[key] = value
+            # elif isinstance(value, bool):
+            #     if value: 
+            #         config_data[key] = value
+            #     elif key not in config_data:
+            #         config_data[key] = value
+            # elif value is not None:
+            #     config_data[key] = value
         
         # Log the final configuration before validation
         LOG.debug(f"Final configuration data before validation: {config_data}")
@@ -718,7 +724,7 @@ def main(**kwargs: Any) -> int:
                         config.files_mix = tuple(files)
                         LOG.info(f"Created test files: {config.files_mix}")
         
-        LOG.section("Starting ColBuilder Pipeline")
+        LOG.subsection("Starting ColBuilder Pipeline")
         results = asyncio.run(run_pipeline(config))
         
         LOG.section("ColBuilder Pipeline Complete")

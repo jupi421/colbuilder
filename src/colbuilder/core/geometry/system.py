@@ -249,7 +249,7 @@ class System:
             LOG.debug(f"Successfully removed directory: {directory_path}")
         except Exception as e:
             LOG.warning(f"Failed to remove directory {directory_path}: {str(e)}")
-
+            
     def write_pdb(self, pdb_out: Union[str, Path], fibril_length: float, cleanup: bool = True, temp_dir: Optional[Path] = None):
         """
         Write the system to a PDB file with proper type-specific caps handling.
@@ -261,7 +261,6 @@ class System:
             cleanup: Whether to clean up temporary files
             temp_dir: Directory containing caps files to use
         """
-        # Process output path
         pdb_out_path = Path(pdb_out)
         if not pdb_out_path.is_absolute():
             pdb_out_path = Path.cwd() / pdb_out_path
@@ -269,73 +268,53 @@ class System:
         if pdb_out_path.suffix != '.pdb':
             pdb_out_path = pdb_out_path.with_suffix('.pdb')
 
-        # Require a source directory
         if temp_dir is None:
             raise ValueError("temp_dir must be provided - specify which directory to use for caps files")
         
-        LOG.debug(f"Using caps files from: {temp_dir}")
-        
-        # Get model types
         model_types = set()
+        model_type_count = {}
         for model in self.system.values():
             if hasattr(model, 'type') and model.type:
                 model_types.add(model.type)
+                model_type_count[model.type] = model_type_count.get(model.type, 0) + 1
+
+        LOG.debug(f"Model type counts: {model_type_count}")
         
-        LOG.debug(f"System contains {self.get_size()} models with types: {', '.join(str(t) for t in model_types)}")
-        
-        # Find type-specific directories
         type_dirs = {}
         for model_type in model_types:
             type_dir = temp_dir / str(model_type)
             if type_dir.exists():
                 type_dirs[model_type] = type_dir
-                LOG.debug(f"Found {model_type} directory: {type_dir}")
+                caps_files_count = len(list(type_dir.glob("*.caps.pdb")))
             else:
                 LOG.error(f"No {model_type} directory found in {temp_dir}!")
                 raise FileNotFoundError(f"Required directory not found: {type_dir}")
         
-        # Find caps files for each model type
         caps_by_model = {}
+        caps_by_type = {}
         for model_type, type_dir in type_dirs.items():
+            caps_by_type[model_type] = []
             for caps_file in type_dir.glob("*.caps.pdb"):
                 try:
                     connect_id = float(caps_file.stem.split('.')[0])
-                    caps_by_model[connect_id] = caps_file
+                    caps_by_model[(model_type, connect_id)] = caps_file
+                    caps_by_type[model_type].append(connect_id)
                 except (ValueError, IndexError):
                     continue
         
-        # Check if any models have connections
         has_connections = False
-        for model in self.system.values():
-            if getattr(model, 'connect', None):  # Check if model has non-empty connect attribute
+        models_with_connections = 0
+        models_by_type_with_connections = {}
+        for model_id, model in self.system.items():
+            if getattr(model, 'connect', None): 
                 has_connections = True
-                break
+                models_with_connections += 1
+                model_type = getattr(model, 'type', 'unknown')
+                models_by_type_with_connections[model_type] = models_by_type_with_connections.get(model_type, 0) + 1
         
-        # Determine operation mode based on connections
-        if has_connections:
-            LOG.info("Using connection-based mode (system has connections)")
-            mode = "connection"
-            
-            # Verify we have all needed caps files
-            missing_models = []
-            for model_id, model in self.system.items():
-                if not model.connect:
-                    continue
-                    
-                for connect_id in model.connect:
-                    connect_float = float(connect_id)
-                    if connect_float not in caps_by_model:
-                        missing_models.append(connect_float)
-            
-            if missing_models:
-                LOG.error(f"Missing caps files for {len(missing_models)} models: {missing_models[:5]}...")
-                raise FileNotFoundError(f"Missing necessary caps files. Cannot create complete PDB.")
-        else:
-            mode = "all-inclusive"
+        LOG.debug(f"Models with connections: {models_with_connections} out of {len(self.system)}")
         
-        # Write the PDB file
         try:
-            # Get crystal header if available
             crystal_header = None
             if self.crystal and self.crystal.pdb_file:
                 crystal_pdb = Path(self.crystal.pdb_file).with_suffix('.pdb')
@@ -343,42 +322,72 @@ class System:
                     with open(crystal_pdb, 'r') as crystal_file:
                         crystal_header = crystal_file.readline()
             
+            written_models = 0
+            written_by_type = {}
+            written_connections = 0
+            written_caps_files = set() 
+            
             with open(pdb_out_path, 'w') as f:
                 if crystal_header:
                     f.write(crystal_header)
                 
-                if mode == "connection":
-                    # In connection mode, only process models with connections
+                for model_id, model in self.system.items():
+                    if hasattr(model, 'pdb_file') and Path(model.pdb_file).exists():
+                        LOG.debug(f"Writing model {model_id}")
+                        self._write_model_file_content(f, model.pdb_file)
+                        written_models += 1
+                        model_type = getattr(model, 'type', 'unknown')
+                        written_by_type[model_type] = written_by_type.get(model_type, 0) + 1
+                
+                if has_connections:
                     for model_id, model in self.system.items():
                         if not model.connect:
-                            LOG.warning(f"Model {model_id} has no connections, skipping")
                             continue
                         
-                        # Process connections
+                        model_type = getattr(model, 'type', 'unknown')
                         for connect_id in model.connect:
                             connect_float = float(connect_id)
-                            caps_file = caps_by_model.get(connect_float)
+                            key = (model_type, connect_float)
+                            
+                            if key in written_caps_files:
+                                continue
+                                
+                            caps_file = caps_by_model.get(key)
                             
                             if not caps_file:
-                                LOG.warning(f"No caps file found for model {model_id} connect {connect_id}")
+                                LOG.warning(f"No caps file found for model {model_id} type {model_type} connect {connect_id}")
                                 continue
                             
-                            # Write caps file content
                             self._write_caps_file_content(f, caps_file)
-                
-                else:  # all-inclusive mode
-                    # First, write all model atoms
-                    for model_id, model in self.system.items():
-                        if hasattr(model, 'pdb_file') and Path(model.pdb_file).exists():
-                            self._write_model_file_content(f, model.pdb_file)
-                    
-                    # Then write all caps files
-                    for caps_id, caps_file in caps_by_model.items():
-                        self._write_caps_file_content(f, caps_file)
+                            written_connections += 1
+                            written_by_type[model_type] = written_by_type.get(model_type, 0) + 1
+                            written_caps_files.add(key)
+                else:
+                    for model_type in model_types:
+                        models_of_type = [model for model in self.system.values() 
+                                        if hasattr(model, 'type') and model.type == model_type]
+                        
+                        if not models_of_type:
+                            continue
+                            
+                        caps_ids = set(caps_by_type.get(model_type, []))
+                        
+                        for connect_id in caps_ids:
+                            key = (model_type, connect_id)
+                            
+                            if key in written_caps_files:
+                                continue
+                                
+                            caps_file = caps_by_model.get(key)
+                            if caps_file:
+                                LOG.debug(f"Writing caps file {caps_file} for type {model_type}")
+                                self._write_caps_file_content(f, caps_file)
+                                written_connections += 1
+                                written_by_type[model_type] = written_by_type.get(model_type, 0) + 1
+                                written_caps_files.add(key)
                 
                 f.write("END\n")
             
-            # Verify the output file has content
             self._verify_output_file(pdb_out_path)
             
         except Exception as e:
@@ -390,11 +399,9 @@ class System:
     def _write_caps_file_content(self, file_handle, caps_file):
         """Helper method to write caps file content to an open file handle"""
         try:
-            LOG.debug(f"Writing caps from {caps_file}")
             with open(caps_file, 'r') as caps_file_obj:
                 content_written = False
                 for line in caps_file_obj:
-                    # Include both atom records and TER records
                     if line.startswith(self.is_line) or line.startswith("TER"):
                         content_written = True
                         if line.startswith('HETATM'):
@@ -416,7 +423,6 @@ class System:
         try:
             with open(model_file, 'r') as model_file_obj:
                 for line in model_file_obj:
-                    # Include both atom records and TER records
                     if line.startswith(self.is_line) or line.startswith("TER"):
                         if line.startswith('HETATM'):
                             line = 'ATOM  ' + line[6:]
@@ -440,7 +446,6 @@ class System:
                 elif file_size < 1000:
                     LOG.warning(f"Output PDB file is very small ({file_size} bytes)")
                 
-                # Count atoms as a basic check
                 atom_count = 0
                 ter_count = 0
                 resi_types = {}

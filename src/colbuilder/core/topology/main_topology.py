@@ -118,6 +118,9 @@ def organize_topology_files(topology_dir: Path, species: str) -> None:
     try:
         for top_file in Path().glob(f"collagen_fibril_*.top"):
             shutil.copy2(top_file, topology_dir / top_file.name)
+
+        for gro_file in Path().glob("*.gro"):
+            shutil.copy2(gro_file, topology_dir / gro_file.name)
             
         for itp_file in Path().glob("*.itp"):
             shutil.copy2(itp_file, topology_dir / itp_file.name)

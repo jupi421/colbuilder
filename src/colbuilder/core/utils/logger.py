@@ -19,24 +19,45 @@ from colorama import init, Fore, Style
 
 init(autoreset=True)
 
-# Define custom log levels for section headers
 SECTION = 25
 SUBSECTION = 24
 TITLE = 26
 
-# Configure the root logger
 logging.addLevelName(SECTION, "SECTION")
 logging.addLevelName(SUBSECTION, "SUBSECTION")
 logging.addLevelName(TITLE, "TITLE")
 
-# Global variables for single log file
+def _logger_title(self, title):
+    """Display a prominent title in logs."""
+    title_length = 80
+    border = "*" * (title_length + 4)
+    self.log(TITLE, f"{border}")
+    self.log(TITLE, f"* {title} *")
+    self.log(TITLE, f"{border}")
+
+def _logger_section(self, title):
+    """Display a section heading in logs."""
+    separator = "=" * 80
+    self.log(SECTION, f"{separator}")
+    self.log(SECTION, f"{title}")
+    self.log(SECTION, f"{separator}")
+
+def _logger_subsection(self, title):
+    """Display a subsection heading in logs."""
+    separator = "-" * 80
+    self.log(SUBSECTION, f"{title}")
+    self.log(SUBSECTION, f"{separator}")
+
+logging.Logger.title = _logger_title
+logging.Logger.section = _logger_section
+logging.Logger.subsection = _logger_subsection
+
 _log_file_path = None
 _log_file_lock = threading.Lock()
 _log_file_announced = False
 _console_handler = None
 _file_handler = None
 
-# ANSI color code regex pattern for stripping colors
 ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
 class ColoredLogger(logging.Logger):
@@ -55,27 +76,6 @@ class ColoredLogger(logging.Logger):
 
     def __init__(self, name, level=logging.NOTSET):
         super().__init__(name, level)
-
-    def title(self, title):
-        """Display a prominent title in logs."""
-        title_length = 80
-        border = "*" * (title_length + 4)
-        self.log(TITLE, f"{border}")
-        self.log(TITLE, f"* {title} *")
-        self.log(TITLE, f"{border}")
-
-    def section(self, title):
-        """Display a section heading in logs."""
-        separator = "=" * 80
-        self.log(SECTION, f"{separator}")
-        self.log(SECTION, f"{title}")
-        self.log(SECTION, f"{separator}")
-
-    def subsection(self, title):
-        """Display a subsection heading in logs."""
-        separator = "-" * 80
-        self.log(SUBSECTION, f"{title}")
-        self.log(SUBSECTION, f"{separator}")
 
 class ConsoleFormatter(logging.Formatter):
     """
@@ -120,7 +120,6 @@ class FileFormatter(logging.Formatter):
         
         return super().format(record)
 
-# Initialize global handlers
 def initialize_handlers(log_dir: Optional[Path] = None, level: int = logging.INFO, debug: bool = False):
     """
     Initialize global console and file handlers.
@@ -137,7 +136,7 @@ def initialize_handlers(log_dir: Optional[Path] = None, level: int = logging.INF
     
     _console_handler = logging.StreamHandler(sys.stdout)
     _console_handler.setFormatter(ConsoleFormatter('%(message)s'))
-    _console_handler.setLevel(level)
+    _console_handler.setLevel(logging.DEBUG if debug else level)
     
     with _log_file_lock:
         if log_dir is not None and _log_file_path is None:
@@ -158,15 +157,24 @@ def initialize_handlers(log_dir: Optional[Path] = None, level: int = logging.INF
                 print("Continuing with console logging only")
                 _file_handler = None
 
-# Global registry of loggers to avoid creating duplicates
 _loggers = {}
+
+def set_all_loggers_to_debug():
+    """Set all colbuilder loggers to DEBUG level."""
+    for name, logger_obj in logging.root.manager.loggerDict.items():
+        if name.startswith('colbuilder'):
+            if hasattr(logger_obj, 'setLevel'):
+                logger_obj.setLevel(logging.DEBUG)
+                for handler in getattr(logger_obj, 'handlers', []):
+                    if handler.level > logging.DEBUG:
+                        handler.setLevel(logging.DEBUG)
 
 def setup_logger(
     name: str,
     level: int = logging.INFO,
     log_dir: Optional[Path] = None,
     debug: bool = False,
-) -> ColoredLogger:
+) -> logging.Logger:
     """
     Set up and configure a logger with console and file output.
     Uses a single log file for all loggers in the application.
@@ -182,31 +190,41 @@ def setup_logger(
     """
     global _console_handler, _file_handler
     
-    if name in _loggers:
-        return _loggers[name]
-    
-    initialize_handlers(log_dir, level, debug)
-    
     logging.setLoggerClass(ColoredLogger)
+    
+    env_debug = os.environ.get('COLBUILDER_DEBUG', '0') == '1'
+    debug = debug or env_debug
+    
     logger = logging.getLogger(name)
     
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
+    if name not in _loggers or debug != _loggers.get(f"{name}_debug", False):
+        initialize_handlers(log_dir, level, debug)
+        
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+        
+        logger.setLevel(logging.DEBUG if debug else level)
+        
+        if name == "colbuilder":
+            logger.propagate = False
+            if _console_handler is not None:
+                logger.addHandler(_console_handler)
+            
+            if _file_handler is not None:
+                logger.addHandler(_file_handler)
+        elif '.' in name:
+            logger.propagate = True
+        else:
+            logger.propagate = False
+            if _console_handler is not None:
+                logger.addHandler(_console_handler)
+            
+            if _file_handler is not None:
+                logger.addHandler(_file_handler)
+        
+        _loggers[name] = logger
+        _loggers[f"{name}_debug"] = debug
     
-    if debug or os.environ.get('COLBUILDER_DEBUG', '0') == '1':
-        logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(level)
-    
-    logger.propagate = False
-    
-    if _console_handler is not None:
-        logger.addHandler(_console_handler)
-    
-    if _file_handler is not None:
-        logger.addHandler(_file_handler)
-    
-    _loggers[name] = logger
     return logger
 
 def initialize_root_logger(debug: bool = False, log_dir: Optional[Path] = None) -> logging.Logger:
@@ -223,8 +241,14 @@ def initialize_root_logger(debug: bool = False, log_dir: Optional[Path] = None) 
     """
     if debug:
         os.environ['COLBUILDER_DEBUG'] = '1'
+        set_all_loggers_to_debug()
     
-    return setup_logger("colbuilder", debug=debug, log_dir=log_dir)
+    root_logger = setup_logger("colbuilder", debug=debug, log_dir=log_dir)
+    
+    for module in ["colbuilder.core.sequence", "colbuilder.core.geometry", "colbuilder.core.topology"]:
+        setup_logger(module, debug=debug)
+    
+    return root_logger
 
 def get_system_info() -> Dict[str, Any]:
     """

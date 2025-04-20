@@ -78,7 +78,6 @@ def get_active_conda_env() -> Tuple[Optional[str], Optional[str]]:
         env_path = os.environ.get('CONDA_PREFIX')
         
         if env_name and env_path:
-            LOG.debug(f"Found active conda environment: {env_name} at {env_path}")
             return env_name, env_path
             
         result = subprocess.run(
@@ -90,7 +89,6 @@ def get_active_conda_env() -> Tuple[Optional[str], Optional[str]]:
         for env in env_data.get('envs', []):
             if os.path.exists(env) and env == os.environ.get('CONDA_PREFIX'):
                 env_name = os.path.basename(env)
-                LOG.debug(f"Found active conda environment: {env_name} at {env}")
                 return env_name, env
         
         LOG.warning("Could not determine active conda environment")
