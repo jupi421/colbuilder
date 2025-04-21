@@ -1,6 +1,6 @@
 """
-This module provides utilities for setting up and managing loggers with enhanced functionality, 
-including colored console output and support for logging to files. It is designed to simplify 
+This module provides utilities for setting up and managing loggers with enhanced functionality,
+including colored console output and support for logging to files. It is designed to simplify
 logging configuration and improve readability of log messages in the ColBuilder pipeline.
 """
 
@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from datetime import datetime
 import threading
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any
 from colorama import init, Fore, Style
 
 init(autoreset=True)
@@ -27,6 +27,7 @@ logging.addLevelName(SECTION, "SECTION")
 logging.addLevelName(SUBSECTION, "SUBSECTION")
 logging.addLevelName(TITLE, "TITLE")
 
+
 def _logger_title(self, title):
     """Display a prominent title in logs."""
     title_length = 80
@@ -35,6 +36,7 @@ def _logger_title(self, title):
     self.log(TITLE, f"* {title} *")
     self.log(TITLE, f"{border}")
 
+
 def _logger_section(self, title):
     """Display a section heading in logs."""
     separator = "=" * 80
@@ -42,11 +44,13 @@ def _logger_section(self, title):
     self.log(SECTION, f"{title}")
     self.log(SECTION, f"{separator}")
 
+
 def _logger_subsection(self, title):
     """Display a subsection heading in logs."""
     separator = "-" * 80
     self.log(SUBSECTION, f"{title}")
     self.log(SUBSECTION, f"{separator}")
+
 
 logging.Logger.title = _logger_title
 logging.Logger.section = _logger_section
@@ -60,9 +64,10 @@ _file_handler = None
 
 ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
+
 class ColoredLogger(logging.Logger):
     """Enhanced logger with colored output and special formatters."""
-    
+
     COLORS = {
         'DEBUG': Fore.CYAN,
         'INFO': Fore.GREEN,
@@ -76,6 +81,7 @@ class ColoredLogger(logging.Logger):
 
     def __init__(self, name, level=logging.NOTSET):
         super().__init__(name, level)
+
 
 class ConsoleFormatter(logging.Formatter):
     """
@@ -95,20 +101,21 @@ class ConsoleFormatter(logging.Formatter):
     def format(self, record):
         levelname = record.levelname
         msg = record.msg
-        
+
         if sys.stdout.isatty() and levelname in self.COLORS:
             if levelname in ('SECTION', 'TITLE', 'SUBSECTION'):
                 record.msg = f"{self.COLORS[levelname]}{msg}{Style.RESET_ALL}"
             else:
                 if '%(levelname)s' in self._fmt:
                     record.levelname = f"{self.COLORS[levelname]}{levelname}{Style.RESET_ALL}"
-        
+
         result = super().format(record)
-        
+
         record.levelname = levelname
         record.msg = msg
-        
+
         return result
+
 
 class FileFormatter(logging.Formatter):
     """
