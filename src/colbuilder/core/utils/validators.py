@@ -1,6 +1,6 @@
 """
-This module provides validation utilities for biological file formats, including FASTA and PDB files, 
-to ensure compatibility with the ColBuilder pipeline. It includes functionality for validating input 
+This module provides validation utilities for biological file formats, including FASTA and PDB files,
+to ensure compatibility with the ColBuilder pipeline. It includes functionality for validating input
 files, parsing content, and checking structural integrity.
 
 Key Features:
@@ -21,7 +21,7 @@ Key Features:
 
 Usage:
 ------
-This module is designed to be used as part of the ColBuilder pipeline to validate input files before 
+This module is designed to be used as part of the ColBuilder pipeline to validate input files before
 processing. The `BioformatValidator` class provides methods for validating FASTA and PDB files.
 
 Example:
@@ -54,17 +54,14 @@ from pathlib import Path
 from .exceptions import (
     ColbuilderError,
     SequenceGenerationError,
-    GeometryGenerationError
+    GeometryGenerationError,
 )
+
 
 class BioformatValidator:
     """Validates biological file formats including FASTA and PDB files."""
-    
-    def __init__(
-        self,
-        min_sequence_length: int = 950,
-        max_sequence_length: int = 1100
-    ):
+
+    def __init__(self, min_sequence_length: int = 950, max_sequence_length: int = 1100):
         """
         Initialize the validator with customizable parameters.
 
@@ -76,9 +73,7 @@ class BioformatValidator:
         self.max_sequence_length = max_sequence_length
 
     def validate_input_files(
-        self,
-        fasta_path: Optional[Path] = None,
-        pdb_path: Optional[Path] = None
+        self, fasta_path: Optional[Path] = None, pdb_path: Optional[Path] = None
     ) -> List[str]:
         """
         Validates input files if they are provided.
@@ -100,17 +95,17 @@ class BioformatValidator:
             if not fasta_path.exists():
                 raise SequenceGenerationError(
                     message=f"FASTA file not found: {fasta_path}",
-                    error_code="SEQ_ERR_001"
+                    error_code="SEQ_ERR_001",
                 )
 
             try:
                 content = fasta_path.read_text()
                 errors = []
-                
-                lines = [line.strip() for line in content.split('\n') if line.strip()]
+
+                lines = [line.strip() for line in content.split("\n") if line.strip()]
                 if not lines:
                     errors.append("Empty FASTA file")
-                    
+
                 sequences = self._parse_fasta_content(lines, errors)
                 self._validate_sequences(sequences, errors, warnings)
 
@@ -118,7 +113,7 @@ class BioformatValidator:
                     raise SequenceGenerationError(
                         message="FASTA validation failed",
                         error_code="SEQ_ERR_002",
-                        original_error=Exception("; ".join(errors))
+                        original_error=Exception("; ".join(errors)),
                     )
 
             except Exception as e:
@@ -126,28 +121,27 @@ class BioformatValidator:
                     raise SequenceGenerationError(
                         message="Error reading FASTA file",
                         error_code="SEQ_ERR_003",
-                        original_error=e
+                        original_error=e,
                     )
                 raise
 
         if pdb_path is not None:
             if not pdb_path.exists():
                 raise GeometryGenerationError(
-                    message=f"PDB file not found: {pdb_path}",
-                    error_code="GEO_ERR_001"
+                    message=f"PDB file not found: {pdb_path}", error_code="GEO_ERR_001"
                 )
 
             try:
                 content = pdb_path.read_text()
                 errors = []
-                
+
                 self._validate_pdb_content(content, errors)
 
                 if errors:
                     raise GeometryGenerationError(
                         message="PDB validation failed",
                         error_code="GEO_ERR_002",
-                        original_error=Exception("; ".join(errors))
+                        original_error=Exception("; ".join(errors)),
                     )
 
             except Exception as e:
@@ -155,7 +149,7 @@ class BioformatValidator:
                     raise GeometryGenerationError(
                         message="Error reading PDB file",
                         error_code="GEO_ERR_003",
-                        original_error=e
+                        original_error=e,
                     )
                 raise
 
@@ -169,11 +163,11 @@ class BioformatValidator:
         sequence_count = 0
 
         for line in lines:
-            if line.startswith('>'):
+            if line.startswith(">"):
                 if current_header:
-                    sequences[current_header] = ''.join(current_sequence)
+                    sequences[current_header] = "".join(current_sequence)
                     current_sequence = []
-                
+
                 current_header = line
                 sequence_count += 1
             else:
@@ -183,7 +177,7 @@ class BioformatValidator:
                 current_sequence.append(line)
 
         if current_header and current_sequence:
-            sequences[current_header] = ''.join(current_sequence)
+            sequences[current_header] = "".join(current_sequence)
 
         if len(sequences) != 3:
             errors.append(f"Expected exactly 3 sequences, found {len(sequences)}")
@@ -191,10 +185,7 @@ class BioformatValidator:
         return sequences
 
     def _validate_sequences(
-        self,
-        sequences: dict,
-        errors: List[str],
-        warnings: List[str]
+        self, sequences: dict, errors: List[str], warnings: List[str]
     ) -> None:
         """Validate sequence lengths and add warnings if outside acceptable range."""
         for header, sequence in sequences.items():
@@ -207,11 +198,10 @@ class BioformatValidator:
 
     def _validate_pdb_content(self, content: str, errors: List[str]) -> None:
         """Validate PDB content and collect errors."""
-        lines = content.split('\n')
+        lines = content.split("\n")
         if not lines:
             raise GeometryGenerationError(
-                message="Empty PDB file provided",
-                error_code="GEO_ERR_001"
+                message="Empty PDB file provided", error_code="GEO_ERR_001"
             )
 
         cryst_found = False
@@ -223,9 +213,9 @@ class BioformatValidator:
             if not line.strip():
                 continue
 
-            if line.startswith('CRYST1'):
+            if line.startswith("CRYST1"):
                 cryst_found = True
-            elif line.startswith('ATOM'):
+            elif line.startswith("ATOM"):
                 try:
                     chain_id = line[21]
                     chains.add(chain_id)
@@ -233,9 +223,9 @@ class BioformatValidator:
                 except IndexError:
                     raise GeometryGenerationError(
                         message=f"Invalid ATOM record format found: {line}",
-                        error_code="GEO_ERR_005"
+                        error_code="GEO_ERR_005",
                     )
-            elif line.startswith('TER'):
+            elif line.startswith("TER"):
                 if current_chain:
                     ter_count += 1
 
@@ -243,21 +233,21 @@ class BioformatValidator:
         if not cryst_found:
             raise GeometryGenerationError(
                 message="Missing CRYST1 record in PDB file. Crystal contacts information is required.",
-                error_code="GEO_ERR_002"
+                error_code="GEO_ERR_002",
             )
 
         # Check for correct number of chains
         if len(chains) != 3:
             raise GeometryGenerationError(
                 message=f"Invalid number of chains in PDB file. Expected exactly 3 chains, found {len(chains)}. "
-                    f"Found chains: {', '.join(sorted(chains)) if chains else 'none'}",
-                error_code="GEO_ERR_006"
+                f"Found chains: {', '.join(sorted(chains)) if chains else 'none'}",
+                error_code="GEO_ERR_006",
             )
 
         # Check for correct number of TER records
         if ter_count != 3:
             raise GeometryGenerationError(
                 message=f"Invalid number of TER records in PDB file. Expected 3 TER records, found {ter_count}. "
-                    "Each chain must be properly terminated with a TER record.",
-                error_code="GEO_ERR_007"
+                "Each chain must be properly terminated with a TER record.",
+                error_code="GEO_ERR_007",
             )

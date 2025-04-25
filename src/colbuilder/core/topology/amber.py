@@ -222,7 +222,6 @@ class Amber:
                         try:
                             model_atoms = int(lines[1].strip())
                             total_atoms += model_atoms
-                            LOG.debug(f"Model {model} has {model_atoms} atoms")
                         except (ValueError, IndexError) as e:
                             LOG.warning(f"Error reading atom count from {model_gro}: {e}")
                             continue

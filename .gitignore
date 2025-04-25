@@ -108,3 +108,6 @@ config.yaml
 glucosepane/
 .tmp/
 *_topology_files/
+logs/
+homosapiens*
+homo_sapiens*/

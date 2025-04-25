@@ -1,8 +1,8 @@
 """
 Constants for the ColBuilder Pipeline
 
-This module defines constants used throughout the ColBuilder pipeline for optimization, file 
-operations, and PDB formatting. These constants provide a centralized and consistent reference 
+This module defines constants used throughout the ColBuilder pipeline for optimization, file
+operations, and PDB formatting. These constants provide a centralized and consistent reference
 to ensure uniform behavior across the system.
 
 Key Features:
@@ -25,7 +25,7 @@ Key Features:
 
 Usage:
 ------
-This module is intended to be imported wherever these constants are required to ensure consistency 
+This module is intended to be imported wherever these constants are required to ensure consistency
 and avoid hardcoding values.
 
 Example:
@@ -42,6 +42,7 @@ if attempts > MAX_OPTIMIZATION_ATTEMPTS:
     raise ValueError("Exceeded maximum optimization attempts.")
 ```
 """
+
 from typing import Final
 
 # Optimization constants
@@ -57,5 +58,7 @@ PDB_EXTENSION: Final = ".pdb"
 FASTA_EXTENSION: Final = ".fasta"
 
 # PDB format constants
-DEFAULT_PDB_HEADER: Final = "CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2"
+DEFAULT_PDB_HEADER: Final = (
+    "CRYST1   39.970   26.950  677.900  89.24  94.59 105.58 P 1           2"
+)
 ATOM_RECORD_LENGTH: Final = 80

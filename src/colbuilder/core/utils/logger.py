@@ -1,33 +1,7 @@
 """
-This module provides utilities for setting up and managing loggers with enhanced functionality, 
-including colored console output and support for logging to files. It is designed to simplify 
+This module provides utilities for setting up and managing loggers with enhanced functionality,
+including colored console output and support for logging to files. It is designed to simplify
 logging configuration and improve readability of log messages in the ColBuilder pipeline.
-
-Usage:
-------
-This module can be used to configure loggers for any Python application. The `setup_logger` function 
-returns a configured logger instance that can be used to log messages at various levels.
-
-Example:
---------
-```python
-from colbuilder.core.utils.logger import setup_logger
-
-# Basic logger
-logger = setup_logger("my_logger")
-logger.info("This is an info message")
-logger.error("This is an error message")
-
-# Advanced logger with file output
-advanced_logger = setup_logger(
-    "advanced_logger",
-    level=logging.DEBUG,
-    log_file=Path("advanced.log"),
-    format_string="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-advanced_logger.debug("This is a debug message")
-advanced_logger.critical("This is a critical message")
-```
 """
 
 # Copyright (c) 2024, Colbuilder Development Team
@@ -35,122 +9,339 @@ advanced_logger.critical("This is a critical message")
 
 import logging
 import sys
+import os
+import re
 from pathlib import Path
-from typing import Optional
+from datetime import datetime
+import threading
+from typing import Optional, Dict, Any
 from colorama import init, Fore, Style
 
 init(autoreset=True)
 
+SECTION = 25
+SUBSECTION = 24
+TITLE = 26
+
+logging.addLevelName(SECTION, "SECTION")
+logging.addLevelName(SUBSECTION, "SUBSECTION")
+logging.addLevelName(TITLE, "TITLE")
+
+
+def _logger_title(self, title):
+    """Display a prominent title in logs."""
+    title_length = 80
+    border = "*" * (title_length + 4)
+    self.log(TITLE, f"{border}")
+    self.log(TITLE, f"* {title} *")
+    self.log(TITLE, f"{border}")
+
+
+def _logger_section(self, title):
+    """Display a section heading in logs."""
+    separator = "=" * 80
+    self.log(SECTION, f"{separator}")
+    self.log(SECTION, f"{title}")
+    self.log(SECTION, f"{separator}")
+
+
+def _logger_subsection(self, title):
+    """Display a subsection heading in logs."""
+    separator = "-" * 80
+    self.log(SUBSECTION, f"{title}")
+    self.log(SUBSECTION, f"{separator}")
+
+
+logging.Logger.title = _logger_title
+logging.Logger.section = _logger_section
+logging.Logger.subsection = _logger_subsection
+
+_log_file_path = None
+_log_file_lock = threading.Lock()
+_log_file_announced = False
+_console_handler = None
+_file_handler = None
+
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+
 class ColoredLogger(logging.Logger):
+    """Enhanced logger with colored output and special formatters."""
+
     COLORS = {
-        'DEBUG': Fore.BLUE,
+        'DEBUG': Fore.CYAN,
         'INFO': Fore.GREEN,
         'WARNING': Fore.YELLOW,
         'ERROR': Fore.RED,
-        'CRITICAL': Fore.RED + Style.BRIGHT,
+        'CRITICAL': Fore.MAGENTA + Style.BRIGHT,
+        'SECTION': Fore.BLUE + Style.BRIGHT,
+        'SUBSECTION': Fore.BLUE,
+        'TITLE': Fore.MAGENTA + Style.BRIGHT
     }
 
     def __init__(self, name, level=logging.NOTSET):
         super().__init__(name, level)
 
-    def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False):
-        if level >= self.level:
-            levelname = logging.getLevelName(level)
-            if levelname in self.COLORS:
-                msg = f"{self.COLORS[levelname]}{msg}{Style.RESET_ALL}"
-        super()._log(level, msg, args, exc_info, extra, stack_info)
 
-    def title(self, title):
-        title_length = len(title)
-        border = "*" * (title_length + 4)
-        self.info(f"{Fore.CYAN}{Style.BRIGHT}{border}")
-        self.info(f"{Fore.CYAN}{Style.BRIGHT}* {title} *")
-        self.info(f"{Fore.CYAN}{Style.BRIGHT}{border}{Style.RESET_ALL}")
+class ConsoleFormatter(logging.Formatter):
+    """
+    Formatter for console output with colors
+    """
+    COLORS = {
+        'DEBUG': Fore.CYAN,
+        'INFO': Fore.GREEN,
+        'WARNING': Fore.YELLOW,
+        'ERROR': Fore.RED,
+        'CRITICAL': Fore.MAGENTA + Style.BRIGHT,
+        'SECTION': Fore.BLUE + Style.BRIGHT,
+        'SUBSECTION': Fore.MAGENTA,
+        'TITLE': Fore.MAGENTA + Style.BRIGHT
+    }
 
-    def section(self, title):
-        separator = "=" * len(title)
-        self.info(f"{Fore.CYAN}{separator}")
-        self.info(f"{Fore.CYAN}{title}")
+    def format(self, record):
+        levelname = record.levelname
+        msg = record.msg
 
-    def subsection(self, title):
-        separator = "-" * len(title)
-        self.info(f"{Fore.MAGENTA}{title}")
-        #self.info(f"{Fore.MAGENTA}{separator}{Style.RESET_ALL}")
+        if sys.stdout.isatty() and levelname in self.COLORS:
+            if levelname in ('SECTION', 'TITLE', 'SUBSECTION'):
+                record.msg = f"{self.COLORS[levelname]}{msg}{Style.RESET_ALL}"
+            else:
+                if '%(levelname)s' in self._fmt:
+                    record.levelname = f"{self.COLORS[levelname]}{levelname}{Style.RESET_ALL}"
+
+        result = super().format(record)
+
+        record.levelname = levelname
+        record.msg = msg
+
+        return result
+
+
+class FileFormatter(logging.Formatter):
+    """
+    Formatter for file output without colors
+    """
+    def format(self, record):
+        if isinstance(record.msg, str):
+            record.msg = ANSI_ESCAPE.sub('', record.msg)
+
+        return super().format(record)
+
+
+def initialize_handlers(log_dir: Optional[Path] = None, level: int = logging.INFO,
+                        debug: bool = False):
+    """
+    Initialize global console and file handlers.
+
+    Parameters:
+        log_dir: Directory for log files
+        level: Logging level for console
+        debug: Whether to enable debug mode
+    """
+    global _console_handler, _file_handler, _log_file_path, _log_file_announced
+
+    if _console_handler is not None and _file_handler is not None:
+        return
+
+    _console_handler = logging.StreamHandler(sys.stdout)
+    _console_handler.setFormatter(ConsoleFormatter('%(message)s'))
+    _console_handler.setLevel(logging.DEBUG if debug else level)
+
+    with _log_file_lock:
+        if log_dir is not None and _log_file_path is None:
+            log_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            _log_file_path = log_dir / f'colbuilder_{timestamp}.log'
+
+            try:
+                _file_handler = logging.FileHandler(_log_file_path)
+                _file_handler.setFormatter(
+                    FileFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+                _file_handler.setLevel(logging.DEBUG)
+
+                if not _log_file_announced:
+                    print(f"Logging to file: {_log_file_path}")
+                    _log_file_announced = True
+            except (IOError, PermissionError) as e:
+                print(f"Could not create log file at {_log_file_path}: {e}")
+                print("Continuing with console logging only")
+                _file_handler = None
+
+
+_loggers = {}
+
+
+def set_all_loggers_to_debug():
+    """Set all colbuilder loggers to DEBUG level."""
+    for name, logger_obj in logging.root.manager.loggerDict.items():
+        if name.startswith('colbuilder'):
+            if hasattr(logger_obj, 'setLevel'):
+                logger_obj.setLevel(logging.DEBUG)
+                for handler in getattr(logger_obj, 'handlers', []):
+                    if handler.level > logging.DEBUG:
+                        handler.setLevel(logging.DEBUG)
+
 
 def setup_logger(
     name: str,
     level: int = logging.INFO,
-    log_file: Optional[Path] = None,
-    format_string: Optional[str] = None,
-) -> ColoredLogger:
+    log_dir: Optional[Path] = None,
+    debug: bool = False,
+) -> logging.Logger:
     """
-    Set up and configure a logger.
+    Set up and configure a logger with console and file output.
+    Uses a single log file for all loggers in the application.
 
-    Parameters
-    ----------
-    name : str
-        Name of the logger.
-    level : int, optional
-        Logging level. Default is logging.INFO.
-    log_file : Path, optional
-        Path to the log file. If not provided, logs will only be printed to console.
-    format_string : str, optional
-        Custom format string for log messages. If not provided, a default format will be used.
+    Parameters:
+        name: Name of the logger
+        level: Logging level (default: INFO)
+        log_dir: Directory for log files
+        debug: Enable debug mode
 
-    Returns
-    -------
-    logging.Logger
-        Configured logger instance.
-
-    Examples
-    --------
-    >>> logger = setup_logger("my_module")
-    >>> logger.info("This is an info message")
-    >>> logger.error("This is an error message")
-
-    >>> debug_logger = setup_logger("debug_module", level=logging.DEBUG, 
-    ...                             log_file=Path("debug.log"))
-    >>> debug_logger.debug("This is a debug message")
+    Returns:
+        Configured logger instance
     """
+    global _console_handler, _file_handler
+
     logging.setLoggerClass(ColoredLogger)
+
+    env_debug = os.environ.get('COLBUILDER_DEBUG', '0') == '1'
+    debug = debug or env_debug
+
     logger = logging.getLogger(name)
-    logger.setLevel(level)
 
-    if not format_string:
-        format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    if name not in _loggers or debug != _loggers.get(f"{name}_debug", False):
+        initialize_handlers(log_dir, level, debug)
 
-    console_format = "%(message)s"
-    console_formatter = logging.Formatter(console_format)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(console_formatter)
-    logger.addHandler(console_handler)
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
 
-    if log_file:
-        if not format_string:
-            format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        file_formatter = logging.Formatter(format_string)
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(file_formatter)
-        logger.addHandler(file_handler)
+        logger.setLevel(logging.DEBUG if debug else level)
+
+        if name == "colbuilder":
+            logger.propagate = False
+            if _console_handler is not None:
+                logger.addHandler(_console_handler)
+
+            if _file_handler is not None:
+                logger.addHandler(_file_handler)
+        elif '.' in name:
+            logger.propagate = True
+        else:
+            logger.propagate = False
+            if _console_handler is not None:
+                logger.addHandler(_console_handler)
+
+            if _file_handler is not None:
+                logger.addHandler(_file_handler)
+
+        _loggers[name] = logger
+        _loggers[f"{name}_debug"] = debug
 
     return logger
 
-if __name__ == "__main__":
-    basic_logger = setup_logger("basic_logger")
-    basic_logger.debug("This is a basic debug log")
-    basic_logger.info("This is a basic info log")
-    basic_logger.warning("This is a basic warning log")
-    basic_logger.error("This is a basic error log")
-    basic_logger.critical("This is a basic critical log")
 
-    advanced_logger = setup_logger(
-        "advanced_logger",
-        level=logging.DEBUG,
-        log_file=Path("advanced.log"),
-        format_string="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+def initialize_root_logger(debug: bool = False, log_dir: Optional[Path] = None) -> logging.Logger:
+    """
+    Initialize the root logger for the application.
+    Should be called once at the start of the application.
+
+    Parameters:
+        debug: Enable debug mode
+        log_dir: Directory for log files
+
+    Returns:
+        Root logger instance
+    """
+    if debug:
+        os.environ['COLBUILDER_DEBUG'] = '1'
+        set_all_loggers_to_debug()
+
+    root_logger = setup_logger("colbuilder", debug=debug, log_dir=log_dir)
+
+    for module in ["colbuilder.core.sequence", "colbuilder.core.geometry",
+                   "colbuilder.core.topology"]:
+        setup_logger(module, debug=debug)
+
+    return root_logger
+
+
+def get_system_info() -> Dict[str, Any]:
+    """
+    Collect system information for debugging purposes.
+
+    Returns:
+        Dictionary with system information
+    """
+    import platform
+    import sys
+
+    return {
+        "platform": platform.platform(),
+        "python_version": sys.version,
+        "python_executable": sys.executable,
+        "cwd": os.getcwd(),
+        "environment_variables": {
+            k: v for k, v in os.environ.items()
+            if k.startswith(('COLBUILDER_', 'PYTHONPATH', 'PATH'))
+        }
+    }
+
+
+def log_system_info(logger: logging.Logger) -> None:
+    """
+    Log system information for debugging.
+
+    Parameters:
+        logger: Logger instance to use
+    """
+    info = get_system_info()
+    logger.debug("System Information:")
+    for key, value in info.items():
+        if isinstance(value, dict):
+            logger.debug(f"{key}:")
+            for k, v in value.items():
+                logger.debug(f"  {k}: {v}")
+        else:
+            logger.debug(f"{key}: {value}")
+
+
+def log_exception(logger: logging.Logger, exception: Exception) -> None:
+    """
+    Log an exception with traceback.
+
+    Parameters:
+        logger: Logger instance
+        exception: Exception to log
+    """
+    import traceback
+    logger.error(f"Exception: {type(exception).__name__}: {str(exception)}")
+    tb_lines = traceback.format_exception(
+        type(exception),
+        exception,
+        exception.__traceback__
     )
-    advanced_logger.debug("This is an advanced debug log")
-    advanced_logger.info("This is an advanced info log")
-    advanced_logger.warning("This is an advanced warning log")
-    advanced_logger.error("This is an advanced error log")
-    advanced_logger.critical("This is an advanced critical log")
+    for line in tb_lines:
+        logger.debug(line.rstrip())
+
+
+def reset_logging():
+    """
+    Reset the logging system. Useful for testing.
+    """
+    global _log_file_path, _console_handler, _file_handler, _loggers, _log_file_announced
+
+    if _console_handler:
+        _console_handler.close()
+    if _file_handler:
+        _file_handler.close()
+
+    _log_file_path = None
+    _console_handler = None
+    _file_handler = None
+    _loggers = {}
+    _log_file_announced = False
+
+    root = logging.getLogger()
+    while root.handlers:
+        root.removeHandler(root.handlers[0])

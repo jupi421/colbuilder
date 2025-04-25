@@ -1,8 +1,8 @@
 """
 This module serves as the main entry point for the sequence generation process in the ColBuilder pipeline.
 
-It provides a high-level function, `build_sequence`, which orchestrates the generation of collagen 
-structures from input configurations. This includes sequence alignment, structure modeling, and 
+It provides a high-level function, `build_sequence`, which orchestrates the generation of collagen
+structures from input configurations. This includes sequence alignment, structure modeling, and
 crosslink application, leveraging the `SequenceGenerator` class.
 
 Key Features:
@@ -19,8 +19,8 @@ Key Features:
 
 Usage:
 ------
-This module is intended to be used as part of the ColBuilder pipeline. The main function, 
-`build_sequence`, takes a configuration object as input and outputs the paths to the generated 
+This module is intended to be used as part of the ColBuilder pipeline. The main function,
+`build_sequence`, takes a configuration object as input and outputs the paths to the generated
 MSA and PDB files.
 
 Example:
@@ -55,28 +55,33 @@ from colbuilder.core.utils.config import ColbuilderConfig
 from .sequence_generator import SequenceGenerator
 
 from ..utils.logger import setup_logger
+
 LOG = setup_logger(__name__)
+
 
 async def build_sequence(config: ColbuilderConfig) -> Tuple[Path, Path]:
     """
     Entry point for sequence generation process.
-    
+
     Args:
         config: Configuration object
-        
+
     Returns:
         Tuple of (msa_output_path, final_pdb_path)
-        
+
     Raises:
         SequenceGenerationError: If sequence generation fails
         SystemError: If system operations fail
     """
     generator = SequenceGenerator(config)
     msa_output, final_pdb = await generator.generate()
-    
+
     if final_pdb and final_pdb.exists():
-        LOG.info(f"{Fore.GREEN}Sequence generation completed, output PDB: {final_pdb.absolute()}{Style.RESET_ALL}")
-    
+        LOG.info(
+            f"{Fore.GREEN}Sequence generation completed, output PDB: {final_pdb.absolute()}{Style.RESET_ALL}"
+        )
+
     return msa_output, final_pdb
 
-__all__ = ['build_sequence']
+
+__all__ = ["build_sequence"]
