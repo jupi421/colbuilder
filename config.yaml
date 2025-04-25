@@ -1,7 +1,7 @@
 # Operation Mode
 mode: null
 config_file: null
-sequence_generator: false
+sequence_generator: true
 geometry_generator: true
 topology_generator: true
 debug: false

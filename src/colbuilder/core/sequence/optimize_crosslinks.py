@@ -979,6 +979,7 @@ def optimize_crosslink(
     tracker: TransformationTracker,
     max_steps: int = 20000,
     target_distance: float = 1.5,
+    previous_best_distance: float = float("inf"),
 ) -> Tuple[Dict[str, Structure], TransformationTracker]:
     """
     Optimize crosslink geometry using Monte Carlo optimization.
@@ -993,7 +994,7 @@ def optimize_crosslink(
     Returns:
         Tuple of optimized structures and transformation tracker
     """
-    best_distance = float("inf")
+    best_distance = previous_best_distance
     best_structures = {k: v.copy() for k, v in structures.items()}
     best_tracker = TransformationTracker()
     current_tracker = TransformationTracker()
@@ -1179,7 +1180,8 @@ def optimize_structure(
     copy2_pdb: str,
     crosslink_info: List[Dict[str, Any]],
     optimized_pdb: str,
-) -> Tuple[float, TransformationTracker]:
+    previous_best_distance: float = float("inf"),
+) -> Tuple[float, TransformationTracker, Path]:
     """
     Optimize protein structure to satisfy crosslinking constraints.
 
@@ -1198,20 +1200,34 @@ def optimize_structure(
         "copy1": load_pdb(copy1_pdb),
         "copy2": load_pdb(copy2_pdb),
     }
-
     save_pdb(structures["copy1"], "initial_copy1.pdb")
     save_pdb(structures["copy2"], "initial_copy2.pdb")
-
     crosslinks = select_best_matching_crosslinks(structures, crosslink_info)
-
     master_tracker = TransformationTracker()
+
+    # Calculate initial total distance before optimization
+    initial_total_distance = 0
+    for crosslink in crosslinks:
+        dist1, dist2 = get_distances(structures, crosslink)
+        initial_total_distance += dist1
+
+    LOG.debug(
+        f"Initial total distance before optimization: {initial_total_distance:.2f}"
+    )
 
     for i, crosslink in enumerate(crosslinks):
         LOG.debug(f"\nOptimizing crosslink {i+1}")
         log_crosslink_info(crosslink, i)
         tracker = TransformationTracker()
+
+        # If this is the first crosslink and we have a previous best, pass it
+        crosslink_previous_best = previous_best_distance if i == 0 else float("inf")
+
         structures, crosslink_tracker = optimize_crosslink(
-            structures, crosslink, tracker
+            structures,
+            crosslink,
+            tracker,
+            previous_best_distance=crosslink_previous_best,  # Pass the parameter
         )
         master_tracker.update_from(crosslink_tracker)
 
@@ -1251,4 +1267,4 @@ def optimize_structure(
                 f"{crosslink['R2']['type']}-{crosslink['R3']['type']} = {dist2:.2f}"
             )
 
-    return total_distance, master_tracker
+    return total_distance, master_tracker, Path(optimized_pdb)

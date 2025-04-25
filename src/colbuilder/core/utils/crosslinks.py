@@ -219,70 +219,112 @@ class CrosslinkOptimizer:
     async def optimize(self, input_pdb: Path, output_pdb: Path) -> Tuple[float, Path]:
         """
         Optimize crosslink positions using Monte Carlo algorithm.
-
         Args:
             input_pdb: Path to input PDB file
             output_pdb: Path to output PDB file
-
         Returns:
             Tuple of (best_distance, optimized_pdb_path)
-
         Raises:
             SequenceGenerationError: If optimization fails
             SystemError: If Chimera process fails
         """
         try:
-            generated_pdbs = await self._generate_copies(input_pdb)
-            if len(generated_pdbs) < 2:
-                raise SequenceGenerationError(
-                    "Not enough PDB copies generated for optimization",
-                    error_code="SEQ_ERR_003",
-                    context={"generated_pdbs_count": len(generated_pdbs)},
-                )
-
             crosslink_info = self._prepare_crosslink_info()
-
             max_total_distance = self._get_distance_threshold()
             LOG.debug(f"Maximum distance threshold: {max_total_distance} Å")
 
-            current_input = input_pdb
-            total_distance = float("inf")
+            best_input = input_pdb
+            best_distance = float("inf")
+            iteration_pdbs = []  # Keep track of intermediate PDB files
+            all_generated_pdbs = []  # Track all copies generated throughout the process
 
             while (
                 self.state.attempt_number < MAX_OPTIMIZATION_ATTEMPTS
-                and total_distance > max_total_distance
+                and best_distance > max_total_distance
             ):
+                LOG.debug(
+                    f"========== ITERATION {self.state.attempt_number} =========="
+                )
+                LOG.debug(f"Starting with input PDB: {best_input}")
 
-                total_distance, tracker = optimize_structure(
-                    initial_pdb=str(current_input),
+                # Generate new copies based on the current best input
+                generated_pdbs = await self._generate_copies(best_input)
+                all_generated_pdbs.extend(generated_pdbs)
+
+                if len(generated_pdbs) < 2:
+                    raise SequenceGenerationError(
+                        "Not enough PDB copies generated for optimization",
+                        error_code="SEQ_ERR_003",
+                        context={"generated_pdbs_count": len(generated_pdbs)},
+                    )
+
+                # Create a unique intermediate PDB file for this iteration
+                iteration_pdb = (
+                    output_pdb.parent / f"iteration_{self.state.attempt_number}.pdb"
+                )
+                iteration_pdbs.append(iteration_pdb)
+
+                # Pass the current best distance to optimize_structure
+                total_distance, tracker, _ = optimize_structure(
+                    initial_pdb=str(best_input),
                     copy1_pdb=str(generated_pdbs[0]),
                     copy2_pdb=str(generated_pdbs[1]),
                     crosslink_info=crosslink_info,
-                    optimized_pdb=str(output_pdb),
+                    optimized_pdb=str(iteration_pdb),
+                    previous_best_distance=best_distance,  # Pass the current best
                 )
 
-                current_input = output_pdb
                 self.state.update(total_distance)
                 self.state.increment_attempt()
 
-                LOG.debug("Current distance: {:2f} Å".format(total_distance))
+                LOG.debug(
+                    f"Iteration {self.state.attempt_number-1} complete. Previous best: {best_distance:.2f} Å, New result: {total_distance:.2f} Å"
+                )
 
-            if total_distance > CRITICAL_DISTANCE_THRESHOLD:
+                # Only update our best solution if this iteration actually improved
+                if total_distance < best_distance:
+                    LOG.debug(
+                        f"New best solution found! Improving from {best_distance:.2f} Å to {total_distance:.2f} Å"
+                    )
+                    best_distance = total_distance
+                    best_input = iteration_pdb
+                else:
+                    LOG.debug(
+                        f"No improvement in this iteration. Keeping previous best: {best_distance:.2f} Å"
+                    )
+
+                LOG.debug(
+                    f"========== END ITERATION {self.state.attempt_number-1} ==========\n"
+                )
+
+            # Copy the final best result to the output path
+            if best_input != input_pdb:
+                import shutil
+
+                shutil.copy(str(best_input), str(output_pdb))
+
+            if best_distance > CRITICAL_DISTANCE_THRESHOLD:
                 raise SequenceGenerationError(
                     "Crosslinks optimization failed",
                     error_code="SEQ_ERR_003",
                     context={
-                        "final_distance": total_distance,
+                        "final_distance": best_distance,
                         "attempts": self.state.attempt_number,
                         "optimization_history": self.state.optimization_history,
                     },
                 )
-
-            return total_distance, output_pdb
-
+            return best_distance, output_pdb
         finally:
-            if "generated_pdbs" in locals():
-                for pdb in generated_pdbs:
+            # Clean up all temporary files
+            if "all_generated_pdbs" in locals():
+                for pdb in all_generated_pdbs:
+                    try:
+                        pdb.unlink(missing_ok=True)
+                    except Exception as e:
+                        LOG.warning(f"Failed to delete temporary file {pdb}: {str(e)}")
+
+            if "iteration_pdbs" in locals():
+                for pdb in iteration_pdbs:
                     try:
                         pdb.unlink(missing_ok=True)
                     except Exception as e:
