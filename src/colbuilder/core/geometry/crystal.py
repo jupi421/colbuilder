@@ -10,6 +10,7 @@ from colbuilder.core.utils.logger import setup_logger
 
 LOG = setup_logger(__name__)
 
+
 class Crystal:
     """
     Reads crystal information to generate crystal-symmetry matrix.
@@ -27,8 +28,8 @@ class Crystal:
 
     def __init__(self, pdb=None):
         self.pdb_file = Path(pdb) if pdb else None
-        self.is_line = ('ATOM  ', 'HETATM', 'ANISOU')
-        self.crystal = {k: None for k in ['a', 'b', 'c', 'alpha', 'beta', 'gamma']}
+        self.is_line = ("ATOM  ", "HETATM", "ANISOU")
+        self.crystal = {k: None for k in ["a", "b", "c", "alpha", "beta", "gamma"]}
 
     def read_crystal(self, pdb: Optional[Path] = None) -> Dict[str, str]:
         """
@@ -45,7 +46,7 @@ class Crystal:
             Dictionary of crystal parameters.
         """
         pdb = pdb or self.pdb_file
-        with open(pdb.with_suffix('.pdb'), 'r') as f:
+        with open(pdb.with_suffix(".pdb"), "r") as f:
             return dict(zip(self.crystal.keys(), f.readline().split()[1:]))
 
     def read_spacegroup(self, pdb: Optional[Path] = None) -> int:
@@ -63,18 +64,18 @@ class Crystal:
             Space group number.
         """
         pdb = pdb or self.pdb_file
-        with open(pdb.with_suffix('.pdb'), 'r') as f:
+        with open(pdb.with_suffix(".pdb"), "r") as f:
             return int(f.readline().split()[-2])
-    
+
     def get_default_transformation(self) -> List[float]:
         """
         Get a default transformation matrix for the crystal.
-    
+
         Returns
         -------
         List[float]
             Default transformation matrix (identity matrix).
-    
+
         Raises
         ------
         ValueError
@@ -87,9 +88,14 @@ class Crystal:
             return self.get_t_matrix(cs_matrix=cs_matrix, s_matrix=default_shift)
         except Exception as e:
             LOG.error(f"Failed to generate default transformation matrix: {str(e)}")
-            raise ValueError("Could not generate default transformation matrix.") from e    
+            raise ValueError("Could not generate default transformation matrix.") from e
 
-    def read_cs_matrix(self, pdb: Optional[Path] = None, spacegroup: Optional[int] = None, crystal: Optional[Dict[str, str]] = None) -> np.ndarray:
+    def read_cs_matrix(
+        self,
+        pdb: Optional[Path] = None,
+        spacegroup: Optional[int] = None,
+        crystal: Optional[Dict[str, str]] = None,
+    ) -> np.ndarray:
         """
         Determine crystal-symmetry matrix CS based on crystallographic information & space group.
 
@@ -118,22 +124,36 @@ class Crystal:
             crystal = self.read_crystal(pdb)
 
         if spacegroup == 1:
-            ax, ay, az = float(crystal['a']), 0, 0
-            bx = float(crystal['b']) * np.cos(np.deg2rad(float(crystal['gamma'])))
-            by = float(crystal['b']) * np.sin(np.deg2rad(float(crystal['gamma'])))
+            ax, ay, az = float(crystal["a"]), 0, 0
+            bx = float(crystal["b"]) * np.cos(np.deg2rad(float(crystal["gamma"])))
+            by = float(crystal["b"]) * np.sin(np.deg2rad(float(crystal["gamma"])))
             bz = 0
-            cx = float(crystal['c']) * np.cos(np.deg2rad(float(crystal['beta'])))
-            cy = float(crystal['c']) * ((np.cos(np.deg2rad(float(crystal['alpha'])))
-                                         - np.cos(np.deg2rad(float(crystal['beta'])))
-                                         * np.cos(np.deg2rad(float(crystal['gamma']))))
-                                        / np.sin(np.deg2rad(float(crystal['gamma']))))
-            cz = np.sqrt(np.power(float(crystal['c']), 2) -
-                         np.power(cx, 2) - np.power(cy, 2))
-            return np.array([[ax, bx, cx], [ay, by, cy], [az, bz, cz]]).round(decimals=4)
+            cx = float(crystal["c"]) * np.cos(np.deg2rad(float(crystal["beta"])))
+            cy = float(crystal["c"]) * (
+                (
+                    np.cos(np.deg2rad(float(crystal["alpha"])))
+                    - np.cos(np.deg2rad(float(crystal["beta"])))
+                    * np.cos(np.deg2rad(float(crystal["gamma"])))
+                )
+                / np.sin(np.deg2rad(float(crystal["gamma"])))
+            )
+            cz = np.sqrt(
+                np.power(float(crystal["c"]), 2) - np.power(cx, 2) - np.power(cy, 2)
+            )
+            return np.array([[ax, bx, cx], [ay, by, cy], [az, bz, cz]]).round(
+                decimals=4
+            )
         else:
-            raise ValueError(f'Space-group not recognized: Crystal-rotation-matrix only for space-group 1 available. Got {spacegroup}')
+            raise ValueError(
+                f"Space-group not recognized: Crystal-rotation-matrix only for space-group 1 available. Got {spacegroup}"
+            )
 
-    def get_s_matrix(self, pdb: Optional[Path] = None, cs_matrix: Optional[np.ndarray] = None, t_matrix: Optional[List[float]] = None) -> List[int]:
+    def get_s_matrix(
+        self,
+        pdb: Optional[Path] = None,
+        cs_matrix: Optional[np.ndarray] = None,
+        t_matrix: Optional[List[float]] = None,
+    ) -> List[int]:
         """
         Get shift matrix S from transformation matrix T using crystal-symmetry matrix CS: S = T \ CS.
 
@@ -159,10 +179,17 @@ class Crystal:
         if cs_matrix is None:
             cs_matrix = self.read_cs_matrix(pdb)
         if t_matrix is None:
-            raise ValueError('No transform-matrix given, hence no unit-cell shift matrix can be calculated.')
+            raise ValueError(
+                "No transform-matrix given, hence no unit-cell shift matrix can be calculated."
+            )
         return list(np.linalg.solve(cs_matrix, t_matrix).round(decimals=0).astype(int))
 
-    def get_t_matrix(self, pdb: Optional[Path] = None, cs_matrix: Optional[np.ndarray] = None, s_matrix: Optional[List[int]] = None) -> List[float]:
+    def get_t_matrix(
+        self,
+        pdb: Optional[Path] = None,
+        cs_matrix: Optional[np.ndarray] = None,
+        s_matrix: Optional[List[int]] = None,
+    ) -> List[float]:
         """
         Get transformation matrix T from shift matrix S using crystal-symmetry matrix CS: T = CS x S.
 
@@ -188,7 +215,9 @@ class Crystal:
         if cs_matrix is None:
             cs_matrix = self.read_cs_matrix(pdb)
         if s_matrix is None:
-            raise ValueError('No unit-cell shift-matrix given, hence no transform matrix can be calculated.')
+            raise ValueError(
+                "No unit-cell shift-matrix given, hence no transform matrix can be calculated."
+            )
         return list(np.dot(cs_matrix, s_matrix).round(decimals=3).astype(float))
 
     def translate_crystal(self, pdb=None, translate=None, bool_system=False):
@@ -204,13 +233,13 @@ class Crystal:
         bool_system : bool, default=False
             Whether to translate the entire system.
         """
-        
+
         pdb = Path(pdb) if pdb else self.pdb_file
         if not bool_system:
             translate = [0, 0, translate[2] - self.get_cog(pdb)]
-        with open(pdb.with_suffix('.pdb'), 'r') as f:
+        with open(pdb.with_suffix(".pdb"), "r") as f:
             atoms = f.readlines()
-        with open(pdb.with_suffix('.pdb'), 'w') as f:
+        with open(pdb.with_suffix(".pdb"), "w") as f:
             for line in atoms:
                 if line[:6] in self.is_line:
                     x, y, z = float(line[30:38]), float(line[38:46]), float(line[46:54])
@@ -234,6 +263,6 @@ class Crystal:
             Z-coordinate of the center of gravity.
         """
         pdb = Path(pdb) if pdb else self.pdb_file
-        with open(pdb.with_suffix('.pdb'), 'r') as f:
+        with open(pdb.with_suffix(".pdb"), "r") as f:
             z_coords = [float(line[46:54]) for line in f if line[:6] in self.is_line]
         return np.nanmean(z_coords)

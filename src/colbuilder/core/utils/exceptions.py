@@ -1,26 +1,26 @@
 """
 ColBuilder Exceptions Module
 
-This module defines a structured exception hierarchy for the ColBuilder system, enabling detailed 
-error handling and reporting. It provides a base exception class, categorized error types, and 
+This module defines a structured exception hierarchy for the ColBuilder system, enabling detailed
+error handling and reporting. It provides a base exception class, categorized error types, and
 support for logging, serialization, and contextual information to aid in debugging and resolution.
 
 Key Features:
 --------------
 1. **Base Exception Class**:
-   - `ColbuilderError`: The base class for all ColBuilder exceptions, providing common functionality 
+   - `ColbuilderError`: The base class for all ColBuilder exceptions, providing common functionality
      such as logging, serialization, and detailed error information.
 
 2. **Error Categories**:
-   - `ErrorCategory`: Enumerates error categories, including SEQUENCE, GEOMETRY, TOPOLOGY, CONFIGURATION, 
+   - `ErrorCategory`: Enumerates error categories, including SEQUENCE, GEOMETRY, TOPOLOGY, CONFIGURATION,
      and SYSTEM errors.
 
 3. **Error Severity Levels**:
-   - `ErrorSeverity`: Defines severity levels (INFO, WARNING, ERROR, CRITICAL) to classify errors 
+   - `ErrorSeverity`: Defines severity levels (INFO, WARNING, ERROR, CRITICAL) to classify errors
      and determine their impact on the system.
 
 4. **Detailed Error Information**:
-   - `ColbuilderErrorDetail`: A dataclass that encapsulates error details, including the message, 
+   - `ColbuilderErrorDetail`: A dataclass that encapsulates error details, including the message,
      category, severity, technical details, suggestions, affected files, and links to documentation.
 
 5. **Specific Error Types**:
@@ -31,12 +31,12 @@ Key Features:
    - `TopologyGenerationError`: For errors during topology generation.
 
 6. **Logging and Serialization**:
-   - Errors can be logged with appropriate severity levels and serialized to dictionaries or JSON 
+   - Errors can be logged with appropriate severity levels and serialized to dictionaries or JSON
      for API responses or debugging.
 
 Usage:
 ------
-This module is designed to provide structured error handling throughout the ColBuilder pipeline. 
+This module is designed to provide structured error handling throughout the ColBuilder pipeline.
 Exceptions can be raised with detailed information and logged for debugging or user feedback.
 
 Example:
@@ -69,21 +69,23 @@ from .error_codes import (
     GEOMETRY_ERRORS,
     TOPOLOGY_ERRORS,
     CONFIGURATION_ERRORS,
-    SYSTEM_ERRORS
+    SYSTEM_ERRORS,
 )
 
 LOG = setup_logger(__name__)
 
+
 class ErrorSeverity(Enum):
     """
     Enumeration of error severity levels.
-    
+
     Levels:
         INFO: Informational message
         WARNING: Warning that doesn't prevent operation
         ERROR: Error that prevents specific operation
         CRITICAL: Error that prevents system operation
     """
+
     INFO = auto()
     WARNING = auto()
     ERROR = auto()
@@ -93,7 +95,7 @@ class ErrorSeverity(Enum):
 class ErrorCategory(Enum):
     """
     Enumeration of error categories.
-    
+
     Categories:
         SEQUENCE: Sequence generation errors
         GEOMETRY: Geometry generation errors
@@ -101,6 +103,7 @@ class ErrorCategory(Enum):
         CONFIGURATION: Configuration errors
         SYSTEM: System-level errors
     """
+
     SEQUENCE = auto()
     GEOMETRY = auto()
     TOPOLOGY = auto()
@@ -112,7 +115,7 @@ class ErrorCategory(Enum):
 class ColbuilderErrorDetail:
     """
     Detailed information about an error.
-    
+
     Attributes:
         message: Main error message
         category: Error category
@@ -124,6 +127,7 @@ class ColbuilderErrorDetail:
         docs_url: Link to relevant documentation
         context: Additional contextual information
     """
+
     message: str
     category: ErrorCategory
     severity: ErrorSeverity
@@ -138,23 +142,21 @@ class ColbuilderErrorDetail:
 class ColbuilderError(Exception):
     """
     Base class for Colbuilder exceptions.
-    
+
     This class provides common functionality for all Colbuilder errors,
     including logging, serialization, and error details.
-    
+
     Attributes:
         detail: Detailed error information
         original_error: Original exception if this wraps another error
     """
-    
+
     def __init__(
-        self, 
-        detail: ColbuilderErrorDetail,
-        original_error: Optional[Exception] = None
+        self, detail: ColbuilderErrorDetail, original_error: Optional[Exception] = None
     ) -> None:
         """
         Initialize the error.
-        
+
         Args:
             detail: Detailed error information
             original_error: Optional original exception
@@ -162,60 +164,61 @@ class ColbuilderError(Exception):
         self.detail = detail
         self.original_error = original_error
         super().__init__(detail.message)
-        
+
     def log_error(self) -> None:
         """
         Log the error with appropriate severity level.
-        
+
         This method logs the error message, technical details,
         suggestions, and affected files using the appropriate
         log level based on error severity.
         """
         # Make sure we're using the properly initialized logger
         from colbuilder.core.utils.logger import setup_logger
+
         LOG = setup_logger(__name__)
-        
+
         log_level = {
             ErrorSeverity.INFO: LOG.info,
             ErrorSeverity.WARNING: LOG.warning,
             ErrorSeverity.ERROR: LOG.error,
-            ErrorSeverity.CRITICAL: LOG.critical
+            ErrorSeverity.CRITICAL: LOG.critical,
         }.get(self.detail.severity, LOG.error)
-        
+
         # Log main error message
         log_level(f"[{self.detail.category.name}] {self.detail.message}")
-        
+
         # Log technical details if available
         if self.detail.technical_details:
             LOG.debug(f"Technical details: {self.detail.technical_details}")
-        
+
         # Log original error traceback if available
         if self.original_error:
             LOG.debug("Original error traceback:")
             tb_lines = traceback.format_exception(
                 type(self.original_error),
                 self.original_error,
-                self.original_error.__traceback__
+                self.original_error.__traceback__,
             )
             for line in tb_lines:
                 LOG.debug(line.rstrip())
-        
+
         # Log suggestions
         if self.detail.suggestions:
             LOG.info("Suggestions for resolution:")
             for suggestion in self.detail.suggestions:
                 LOG.info(f"- {suggestion}")
-        
+
         # Log affected files
         if self.detail.affected_files:
             LOG.debug("Affected files:")
             for file in self.detail.affected_files:
                 LOG.debug(f"- {file}")
-        
+
         # Log documentation link
         if self.detail.docs_url:
             LOG.info(f"For more information, visit: {self.detail.docs_url}")
-            
+
         # Log context if available
         if self.detail.context:
             LOG.debug("Error context:")
@@ -225,7 +228,7 @@ class ColbuilderError(Exception):
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert error to a dictionary suitable for API responses.
-        
+
         Returns:
             Dict containing error information
         """
@@ -233,30 +236,30 @@ class ColbuilderError(Exception):
             "message": self.detail.message,
             "category": self.detail.category.name,
             "severity": self.detail.severity.name,
-            "error_code": self.detail.error_code
+            "error_code": self.detail.error_code,
         }
-        
+
         if self.detail.technical_details:
             error_dict["technical_details"] = self.detail.technical_details
-            
+
         if self.detail.suggestions:
             error_dict["suggestions"] = self.detail.suggestions
-            
+
         if self.detail.affected_files:
             error_dict["affected_files"] = [str(f) for f in self.detail.affected_files]
-            
+
         if self.detail.docs_url:
             error_dict["documentation_url"] = self.detail.docs_url
-            
+
         if self.detail.context:
             error_dict["context"] = self.detail.context
-            
+
         return error_dict
 
     def to_json(self) -> str:
         """
         Convert error to JSON string.
-        
+
         Returns:
             JSON string representation of the error
         """
@@ -266,21 +269,21 @@ class ColbuilderError(Exception):
 class SystemError(ColbuilderError):
     """
     Exception raised for system-related errors.
-    
+
     These are typically critical errors that affect system operation.
     """
-    
+
     @classmethod
     def get_error_info(cls, error_code: str):
         """Get error information for a system error code."""
         return SYSTEM_ERRORS[error_code]
-    
+
     def __init__(
         self,
         message: str,
         original_error: Optional[Exception] = None,
         error_code: str = "SYS_ERR_001",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         error_info = SYSTEM_ERRORS[error_code]
         detail = ColbuilderErrorDetail(
@@ -291,7 +294,7 @@ class SystemError(ColbuilderError):
             suggestions=error_info.suggestions,
             error_code=error_info.code,
             docs_url=error_info.docs_url,
-            context=context
+            context=context,
         )
         super().__init__(detail, original_error)
 
@@ -299,21 +302,21 @@ class SystemError(ColbuilderError):
 class ConfigurationError(ColbuilderError):
     """
     Exception raised for configuration-related errors.
-    
+
     These errors occur during system configuration and setup.
     """
-    
+
     @classmethod
     def get_error_info(cls, error_code: str):
         """Get error information for a configuration error code."""
         return CONFIGURATION_ERRORS[error_code]
-    
+
     def __init__(
         self,
         message: str,
         original_error: Optional[Exception] = None,
         error_code: str = "CFG_ERR_001",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         error_info = CONFIGURATION_ERRORS[error_code]
         detail = ColbuilderErrorDetail(
@@ -324,7 +327,7 @@ class ConfigurationError(ColbuilderError):
             suggestions=error_info.suggestions,
             error_code=error_info.code,
             docs_url=error_info.docs_url,
-            context=context
+            context=context,
         )
         super().__init__(detail, original_error)
 
@@ -332,16 +335,16 @@ class ConfigurationError(ColbuilderError):
 class SequenceGenerationError(ColbuilderError):
     """
     Exception raised for errors during sequence generation.
-    
+
     These errors occur during the sequence processing step.
     """
-    
+
     def __init__(
         self,
         message: str,
         original_error: Optional[Exception] = None,
         error_code: str = "SEQ_ERR_001",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         error_info = SEQUENCE_ERRORS[error_code]
         detail = ColbuilderErrorDetail(
@@ -352,7 +355,7 @@ class SequenceGenerationError(ColbuilderError):
             suggestions=error_info.suggestions,
             error_code=error_info.code,
             docs_url=error_info.docs_url,
-            context=context
+            context=context,
         )
         super().__init__(detail, original_error)
 
@@ -360,16 +363,16 @@ class SequenceGenerationError(ColbuilderError):
 class GeometryGenerationError(ColbuilderError):
     """
     Exception raised for errors during geometry generation.
-    
+
     These errors occur during the geometry processing step.
     """
-    
+
     def __init__(
         self,
         message: str,
         original_error: Optional[Exception] = None,
         error_code: str = "GEO_ERR_001",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         error_info = GEOMETRY_ERRORS[error_code]
         detail = ColbuilderErrorDetail(
@@ -380,7 +383,7 @@ class GeometryGenerationError(ColbuilderError):
             suggestions=error_info.suggestions,
             error_code=error_info.code,
             docs_url=error_info.docs_url,
-            context=context
+            context=context,
         )
         super().__init__(detail, original_error)
 
@@ -388,16 +391,16 @@ class GeometryGenerationError(ColbuilderError):
 class TopologyGenerationError(ColbuilderError):
     """
     Exception raised for errors during topology generation.
-    
+
     These errors occur during the topology processing step.
     """
-    
+
     def __init__(
         self,
         message: str,
         original_error: Optional[Exception] = None,
         error_code: str = "TOP_ERR_001",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         error_info = TOPOLOGY_ERRORS[error_code]
         detail = ColbuilderErrorDetail(
@@ -408,6 +411,6 @@ class TopologyGenerationError(ColbuilderError):
             suggestions=error_info.suggestions,
             error_code=error_info.code,
             docs_url=error_info.docs_url,
-            context=context
+            context=context,
         )
         super().__init__(detail, original_error)

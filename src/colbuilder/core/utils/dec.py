@@ -1,8 +1,8 @@
 """
 Decorator Utilities for ColBuilder
 
-This module provides utility decorators to enhance functionality and simplify common patterns 
-in the ColBuilder pipeline. It includes a `timeit` decorator for measuring and logging the 
+This module provides utility decorators to enhance functionality and simplify common patterns
+in the ColBuilder pipeline. It includes a `timeit` decorator for measuring and logging the
 execution time of synchronous and asynchronous functions.
 
 Key Features:
@@ -16,7 +16,7 @@ Key Features:
 
 Usage:
 ------
-This module is designed to be used throughout the ColBuilder pipeline to monitor function 
+This module is designed to be used throughout the ColBuilder pipeline to monitor function
 performance and identify bottlenecks.
 
 Example:
@@ -46,7 +46,6 @@ await example_async_function()
 # Distributed under the terms of the Apache License 2.0
 
 import time
-from time import sleep
 from functools import wraps
 from typing import Callable, Any
 import asyncio
@@ -55,21 +54,30 @@ from colbuilder.core.utils.logger import setup_logger
 
 LOG = setup_logger(__name__)
 
+
 def timeit(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to measure and log the execution time of a function."""
+
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         start_time = time.time()
         if asyncio.iscoroutinefunction(func):
+
             async def async_wrapper():
                 result = await func(*args, **kwargs)
                 end_time = time.time()
-                LOG.debug(f"{func.__name__} executed in {end_time - start_time:.2f} seconds")
+                LOG.debug(
+                    f"{func.__name__} executed in {end_time - start_time:.2f} seconds"
+                )
                 return result
+
             return async_wrapper()
         else:
             result = func(*args, **kwargs)
             end_time = time.time()
-            LOG.debug(f"{func.__name__} executed in {end_time - start_time:.2f} seconds")
+            LOG.debug(
+                f"{func.__name__} executed in {end_time - start_time:.2f} seconds"
+            )
             return result
+
     return wrapper

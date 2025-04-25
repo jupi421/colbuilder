@@ -1,12 +1,12 @@
 """
 This module provides a wrapper for MODELLER®, a program for comparative protein structure modeling.
 
-MODELLER® is a trademark of the Regents of the University of California, developed by Andrej Sali 
-and colleagues at the University of California, San Francisco. For more information, visit: 
+MODELLER® is a trademark of the Regents of the University of California, developed by Andrej Sali
+and colleagues at the University of California, San Francisco. For more information, visit:
 https://salilab.org/modeller/
 
-The `ModellerWrapper` class simplifies the integration of MODELLER into the ColBuilder project, 
-allowing users to generate protein structure models from aligned sequences and template structures. 
+The `ModellerWrapper` class simplifies the integration of MODELLER into the ColBuilder project,
+allowing users to generate protein structure models from aligned sequences and template structures.
 It supports custom residue type, topology, and parameter libraries for advanced modeling.
 
 Key Features:
@@ -23,8 +23,8 @@ Key Features:
 
 Usage:
 ------
-This module is designed to be used as part of a pipeline for generating collagen structures. 
-The main entry point is the `run_modeller` function or the `ModellerWrapper` class, which 
+This module is designed to be used as part of a pipeline for generating collagen structures.
+The main entry point is the `run_modeller` function or the `ModellerWrapper` class, which
 handles the entire modeling process and outputs the final PDB file.
 
 Example:
@@ -67,6 +67,7 @@ from colbuilder.core.utils.dec import timeit
 
 LOG = setup_logger(__name__)
 
+
 class ModellerWrapper:
     """
     Attributes:
@@ -79,8 +80,15 @@ class ModellerWrapper:
         output_pdb (Optional[str]): Path to the output PDB file.
     """
 
-    def __init__(self, aligned_file: str, template_pdb: str, output_prefix: str, 
-                 restyp_lib: str, top_heav_lib: str, par_mod_lib: str):
+    def __init__(
+        self,
+        aligned_file: str,
+        template_pdb: str,
+        output_prefix: str,
+        restyp_lib: str,
+        top_heav_lib: str,
+        par_mod_lib: str,
+    ):
         """
         Initialize the ModellerWrapper.
 
@@ -118,40 +126,45 @@ class ModellerWrapper:
         Raises:
             Exception: If an error occurs during the MODELLER process.
         """
+
         class MyModel(AutoModel):
             def special_patches(self, aln):
-                self.rename_segments(segment_ids=["A", "B", "C"], renumber_residues=[1, 1, 1])
-        
+                self.rename_segments(
+                    segment_ids=["A", "B", "C"], renumber_residues=[1, 1, 1]
+                )
+
         try:
             env = Environ(
                 rand_seed=-8123,
                 restyp_lib_file=str(self.restyp_lib),
                 copy=None,
             )
-        
+
             env.io.hetatm = True
             env.libs.topology.read(str(self.top_heav_lib))
             env.libs.parameters.read(str(self.par_mod_lib))
             template_dir = os.path.dirname(self.template_pdb)
-            env.io.atom_files_directory = ['.', template_dir]
-            
+            env.io.atom_files_directory = [".", template_dir]
+
             a = MyModel(
                 env,
                 alnfile=str(self.aligned_file),
                 knowns="template",
-                sequence="target"
+                sequence="target",
             )
-        
+
             a.very_fast()
             a.starting_model = 1
             a.ending_model = 1
             a.make()
-            
+
             self.output_pdb = f"{self.output_prefix}_final_model.pdb"
             try:
-                os.rename(a.outputs[0]['name'], self.output_pdb)
+                os.rename(a.outputs[0]["name"], self.output_pdb)
             except OSError as e:
-                LOG.error(f"Could not rename output file to {self.output_pdb}: {str(e)}")
+                LOG.error(
+                    f"Could not rename output file to {self.output_pdb}: {str(e)}"
+                )
                 raise
         except Exception as e:
             LOG.error(f"An error occurred during the MODELLER process: {str(e)}")
@@ -173,9 +186,16 @@ class ModellerWrapper:
             LOG.error(f"An error occurred during the MODELLER process: {str(e)}")
             raise
 
+
 @timeit
-def run_modeller(aligned_file: str, template_pdb: str, output_prefix: str, 
-                 restyp_lib: str, top_heav_lib: str, par_mod_lib: str) -> str:
+def run_modeller(
+    aligned_file: str,
+    template_pdb: str,
+    output_prefix: str,
+    restyp_lib: str,
+    top_heav_lib: str,
+    par_mod_lib: str,
+) -> str:
     """
     Run MODELLER to generate a protein structure model.
 
@@ -199,7 +219,7 @@ def run_modeller(aligned_file: str, template_pdb: str, output_prefix: str,
         str(output_prefix),
         str(restyp_lib),
         str(top_heav_lib),
-        str(par_mod_lib)
+        str(par_mod_lib),
     )
     modeller.execute_modeller()
     return modeller.output_pdb

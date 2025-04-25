@@ -3,7 +3,7 @@ mode: null
 config_file: null
 sequence_generator: false
 geometry_generator: true
-topology_generator: false
+topology_generator: true
 debug: false
 working_directory: "./"
 
@@ -18,10 +18,10 @@ species: "homo_sapiens"  # Available options:
 # Sequence Settings
 fasta_file: null # Provide custom fasta file if not choosing an available species. If null, will be auto-generated based on species.
 crosslink: true
-n_term_type: "DPL"                # Crosslink type in terminal N
-c_term_type: "DPL"                 # Crosslink type in terminal C
-n_term_combination: "9.C - 5.B - 944.B" #"9.C - 947.A"   # Crosslink position. Example: "9.C - 947.A" for resnum 9 in chainID C and resnum 947 in chainID A
-c_term_combination: "1047.C - 1047.A - 104.C"
+n_term_type: "HLKNL" #"DPL"                # Crosslink type in terminal N
+c_term_type: "HLKNL" #"DPL"                 # Crosslink type in terminal C
+n_term_combination: "9.C - 947.A" #"9.C - 5.B - 944.B" #"9.C - 947.A"   # Crosslink position. Example: "9.C - 947.A" for resnum 9 in chainID C and resnum 947 in chainID A
+c_term_combination: "1047.C - 104.C" #"1047.C - 1047.A - 104.C"
 
 
 # Geometry Parameters
@@ -42,7 +42,7 @@ files_mix:              # Required if mix_bool is true
   # Example: "human-D.pdb" and "human-T.pdb" are the PDB files for collagen triple helices with Divalent and Trivalent crosslinks respectively
 
 # Replacement Options (for less crosslinks)
-replace_bool: true  # Set to true to enable replacement of crosslinks
+replace_bool: false  # Set to true to enable replacement of crosslinks
 ratio_replace: 30    # Percentage of crosslinks to replace with standard amino acids (0-100)
 replace_file: homo_sapiens.pdb   # "rattus_norvegicus.pdb"   # Optional: Path to a file containing specific crosslinks to replace
 

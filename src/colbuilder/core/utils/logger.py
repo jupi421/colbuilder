@@ -124,38 +124,41 @@ class FileFormatter(logging.Formatter):
     def format(self, record):
         if isinstance(record.msg, str):
             record.msg = ANSI_ESCAPE.sub('', record.msg)
-        
+
         return super().format(record)
 
-def initialize_handlers(log_dir: Optional[Path] = None, level: int = logging.INFO, debug: bool = False):
+
+def initialize_handlers(log_dir: Optional[Path] = None, level: int = logging.INFO,
+                        debug: bool = False):
     """
     Initialize global console and file handlers.
-    
+
     Parameters:
         log_dir: Directory for log files
         level: Logging level for console
         debug: Whether to enable debug mode
     """
     global _console_handler, _file_handler, _log_file_path, _log_file_announced
-    
+
     if _console_handler is not None and _file_handler is not None:
         return
-    
+
     _console_handler = logging.StreamHandler(sys.stdout)
     _console_handler.setFormatter(ConsoleFormatter('%(message)s'))
     _console_handler.setLevel(logging.DEBUG if debug else level)
-    
+
     with _log_file_lock:
         if log_dir is not None and _log_file_path is None:
             log_dir.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             _log_file_path = log_dir / f'colbuilder_{timestamp}.log'
-            
+
             try:
                 _file_handler = logging.FileHandler(_log_file_path)
-                _file_handler.setFormatter(FileFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-                _file_handler.setLevel(logging.DEBUG)  
-                
+                _file_handler.setFormatter(
+                    FileFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+                _file_handler.setLevel(logging.DEBUG)
+
                 if not _log_file_announced:
                     print(f"Logging to file: {_log_file_path}")
                     _log_file_announced = True
@@ -164,7 +167,9 @@ def initialize_handlers(log_dir: Optional[Path] = None, level: int = logging.INF
                 print("Continuing with console logging only")
                 _file_handler = None
 
+
 _loggers = {}
+
 
 def set_all_loggers_to_debug():
     """Set all colbuilder loggers to DEBUG level."""
@@ -175,6 +180,7 @@ def set_all_loggers_to_debug():
                 for handler in getattr(logger_obj, 'handlers', []):
                     if handler.level > logging.DEBUG:
                         handler.setLevel(logging.DEBUG)
+
 
 def setup_logger(
     name: str,
@@ -196,27 +202,27 @@ def setup_logger(
         Configured logger instance
     """
     global _console_handler, _file_handler
-    
+
     logging.setLoggerClass(ColoredLogger)
-    
+
     env_debug = os.environ.get('COLBUILDER_DEBUG', '0') == '1'
     debug = debug or env_debug
-    
+
     logger = logging.getLogger(name)
-    
+
     if name not in _loggers or debug != _loggers.get(f"{name}_debug", False):
         initialize_handlers(log_dir, level, debug)
-        
+
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
-        
+
         logger.setLevel(logging.DEBUG if debug else level)
-        
+
         if name == "colbuilder":
             logger.propagate = False
             if _console_handler is not None:
                 logger.addHandler(_console_handler)
-            
+
             if _file_handler is not None:
                 logger.addHandler(_file_handler)
         elif '.' in name:
@@ -225,63 +231,67 @@ def setup_logger(
             logger.propagate = False
             if _console_handler is not None:
                 logger.addHandler(_console_handler)
-            
+
             if _file_handler is not None:
                 logger.addHandler(_file_handler)
-        
+
         _loggers[name] = logger
         _loggers[f"{name}_debug"] = debug
-    
+
     return logger
+
 
 def initialize_root_logger(debug: bool = False, log_dir: Optional[Path] = None) -> logging.Logger:
     """
     Initialize the root logger for the application.
     Should be called once at the start of the application.
-    
+
     Parameters:
         debug: Enable debug mode
         log_dir: Directory for log files
-        
+
     Returns:
         Root logger instance
     """
     if debug:
         os.environ['COLBUILDER_DEBUG'] = '1'
         set_all_loggers_to_debug()
-    
+
     root_logger = setup_logger("colbuilder", debug=debug, log_dir=log_dir)
-    
-    for module in ["colbuilder.core.sequence", "colbuilder.core.geometry", "colbuilder.core.topology"]:
+
+    for module in ["colbuilder.core.sequence", "colbuilder.core.geometry",
+                   "colbuilder.core.topology"]:
         setup_logger(module, debug=debug)
-    
+
     return root_logger
+
 
 def get_system_info() -> Dict[str, Any]:
     """
     Collect system information for debugging purposes.
-    
+
     Returns:
         Dictionary with system information
     """
     import platform
     import sys
-    
+
     return {
         "platform": platform.platform(),
         "python_version": sys.version,
         "python_executable": sys.executable,
         "cwd": os.getcwd(),
         "environment_variables": {
-            k: v for k, v in os.environ.items() 
+            k: v for k, v in os.environ.items()
             if k.startswith(('COLBUILDER_', 'PYTHONPATH', 'PATH'))
         }
     }
 
+
 def log_system_info(logger: logging.Logger) -> None:
     """
     Log system information for debugging.
-    
+
     Parameters:
         logger: Logger instance to use
     """
@@ -295,10 +305,11 @@ def log_system_info(logger: logging.Logger) -> None:
         else:
             logger.debug(f"{key}: {value}")
 
+
 def log_exception(logger: logging.Logger, exception: Exception) -> None:
     """
     Log an exception with traceback.
-    
+
     Parameters:
         logger: Logger instance
         exception: Exception to log
@@ -306,30 +317,31 @@ def log_exception(logger: logging.Logger, exception: Exception) -> None:
     import traceback
     logger.error(f"Exception: {type(exception).__name__}: {str(exception)}")
     tb_lines = traceback.format_exception(
-        type(exception), 
-        exception, 
+        type(exception),
+        exception,
         exception.__traceback__
     )
     for line in tb_lines:
         logger.debug(line.rstrip())
+
 
 def reset_logging():
     """
     Reset the logging system. Useful for testing.
     """
     global _log_file_path, _console_handler, _file_handler, _loggers, _log_file_announced
-    
+
     if _console_handler:
         _console_handler.close()
     if _file_handler:
         _file_handler.close()
-    
+
     _log_file_path = None
     _console_handler = None
     _file_handler = None
     _loggers = {}
     _log_file_announced = False
-    
+
     root = logging.getLogger()
     while root.handlers:
         root.removeHandler(root.handlers[0])

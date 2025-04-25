@@ -5,6 +5,7 @@ import numpy as np
 from typing import List, Optional, Any
 from colbuilder.core.geometry import crosslink
 
+
 class Model:
     """
     Class for model that stores all relevant information about it.
@@ -18,24 +19,31 @@ class Model:
         type (str): Type of the model based on crosslinks ('NC' for non-crosslinked).
         cog (np.ndarray): Center of geometry of the model.
     """
-    def __init__(self, id: Any, transformation: List[float], unit_cell: Optional[List[float]] = None,
-                 connect: Optional[List[float]] = None, connect_id: Optional[float] = None,
-                 pdb_file: Optional[str] = None):
+
+    def __init__(
+        self,
+        id: Any,
+        transformation: List[float],
+        unit_cell: Optional[List[float]] = None,
+        connect: Optional[List[float]] = None,
+        connect_id: Optional[float] = None,
+        pdb_file: Optional[str] = None,
+    ):
         self.id = id
         self.transformation = transformation
         self.unit_cell = unit_cell
         self.connect = connect
         self.connect_id = connect_id
-        
-        self.crosslink = []  
+
+        self.crosslink = []
         if pdb_file:
             crosslinks = crosslink.read_crosslink(pdb_file=pdb_file)
-            if crosslinks: 
+            if crosslinks:
                 self.crosslink = self.add_crosslink(crosslinks)
-                
+
         crosslink_types = set(cross.type for cross in self.crosslink)
         self.type = "".join(sorted(crosslink_types)) if crosslink_types else "NC"
-        
+
         self.cog = self.get_cog()
 
     def add_connect(self, connect_id: float, connect: List[float]) -> None:
@@ -57,7 +65,9 @@ class Model:
         if self.connect:
             self.connect = [i for i in self.connect if i != connect_id]
 
-    def add_crosslink(self, crosslink: List[crosslink.Crosslink]) -> List[crosslink.Crosslink]:
+    def add_crosslink(
+        self, crosslink: List[crosslink.Crosslink]
+    ) -> List[crosslink.Crosslink]:
         """
         Add and transform crosslink according to transformation matrix of model.
         Args:
